@@ -1,0 +1,328 @@
+// ===========================================
+// DAJANA AI - Video Studio (Quiet Luxury / Editorial)
+// Box slika, Kreiraj video, linija do Kolekcije, galerija videa
+// ===========================================
+
+import React, { useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  Dimensions,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+  ScrollView,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import Svg, { Path } from 'react-native-svg';
+import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
+import { useVideoStore } from '@/stores/videoStore';
+import { getSavedVideos, deleteSavedVideo, type SavedVideo } from '@/lib/videoService';
+import { getSavedTryOnImages, type SavedTryOnImage } from '@/lib/tryOnService';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+} from 'react-native-reanimated';
+
+const { width: W, height: H } = Dimensions.get('window');
+const CREAM = '#F8F4EF';
+const GOLD = '#CF8F5A';
+const DARK = '#1A1A1A';
+const PASSEPARTOUT = '#F2EEE8';
+const FRAME_MARGIN = 24;
+const LINE_COLOR = 'rgba(44,42,40,0.3)';
+const LINE_COLOR_STRONG = 'rgba(44,42,40,0.5)';
+
+function GeneratingBanner({ attempt, duration }: { attempt: number; duration: '5' | '10' }) {
+  const est = duration === '5' ? 18 : 30;
+  const min = Math.max(1, Math.ceil((est - attempt) * 10 / 60));
+  return (
+    <View style={bannerStyles.wrap}>
+      <Ionicons name="videocam" size={18} color={GOLD} />
+      <Text style={bannerStyles.text}>Video se kreira ~{min} min</Text>
+    </View>
+  );
+}
+
+const bannerStyles = StyleSheet.create({
+  wrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    backgroundColor: 'rgba(207,143,90,0.12)',
+    marginHorizontal: FRAME_MARGIN,
+    marginTop: SPACING.sm,
+    borderRadius: 12,
+  },
+  text: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.sm,
+    color: DARK,
+  },
+});
+
+export default function VideosScreen() {
+  const insets = useSafeAreaInsets();
+  const savedVideos = useVideoStore((s) => s.savedVideos);
+  const setSavedVideos = useVideoStore((s) => s.setSavedVideos);
+  const backgroundJob = useVideoStore((s) => s.backgroundJob);
+  const bgPollAttempt = useVideoStore((s) => s.bgPollAttempt);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [savedImages, setSavedImages] = React.useState<SavedTryOnImage[]>([]);
+
+  const loadVideos = useCallback(async () => {
+    try {
+      const [vids, imgs] = await Promise.all([getSavedVideos(), getSavedTryOnImages()]);
+      setSavedVideos(vids);
+      setSavedImages(imgs);
+    } catch (e) {
+      console.error('[Videos] Load error', e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadVideos();
+    }, [loadVideos])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadVideos();
+  };
+
+  const handleNewVideo = () => {
+    router.push('/video-generate' as any);
+  };
+
+  const handleOpenVideo = (vid: SavedVideo) => {
+    useVideoStore.getState().setResultVideo(vid.uri);
+    useVideoStore.getState().setSource(vid.sourceImageUrl);
+    useVideoStore.getState().setPrompt(vid.prompt);
+    router.push('/video-result' as any);
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      'Obriši video',
+      'Da li si sigurna da želiš da obrišeš ovaj video?',
+      [
+        { text: 'Otkaži', style: 'cancel' },
+        { text: 'Obriši', style: 'destructive', onPress: async () => {
+          await deleteSavedVideo(id);
+          loadVideos();
+        }},
+      ]
+    );
+  };
+
+  const videoCount = savedVideos.length;
+
+  const handleImagePress = (img: SavedTryOnImage) => {
+    useVideoStore.getState().setSource(img.uri);
+    router.push('/video-generate' as any);
+  };
+
+  const BTN_HEIGHT_APPROX = 38;
+  const GAP_TO_KOLEKCIJA = SPACING.md + 8;
+
+  const renderFrameAndButton = () => {
+    const images = savedImages;
+    const hasImages = images.length > 0;
+    const boxW = W * 0.48;
+    const boxH = boxW * 1.05;
+    const lineStartTop = boxH * 0.45;
+    const curveW = 88;
+    const curveH = 72;
+    const pathD = `M 0 0 Q ${curveW * 0.55} ${curveH * 0.35} ${curveW} ${curveH}`;
+    const btnTop = lineStartTop + curveH;
+    const btnLeft = boxW + curveW - 52;
+    const frameRowMinH = boxH + curveH + 60;
+    return (
+      <Animated.View entering={FadeIn.duration(400)} style={styles.frameBlock}>
+        <View style={[styles.frameRow, { minHeight: frameRowMinH }]}>
+          <View style={[styles.imagesBox, { width: boxW, height: boxH }]}>
+            {hasImages ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesBoxScroll}>
+                {images.slice(0, 8).map((img, idx) => (
+                  <TouchableOpacity key={img.uri + idx} activeOpacity={0.9} onPress={() => handleImagePress(img)} style={styles.imagesBoxThumb}>
+                    <Image source={{ uri: img.uri }} style={styles.imagesBoxThumbImg} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : (
+              <View style={styles.imagesBoxPlaceholder}>
+                <Ionicons name="images-outline" size={36} color={GOLD} />
+                <Text style={styles.imagesBoxPlaceholderText}>Generisane slike</Text>
+                <Text style={styles.imagesBoxPlaceholderSub}>Pojaviće se ovde</Text>
+              </View>
+            )}
+          </View>
+          <View style={[styles.curveLineWrap, { left: boxW - 2, top: lineStartTop, width: curveW, height: curveH }]} pointerEvents="none">
+            <Svg width={curveW} height={curveH} style={StyleSheet.absoluteFill}>
+              <Path d={pathD} stroke={LINE_COLOR} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </View>
+          <TouchableOpacity style={[styles.createVideoBtn, { position: 'absolute', left: btnLeft, top: btnTop }]} onPress={handleNewVideo} activeOpacity={0.88}>
+            <Text style={styles.createVideoBtnText}>Kreiraj video</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    );
+  };
+
+  const renderHeader = () => {
+    const boxW = W * 0.48;
+    const boxH = boxW * 1.05;
+    const curveW = 88;
+    const curveH = 72;
+    const frameRowMinH = boxH + curveH + 60;
+    const btnTop = boxH * 0.45 + curveH;
+    const btnLeft = boxW + curveW - 52;
+    const btnCenterX = FRAME_MARGIN + btnLeft + 58;
+    const lineWrapTop = SPACING.lg + btnTop + BTN_HEIGHT_APPROX + 14;
+    const lineWrapHeight = frameRowMinH + GAP_TO_KOLEKCIJA - btnTop - BTN_HEIGHT_APPROX - 14;
+    const connectPathD = `M ${btnCenterX} 0 L ${btnCenterX} ${lineWrapHeight}`;
+    return (
+      <View>
+        <View style={styles.headerTopWrapper}>
+          {renderFrameAndButton()}
+          <View style={[styles.connectingLineWrap, { top: lineWrapTop, height: lineWrapHeight, width: W }]} pointerEvents="none">
+            <Svg width={W} height={lineWrapHeight} style={StyleSheet.absoluteFill}>
+              <Path d={connectPathD} stroke={LINE_COLOR_STRONG} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            </Svg>
+          </View>
+        </View>
+        {backgroundJob && <GeneratingBanner attempt={bgPollAttempt} duration={backgroundJob.duration} />}
+        {videoCount > 0 && (
+          <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.gallerySectionHeader}>
+            <View style={styles.gallerySectionLine} />
+            <Text style={styles.gallerySectionTitle}>Kolekcija</Text>
+            <View style={styles.gallerySectionLine} />
+          </Animated.View>
+        )}
+      </View>
+    );
+  };
+
+  const renderGalleryItem = ({ item, index }: { item: SavedVideo; index: number }) => {
+    const title = item.prompt ? (item.prompt.length > 30 ? item.prompt.substring(0, 30) + '...' : item.prompt) : 'Kreacija ' + (index + 1);
+    const dateStr = new Date(item.createdAt).toLocaleDateString('sr-RS', { day: 'numeric', month: 'long' });
+    return (
+      <Animated.View entering={FadeInUp.delay(160 + index * 90).duration(460)} style={styles.galleryItem}>
+        <TouchableOpacity activeOpacity={0.92} onPress={() => handleOpenVideo(item)} onLongPress={() => handleDelete(item.id)} style={styles.galleryTouch}>
+          <View style={styles.frameOuter}>
+            <View style={styles.frameInner}>
+              <Image source={{ uri: item.sourceImageUrl }} style={styles.galleryImage} resizeMode="cover" />
+              <View style={styles.galleryOverlay}>
+                <View style={styles.galleryPlayCircle}>
+                  <Ionicons name="play" size={20} color={COLORS.white} style={{ marginLeft: 2 }} />
+                </View>
+              </View>
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{item.duration}s</Text>
+              </View>
+            </View>
+          </View>
+          <View style={styles.galleryInfo}>
+            <Text style={styles.galleryTitle} numberOfLines={1}>{title}</Text>
+            <Text style={styles.galleryDate}>{dateStr}</Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const renderEmpty = () => <View style={styles.emptyWrap} />;
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      {loading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="large" color={GOLD} />
+        </View>
+      ) : (
+        <FlatList
+          data={savedVideos}
+          keyExtractor={(item) => item.id}
+          renderItem={renderGalleryItem}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmpty}
+          contentContainerStyle={[styles.listContent, savedVideos.length === 0 && styles.listEmpty]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={GOLD} />}
+        />
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: CREAM },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyWrap: { minHeight: 120 },
+  listContent: { paddingBottom: 120 },
+  listEmpty: { flexGrow: 1 },
+
+  headerTopWrapper: { position: 'relative' },
+  connectingLineWrap: { position: 'absolute', left: 0 },
+
+  frameBlock: { paddingHorizontal: FRAME_MARGIN, paddingTop: SPACING.lg, paddingBottom: SPACING.md },
+  frameRow: { position: 'relative', flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'flex-start' },
+  curveLineWrap: { position: 'absolute' },
+  imagesBox: { borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: LINE_COLOR, backgroundColor: PASSEPARTOUT },
+  imagesBoxScroll: { padding: 10, gap: 10, flexDirection: 'row', alignItems: 'center', flexGrow: 1 },
+  imagesBoxThumb: { width: 72, height: 72, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.gray[100] },
+  imagesBoxThumbImg: { width: '100%', height: '100%' },
+  imagesBoxPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
+  imagesBoxPlaceholderText: { fontFamily: FONTS.heading.semibold, fontSize: FONT_SIZES.sm, color: DARK, letterSpacing: 0.3, marginTop: SPACING.sm },
+  imagesBoxPlaceholderSub: { fontFamily: FONTS.primary.regular, fontSize: FONT_SIZES.xs, color: COLORS.gray[500], marginTop: 2 },
+  createVideoBtn: {
+    paddingVertical: SPACING.sm + 4,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 20,
+    borderWidth: 1.2,
+    borderColor: GOLD + '99',
+    backgroundColor: '#FFFCF9',
+    marginLeft: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  createVideoBtnText: { fontFamily: FONTS.heading.semibold, fontSize: FONT_SIZES.sm, color: DARK, letterSpacing: 0.8 },
+
+  gallerySectionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: FRAME_MARGIN, marginTop: SPACING.sm, marginBottom: SPACING.md },
+  gallerySectionLine: { flex: 1, height: 1, backgroundColor: LINE_COLOR },
+  gallerySectionTitle: { fontFamily: FONTS.heading.semibold, fontSize: FONT_SIZES.sm, color: DARK, marginHorizontal: SPACING.md, letterSpacing: 0.5 },
+
+  galleryItem: { marginHorizontal: FRAME_MARGIN, marginBottom: SPACING.lg },
+  galleryTouch: {},
+  frameOuter: { borderWidth: 1.5, borderColor: LINE_COLOR, borderRadius: 16, padding: 6, backgroundColor: PASSEPARTOUT },
+  frameInner: { borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.gray[100] },
+  galleryImage: { width: '100%', aspectRatio: 3 / 4 },
+  galleryOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.15)' },
+  galleryPlayCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
+  durationBadge: { position: 'absolute', bottom: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  durationText: { fontFamily: FONTS.primary.semibold, fontSize: 12, color: '#FFF' },
+  galleryInfo: { marginTop: SPACING.sm },
+  galleryTitle: { fontFamily: FONTS.primary.semibold, fontSize: FONT_SIZES.sm, color: DARK },
+  galleryDate: { fontFamily: FONTS.primary.regular, fontSize: FONT_SIZES.xs, color: COLORS.gray[500], marginTop: 2 },
+});

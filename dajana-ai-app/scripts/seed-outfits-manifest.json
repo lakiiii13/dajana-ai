@@ -1,0 +1,14 @@
+[
+  {"path":"hourglass_warm_autumn/Screenshot 2026-02-18 at 11.57.22.png","title":"Peščani sat + prava jesen","seasons":["warm_autumn"],"body_types":["hourglass"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"hourglass_cool_winter/Screenshot 2026-02-18 at 11.47.57.png","title":"Peščani sat + prava zima","seasons":["cool_winter"],"body_types":["hourglass"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"hourglass_cool_summer/Screenshot 2026-02-18 at 11.45.49.png","title":"Peščani sat + pravo ljeto","seasons":["cool_summer"],"body_types":["hourglass"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"hourglass_clear_winter/Screenshot 2026-02-18 at 11.52.29.png","title":"Peščani sat + sjajna zima","seasons":["clear_winter"],"body_types":["hourglass"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"pear_soft_autumn/Screenshot 2026-02-18 at 11.39.31.png","title":"Kašika + meka jesen","seasons":["soft_autumn"],"body_types":["pear"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"pear_warm_autumn_kasika/Screenshot 2026-02-18 at 11.37.46.png","title":"Kašika + prava jesen","seasons":["warm_autumn"],"body_types":["pear"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"pear_warm_autumn/Screenshot 2026-02-18 at 12.05.33.png","title":"Kruška + prava jesen","seasons":["warm_autumn"],"body_types":["pear"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"pear_warm_spring/Screenshot 2026-02-18 at 11.41.33.png","title":"Kruška + pravo proljeće","seasons":["warm_spring"],"body_types":["pear"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"rectangle_cool_summer/Screenshot 2026-02-18 at 11.59.26.png","title":"Pravougaoni + pravo ljeto","seasons":["cool_summer"],"body_types":["rectangle"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"rectangle_warm_autumn/Screenshot 2026-02-18 at 12.07.27.png","title":"Pravougaoni + prava jesen","seasons":["warm_autumn"],"body_types":["rectangle"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"rectangle_cool_winter/Screenshot 2026-02-18 at 12.03.04.png","title":"Pravougaoni + prava zima","seasons":["cool_winter"],"body_types":["rectangle"],"description":"Test outfit","tags":["complete_look"]},
+  {"path":"rectangle_deep_autumn/Screenshot 2026-02-18 at 11.34.22.png","title":"Pravougaoni + tamna jesen","seasons":["deep_autumn"],"body_types":["rectangle"],"description":"Test outfit","tags":["complete_look"]}
+]
