@@ -22,6 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { t } from '@/lib/i18n';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuthStore } from '@/stores/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -77,30 +78,52 @@ export default function IntroScreen() {
 
   const getItemLayout = useCallback(
     (_: any, index: number) => ({
-      length: SCREEN_HEIGHT,
-      offset: SCREEN_HEIGHT * index,
+      length: SCREEN_WIDTH,
+      offset: SCREEN_WIDTH * index,
       index,
     }),
-    [SCREEN_HEIGHT]
+    [SCREEN_WIDTH]
   );
 
 
-  const handleContinue = () => {
+  const handleRegister = () => {
     router.push('/(auth)/register');
+  };
+
+  const setGuest = useAuthStore((s) => s.setGuest);
+
+  const handleLogin = () => {
+    router.push('/(auth)/login');
   };
 
   const handleSkip = () => {
     router.push('/(auth)/register');
   };
 
+  const handleContinueAsGuest = () => {
+    setGuest(true);
+    // Odmah prebaci na Home – zbog Google/App Store: gost vidi samo Početnu, sve ostalo otvara modal "Napravite profil"
+    requestAnimationFrame(() => {
+      router.replace('/(tabs)');
+    });
+  };
+
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
-      const newIndex = viewableItems[0].index ?? 0;
-      if (newIndex !== currentIndex) setCurrentIndex(newIndex);
+      setCurrentIndex(viewableItems[0].index ?? 0);
     }
   }).current;
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
+
+  useEffect(() => {
+    const listener = scrollX.addListener(({ value }) => {
+      const index = Math.round(value / SCREEN_WIDTH);
+      const clamped = Math.max(0, Math.min(index, slides.length - 1));
+      setCurrentIndex(clamped);
+    });
+    return () => scrollX.removeListener(listener);
+  }, [scrollX]);
 
   const renderSlide = useCallback(
     ({ item, index }: { item: SlideData; index: number }) => {
@@ -261,34 +284,47 @@ export default function IntroScreen() {
         </View>
       </SafeAreaView>
 
-      {/* Dno – preko slike */}
+      {/* Dno – krugovi, dugmad, Već imate nalog? */}
       <SafeAreaView style={styles.bottomOverlay} edges={['bottom']}>
-      <View style={styles.bottomSection}>
-        {renderDots()}
-        <View style={styles.buttonWrapper}>
-          {isLastSlide ? (
-            <TouchableOpacity
-              style={styles.continueButton}
-              onPress={handleContinue}
-              activeOpacity={0.9}
-            >
-              <View style={styles.buttonContent}>
-                <View style={{ width: 20 }} />
-                <Text style={styles.continueText}>{t('auth.next')}</Text>
-                <Feather name="arrow-right" size={20} color={COLORS.primary} />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.5)']}
+          style={styles.bottomGradient}
+          pointerEvents="none"
+        />
+        <View style={styles.bottomSection}>
+          <View style={styles.dotsSpacer} />
+          {renderDots()}
+          <View style={styles.buttonWrapper}>
+            {isLastSlide ? (
+              <TouchableOpacity
+                style={styles.continueButton}
+                onPress={handleRegister}
+                activeOpacity={0.9}
+              >
+                <View style={styles.buttonContent}>
+                  <View style={{ width: 16 }} />
+                  <Text style={styles.continueText}>{t('auth.next')}</Text>
+                  <Feather name="arrow-right" size={16} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ height: 48 }} />
+            )}
+          </View>
+          {isLastSlide && (
+            <>
+              <TouchableOpacity style={styles.guestButton} onPress={handleContinueAsGuest} activeOpacity={0.85}>
+                <Text style={styles.guestButtonText}>{t('auth.continue_as_guest')}</Text>
+              </TouchableOpacity>
+              <View style={styles.loginContainer}>
+                <Text style={styles.loginText}>{t('auth.have_account')} </Text>
+                <TouchableOpacity onPress={handleLogin} activeOpacity={0.8}>
+                  <Text style={styles.loginLink}>{t('auth.login')}</Text>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          ) : (
-            <View style={{ height: 60 }} />
+            </>
           )}
         </View>
-        <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>{t('auth.have_account')} </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-            <Text style={styles.loginLink}>{t('auth.login')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
       </SafeAreaView>
     </View>
   );
@@ -326,6 +362,13 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
+  },
+  bottomGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 220,
   },
   header: {
     flexDirection: 'row',
@@ -388,7 +431,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.xxl + 100,
+    paddingBottom: 220,
   },
   slideSubtitle: {
     fontSize: FONT_SIZES.md,
@@ -404,7 +447,7 @@ const styles = StyleSheet.create({
   accentLine: {
     width: 36,
     height: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     marginBottom: SPACING.md,
     opacity: 0.9,
   },
@@ -447,73 +490,91 @@ const styles = StyleSheet.create({
   decorDiamondSmall: {
     width: 4,
     height: 4,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     transform: [{ rotate: '45deg' }],
     marginHorizontal: SPACING.xs,
   },
   bottomSection: {
     paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
+    paddingBottom: SPACING.lg,
+    paddingTop: SPACING.sm,
+  },
+  dotsSpacer: {
+    height: 12,
   },
   dotsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: SPACING.xl,
-    gap: 6,
+    marginBottom: SPACING.md,
+    gap: 5,
   },
   dot: {},
   dotBase: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
     backgroundColor: COLORS.white,
   },
   buttonWrapper: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.sm,
+  },
+  guestButton: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    marginBottom: SPACING.xs,
+  },
+  guestButtonText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.primary.medium,
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: 0.3,
+    textDecorationLine: 'underline',
+  },
+  loginContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: SPACING.xs,
+  },
+  loginText: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.primary.regular,
+    color: 'rgba(255,255,255,0.82)',
+    letterSpacing: 0.2,
+  },
+  loginLink: {
+    fontSize: FONT_SIZES.xs,
+    fontFamily: FONTS.primary.medium,
+    color: 'rgba(255,255,255,0.95)',
+    letterSpacing: 0.2,
+    textDecorationLine: 'underline',
+    textDecorationStyle: 'solid',
   },
   continueButton: {
-    height: 60,
-    backgroundColor: COLORS.white,
-    borderRadius: 30,
-    borderTopLeftRadius: 30,
-    borderBottomLeftRadius: 30,
-    borderTopRightRadius: 30,
-    borderBottomRightRadius: 2,
-    borderWidth: 0.5,
-    borderColor: COLORS.secondary,
+    height: 48,
+    backgroundColor: COLORS.primary,
+    borderRadius: 24,
+    borderWidth: 0,
     shadowColor: COLORS.black,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   buttonContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   continueText: {
-    fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.primary.semibold,
-    color: COLORS.black,
-    letterSpacing: 0.5,
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: SPACING.sm,
-  },
-  loginText: {
-    fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.primary.regular,
-    color: COLORS.gray[500],
-  },
-  loginLink: {
     fontSize: FONT_SIZES.sm,
     fontFamily: FONTS.primary.semibold,
-    color: COLORS.primary,
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
   },
 });

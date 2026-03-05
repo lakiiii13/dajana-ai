@@ -18,6 +18,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import { useTryOnStore } from '@/stores/tryOnStore';
 
 const { width } = Dimensions.get('window');
@@ -38,7 +39,7 @@ export default function OutfitPreviewScreen() {
   };
 
   const handleGoToTryOn = () => {
-    router.push('/try-on/upload');
+    router.push('/try-on');
   };
 
   const handleGoToVideo = () => {
@@ -56,9 +57,9 @@ export default function OutfitPreviewScreen() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.emptyWrap}>
           <Ionicons name="shirt-outline" size={56} color={COLORS.gray[300]} />
-          <Text style={styles.emptyText}>Nisi izabrala nijedan outfit</Text>
+          <Text style={styles.emptyText}>{t('outfit_preview.empty_message')}</Text>
           <TouchableOpacity style={styles.emptyBtn} onPress={handleBack}>
-            <Text style={styles.emptyBtnText}>Nazad</Text>
+            <Text style={styles.emptyBtnText}>{t('outfit_preview.back_btn')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -73,11 +74,11 @@ export default function OutfitPreviewScreen() {
           <Ionicons name="chevron-back" size={24} color={DARK} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Tvoj izbor</Text>
-          <View style={styles.headerAccent} />
+<Text style={styles.headerTitle}>{t('outfit_preview.your_choice')}</Text>
+        <View style={styles.headerAccent} />
         </View>
         <TouchableOpacity onPress={clearOutfitItems} activeOpacity={0.7}>
-          <Text style={styles.clearText}>Obriši sve</Text>
+          <Text style={styles.clearText}>{t('outfit_preview.clear_all')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -110,13 +111,13 @@ export default function OutfitPreviewScreen() {
         </View>
 
         <Text style={styles.countLabel}>
-          {outfitItems.length} {outfitItems.length === 1 ? 'komad' : 'komada'} izabrano
+          {outfitItems.length === 1 ? t('outfit_preview.items_selected_one', { count: outfitItems.length }) : t('outfit_preview.items_selected', { count: outfitItems.length })}
         </Text>
       </ScrollView>
 
       {/* Action section */}
       <View style={styles.actionsSection}>
-        <Text style={styles.actionsHeading}>Šta želiš da napraviš?</Text>
+        <Text style={styles.actionsHeading}>{t('outfit_preview.what_to_make')}</Text>
 
         <View style={styles.actionsRow}>
           {/* Slika / Try-On card */}
@@ -124,8 +125,8 @@ export default function OutfitPreviewScreen() {
             <View style={styles.actionIconWrap}>
               <Ionicons name="camera-outline" size={32} color={GOLD} />
             </View>
-            <Text style={styles.actionTitle}>Slika</Text>
-            <Text style={styles.actionSub}>AI Try-On fotografija</Text>
+            <Text style={styles.actionTitle}>{t('outfit_preview.option_image')}</Text>
+            <Text style={styles.actionSub}>{t('outfit_preview.option_image_sub')}</Text>
           </TouchableOpacity>
 
           {/* Video card */}
@@ -133,8 +134,8 @@ export default function OutfitPreviewScreen() {
             <View style={[styles.actionIconWrap, styles.actionIconWrapVideo]}>
               <Ionicons name="videocam-outline" size={32} color={COLORS.white} />
             </View>
-            <Text style={styles.actionTitle}>Video</Text>
-            <Text style={styles.actionSub}>5s AI animacija</Text>
+            <Text style={styles.actionTitle}>{t('outfit_preview.option_video')}</Text>
+            <Text style={styles.actionSub}>{t('outfit_preview.option_video_sub')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
   headerAccent: {
     width: 28,
     height: 2,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     marginTop: 6,
     borderRadius: 1,
   },
@@ -318,7 +319,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.lg,
     paddingHorizontal: SPACING.xl,
     paddingVertical: SPACING.sm,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     borderRadius: 14,
   },
   emptyBtnText: {

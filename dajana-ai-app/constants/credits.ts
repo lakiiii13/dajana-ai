@@ -2,8 +2,11 @@
 // DAJANA AI - Credits Constants
 // ===========================================
 
+/** Broj dana u periodu – krediti se obnavljaju 31 dan od dana uplate, ne kalendarski mesec. */
+export const CREDIT_PERIOD_DAYS = 31;
+
 export const CREDIT_LIMITS = {
-  // Monthly limits (reset on 1st of each month)
+  // Limiti po periodu (obnova 31 dana od last_reset_date / uplate)
   monthly: {
     images: 50,
     videos: 2,

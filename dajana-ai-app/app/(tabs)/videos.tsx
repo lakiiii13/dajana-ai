@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
+import { t, getLanguage } from '@/lib/i18n';
 import { useVideoStore } from '@/stores/videoStore';
 import { getSavedVideos, deleteSavedVideo, type SavedVideo } from '@/lib/videoService';
 import { getSavedTryOnImages, type SavedTryOnImage } from '@/lib/tryOnService';
@@ -46,7 +47,7 @@ function GeneratingBanner({ attempt, duration }: { attempt: number; duration: '5
   return (
     <View style={bannerStyles.wrap}>
       <Ionicons name="videocam" size={18} color={GOLD} />
-      <Text style={bannerStyles.text}>Video se kreira ~{min} min</Text>
+      <Text style={bannerStyles.text}>{t('video.generating_min', { min })}</Text>
     </View>
   );
 }
@@ -167,7 +168,7 @@ export default function VideosScreen() {
             ) : (
               <View style={styles.imagesBoxPlaceholder}>
                 <Ionicons name="images-outline" size={36} color={GOLD} />
-                <Text style={styles.imagesBoxPlaceholderText}>Generisane slike</Text>
+                <Text style={styles.imagesBoxPlaceholderText}>{t('video.generated_images')}</Text>
                 <Text style={styles.imagesBoxPlaceholderSub}>Pojaviće se ovde</Text>
               </View>
             )}
@@ -178,7 +179,7 @@ export default function VideosScreen() {
             </Svg>
           </View>
           <TouchableOpacity style={[styles.createVideoBtn, { position: 'absolute', left: btnLeft, top: btnTop }]} onPress={handleNewVideo} activeOpacity={0.88}>
-            <Text style={styles.createVideoBtnText}>Kreiraj video</Text>
+            <Text style={styles.createVideoBtnText}>{t('video.create_video')}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -208,20 +209,18 @@ export default function VideosScreen() {
           </View>
         </View>
         {backgroundJob && <GeneratingBanner attempt={bgPollAttempt} duration={backgroundJob.duration} />}
-        {videoCount > 0 && (
-          <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.gallerySectionHeader}>
-            <View style={styles.gallerySectionLine} />
-            <Text style={styles.gallerySectionTitle}>Kolekcija</Text>
-            <View style={styles.gallerySectionLine} />
-          </Animated.View>
-        )}
+        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.gallerySectionHeader}>
+          <View style={styles.gallerySectionLine} />
+          <Text style={styles.gallerySectionTitle}>{t('video.collection')}</Text>
+          <View style={styles.gallerySectionLine} />
+        </Animated.View>
       </View>
     );
   };
 
   const renderGalleryItem = ({ item, index }: { item: SavedVideo; index: number }) => {
-    const title = item.prompt ? (item.prompt.length > 30 ? item.prompt.substring(0, 30) + '...' : item.prompt) : 'Kreacija ' + (index + 1);
-    const dateStr = new Date(item.createdAt).toLocaleDateString('sr-RS', { day: 'numeric', month: 'long' });
+    const title = item.prompt ? (item.prompt.length > 30 ? item.prompt.substring(0, 30) + '...' : item.prompt) : `${t('video.creation_title')} ${index + 1}`;
+    const dateStr = new Date(item.createdAt).toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'sr-RS', { day: 'numeric', month: 'long' });
     return (
       <Animated.View entering={FadeInUp.delay(160 + index * 90).duration(460)} style={styles.galleryItem}>
         <TouchableOpacity activeOpacity={0.92} onPress={() => handleOpenVideo(item)} onLongPress={() => handleDelete(item.id)} style={styles.galleryTouch}>
@@ -247,7 +246,11 @@ export default function VideosScreen() {
     );
   };
 
-  const renderEmpty = () => <View style={styles.emptyWrap} />;
+  const renderEmpty = () => (
+    <View style={styles.emptyWrap}>
+      <Text style={styles.emptyText}>{t('video.no_videos_yet')}</Text>
+    </View>
+  );
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -274,7 +277,21 @@ export default function VideosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: CREAM },
   loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyWrap: { minHeight: 120 },
+  emptyWrap: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: SPACING.xxl + 16,
+    paddingBottom: SPACING.xl,
+    paddingHorizontal: FRAME_MARGIN,
+  },
+  emptyText: {
+    fontFamily: FONTS.primary.light,
+    fontSize: FONT_SIZES.xs,
+    color: COLORS.gray[500],
+    textAlign: 'center',
+    lineHeight: 20,
+  },
   listContent: { paddingBottom: 120 },
   listEmpty: { flexGrow: 1 },
 
@@ -295,19 +312,18 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm + 4,
     paddingHorizontal: SPACING.lg,
     borderRadius: 20,
-    borderWidth: 1.2,
-    borderColor: GOLD + '99',
-    backgroundColor: '#FFFCF9',
+    borderWidth: 0,
+    backgroundColor: COLORS.primary,
     marginLeft: 4,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 2,
   },
-  createVideoBtnText: { fontFamily: FONTS.heading.semibold, fontSize: FONT_SIZES.sm, color: DARK, letterSpacing: 0.8 },
+  createVideoBtnText: { fontFamily: FONTS.heading.semibold, fontSize: FONT_SIZES.sm, color: '#FFFFFF', letterSpacing: 0.8 },
 
   gallerySectionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: FRAME_MARGIN, marginTop: SPACING.sm, marginBottom: SPACING.md },
   gallerySectionLine: { flex: 1, height: 1, backgroundColor: LINE_COLOR },

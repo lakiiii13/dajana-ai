@@ -134,7 +134,7 @@ export default function OutfitDetailView({
     try {
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert(t('error'), 'Sharing is not available on this device');
+        Alert.alert(t('error'), t('share_not_available'));
         return;
       }
       if (outfit.image_url) {
@@ -454,9 +454,9 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: GOLD,
+    borderColor: COLORS.primary,
   },
-  saveButtonActive: { backgroundColor: GOLD, borderColor: GOLD },
+  saveButtonActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   addToOutfitButton: {
     flex: 1,
     flexDirection: 'row',
@@ -466,17 +466,17 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: GOLD,
+    borderColor: COLORS.primary,
     gap: 6,
   },
-  addToOutfitText: { fontFamily: FONTS.primary.semibold, fontSize: FONT_SIZES.sm, color: GOLD },
+  addToOutfitText: { fontFamily: FONTS.primary.semibold, fontSize: FONT_SIZES.sm, color: COLORS.primary },
   tryOnButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     borderRadius: 14,
     gap: 6,
   },
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.sm,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     borderRadius: 14,
   },
   retryButtonText: {

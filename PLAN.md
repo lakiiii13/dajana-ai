@@ -13,9 +13,9 @@
 
 **Šta smo dodali (UI dorada):**
 - **Splash:** GIF logo u `SplashContent.tsx`, 5.5 s → Welcome. **Pozadina uvek bela:** `SplashContent` container i root wrapper u `_layout.tsx` imaju `backgroundColor: '#ffffff'` (nezavisno od teme); `app.json` splash već ima `#ffffff`.
-- **Welcome:** DAJANA/AI (TG Valtica), **slika Dajana** u centru (`welcome-dajana.png`) unutar **okvira** (zlatna obruba, zaobljeni uglovi, senka); zlatna Allura headline; swipe traka sa "Započni" i strelicama (bez teksta "Prevuci da započneš"). **Header:** samo **SR/ENG** (LanguageSwitcher) u **desnom uglu gore**; Theme toggle uklonjen sa Welcome (ostaje u Profilu). Raspored: DAJANA → hero blok (slika u frame-u) → AI → headline → swipe.
+- **Welcome:** DAJANA/AI (TG Valtica), **video u pozadini** (`welcome-dajana-wave.mp4`), LinearGradient overlay. Video: blagi **zoom + pomeranje ka gore** (`scale: 1.14`, `translateY: -32`) da se Runway logo u donjem desnom uglu odseče; `fullScreenOptions={{ allowsFullscreen: false }}` (umesto deprecated `allowsFullscreen`). **Pravilo hookova:** svi hookovi (useState, useRef, useCallback, useEffect, useVideoPlayer) na početku komponente, early return za ulogovanog/gosta **posle** hookova. Swipe traka "Započni", header SR/ENG desno gore.
 - **Light/Dark tema:** `stores/themeStore.ts`, `contexts/ThemeContext.tsx`, `getColors(mode)` u `theme.ts`. Tema na Welcome i u **Profilu (Settings)**; **svi ekrani** prate izabranu temu (background, surface, text). **ThemeContext:** eksportovan `ThemeContextValue`, `useTheme(): ThemeContextValue` (da TypeScript prepozna `colors`).
-- **Home (INDYX-inspired):** Hero **centriran** (DAJANAI + tagline); **levo** notifikacije (bell + zlatni badge), **desno** kalendar + settings. **Jedan padajući hero blok** umesto tri kocke — naslov, pasus, brojevi (slike · video · analize) u jednom zlatnom baneru.
+- **Home (INDYX-inspired):** Hero centriran; levo notifikacije, desno kalendar + settings; padajući hero blok (krediti). **Outfit detail modal** (tap na outfit iz sekcije Outfit): fullscreen karusel kada ima više stavki (swipe levo/desno), krem pozadina; **desno dole** siva **animirana strelica** (chevron-right, Reanimated loop 0→8px→0) kao hint za swipe; brojač „1 / N”; zatvaranje X.
 - **Navigacija:** Root Stack u `app/_layout.tsx` — (auth) Welcome/Intro/Login/Register/Forgot, (onboarding) mere/body-type/analiza/sezona/complete, (tabs) Home/Capsule/Videos/AI Savetnik/Profile, plus **calendar**, **edit-profile** (modal), **outfit/[id]**.
 - **Tab bar:** **Wardrobe Rail** navigacija (`components/WardrobeRailTabBar.tsx`) — šipka, kukice, tilt/spring animacije; tabovi: Home, Capsule, Videos, AI Savetnik, Profile; Kapsula u sredini sa slikom `logo_za_kapsulu.png`. Tab layout u `app/(tabs)/_layout.tsx` sa custom tab barom i header stilom (tema).
 - **Kalendar:** Stranica `app/calendar.tsx` — mesečni prikaz (grid 7×6), prev/next mesec, paleta belo/zlatno/krem; ulaz sa Home preko ikone kalendara (desno u heroju).
@@ -26,18 +26,22 @@
 
 **GitHub:** https://github.com/lakarijeprvovencani/dajana-ai
 
-**Poslednje izmene (PLAN):** Atelier flow pre chata (3 ekrana) + chat luxury polish + izlaz dugme; Profil premium fashion redesign. Ranije: Video Studio redizajn, sezonske palete, Faza 5 AI Video, Faza 8, Kapsula, Outfit Builder, Result, Chat, cream paleta.
+**Poslednje izmene (PLAN):** Guest flow (Nastavi kao gost → Home, modal „Napravite profil“); AI Try-On više ekrana (welcome → upload → generating → result), fullscreen krem; Welcome video zoom (Runway logo odsečen); outfit modal swipe strelica (animirana); notifikacije bez upozorenja za gosta. Ranije: Atelier flow, Video Studio, Faza 5/8, Kapsula, cream paleta.
+
+**Guest (Nastavi kao gost):**
+- **Intro:** Na poslednjem slideu dugme „Nastavi kao gost“ → `setGuest(true)` + `router.replace('/(tabs)')` → Home.
+- **Root layout:** Gost sme samo **(tabs)** ili **(auth)** — kada nije ni u tabovima ni na auth (npr. onboarding), redirect na `/(tabs)`. Kada je na (auth), nema redirecta, da može **nazad** sa Home da izađe (back → intro → welcome → zatvori app).
+- **Zaštićeno:** Tab bar (Kapsula, Video, Dajana, Profil) i sve akcije sa Home (open Capsule, otvaranje videa, notifikacije, kalendar, krediti, edit-profile, kartica „Dopuni profil“) otvaraju **GuestBlockModal** — naslov „Napravite profil“, poruka da samo prijavljeni mogu da koriste sadržaj, dugmad Prijavi se / Registruj se.
+- **Notifikacije:** Za gosta se ne prikazuje upozorenje; za neulogovanog (bez gost flag) samo `console.log` „Obavestenja će biti dostupna nakon prijave.“ (`lib/notificationService.ts` + `useAuthStore.getState().isGuest`).
 
 **AI Try-On (Faza 4) — Implementacija:**
-- **Flow:** Outfit detail → "Isprobaj" dugme → Upload slika lica (kamera/galerija) → AI generisanje → Rezultat sa glass efektom
-- **AI Engine:** Google Gemini 3 Pro Image (`gemini-3-pro-image-preview` / Nano Banana AI)
-- **Kredit sistem:** 50 generacija mesečno, reset svakog 1. u mesecu, bonus krediti se troše prvi
-- **Ekrani:** Upload (zlatni frame corners, kamera/galerija picker), Generating (pulse animacije, loading dots), Result (glass overlay, face thumbnail, AI chip, save/share/retry)
-- **Store:** `stores/tryOnStore.ts` (Zustand) — čuva outfit, face image, generated image, status
-- **Servis:** `lib/tryOnService.ts` — Gemini API poziv, base64 konverzija, prompt engineering
-- **Krediti:** `lib/creditService.ts` — Supabase `user_credits` tabela, mesečni reset, dedukcija
-- **Navigacija:** `app/try-on/_layout.tsx` → upload → generating → result (fullScreenModal)
-- **Dizajn:** Deep Emerald Green (#0D4326) pozadina, Gold (#CF8F5A) akcenti, zlatni corner accenti, glass overlay na rezultatu
+- **Flow:** Kapsula / Ormar → **try-on welcome** (`/try-on` index) → Upload slika lica → Generating → Result. Welcome: fullscreen krem, naslov „AI Try-On“, tekst „Slikajte lice za najbolji rezultat…“, dugme „Dalje“.
+- **Navigacija:** `app/try-on/_layout.tsx` → **index** (welcome) → upload → generating → result (fullScreenModal). Ulaz iz Kapsule/Ormara: `router.push('/try-on')`.
+- **Upload ekran:** ScrollView, eksplicitni safe area insets (`useSafeAreaInsets`), animacije (FadeInDown za header/garderoba, FadeIn za photo area, FadeInUp za dugmad). Visina zone za sliku: `Math.min(SCREEN_HEIGHT * 0.48, 420)`.
+- **Generating:** Krem pozadina (#F8F4EF), zlatni progress/dots (#CF8F5A).
+- **Slika (try-on) detail na Home:** Fullscreen modal, krem pozadina (HOME_CREAM), zatvaranje X i tag (datum) u krem/zlatnom stilu.
+- **AI Engine, Store, Servis, Krediti:** kao ranije (Gemini, tryOnStore, tryOnService, creditService).
+- **Dizajn:** Krem (#F8F4EF) na welcome, upload, generating, result; zlatni akcenti.
 
 **Sezonske palete (client-materijal):**
 - **`constants/seasonPalettes.ts`** — za svih 12 sezona: HEX boje (kompletna paleta iz PDF-a) + parovi „Ako korisnica kaže” → „AI odgovara” (uključujući Tamna zima – dva odgovora za „Ne sviđaju mi se boje”).
@@ -55,7 +59,7 @@ Sve izmene: danas (video + push), ranije Kapsula, outfit flow, try-on result, ch
 
 - **Video u pozadini:** Posle klika „Generiši Video“ korisnik ostaje na **punom loading ekranu** (tri prstena, progress bar, „~X min preostalo“) ili može da izađe dugmetom **„Nastavi u pozadini“** → prelaz na Videos tab; generisanje nastavlja, stiže notifikacija kada je gotovo.
 - **GeneratingOverlay:** Pun overlay sa animacijom, progress barom (iz store-a), hintom „Možeš ostati ovde ili izaći“ i dugmetom „Nastavi u pozadini“ (zlatni outline).
-- **Expo Notifications:** `expo-notifications`, `expo-task-manager`, `expo-background-fetch`; dozvole, Android kanal „Video spreman“, zlatna boja (#CF8F5A); token u Supabase `push_tokens`.
+- **Expo Notifications:** `expo-notifications`, `expo-task-manager`, `expo-background-fetch`; dozvole, Android kanali (Video spreman, DAJANA AI); token u Supabase `push_tokens`; EAS projectId u app.config.js; admin šalje push preko `/api/send-push`; ikona notifikacija = app icon (app.config.js).
 - **Lokalne notifikacije:** „DAJANA AI – Tvoj video je spreman! Pogledaj sada.“; tap → otvara `/video-result` (deep link handler u `_layout`).
 - **Globalni poller:** `VideoBackgroundPoller` u `_layout.tsx` – poll svakih 10 s dok postoji `backgroundJob`; kada je video spreman: download, save, notifikacija, navigacija na video-result; floating pill „Video se kreira ~X min“ na svim ekranima.
 - **Videos tab:** Banner „Video se kreira ~X min“ (GeneratingBanner) kada je job aktivan.
@@ -184,7 +188,7 @@ Sve nove komponente i ekrani MORAJU pratiti ove smernice kako bi se zadržao "Lu
 | 1 | Foundation | ✅ DONE |
 | 2 | Profil i Onboarding | ✅ DONE |
 | 3 | Capsule Wardrobe | ✅ DONE |
-| 4 | AI Try-On (Slike) | ⏳ TODO (uskoro) |
+| 4 | AI Try-On (Slike) | ✅ DONE |
 | 5 | AI Video | ✅ DONE |
 | 6 | AI Savetnik | ⏳ TODO |
 | 7 | Payments (Stripe) | ⏳ TODO |
@@ -271,7 +275,8 @@ Sve nove komponente i ekrani MORAJU pratiti ove smernice kako bi se zadržao "Lu
 - [x] Result screen sa glass efektom (face thumbnail, AI chip badge, save/share)
 - [x] Credit dedukcija (50/mesec iz `user_credits` tabele, mesečni reset)
 - [x] Try-On store (Zustand) za state management između ekrana
-- [x] Navigacija: outfit/[id] → try-on/upload → try-on/generating → try-on/result
+- [x] Navigacija: Kapsula/Ormar → **try-on (welcome)** → try-on/upload → try-on/generating → try-on/result; welcome ekran (`app/try-on/index.tsx`): fullscreen krem, „Slikajte lice…“, Dalje; i18n `try_on.welcome_title`, `welcome_subtitle`, `welcome_next`
+- [x] Upload: ScrollView, safe area insets, animacije; generating/result krem + zlatno; Slika detail modal na Home fullscreen krem
 - [x] Error handling i retry mehanizam
 - [ ] Galerija generisanih slika (prikaz na Home screen — sledeći korak)
 
@@ -351,9 +356,13 @@ AI savetnik koji koristi OpenAI GPT-4o Vision za analizu generisanih try-on slik
 
 - [x] **Expo Notifications setup** – expo-notifications, expo-task-manager, expo-background-fetch; dozvole, token u Supabase `push_tokens`, lokalne notifikacije (DAJANA AI, zlatna boja)
 - [x] **Video u pozadini + notifikacija** – generisanje u pozadini, globalni poller, notifikacija „Tvoj video je spreman!“, tap → video-result
-- [ ] Backend za slanje notifikacija (server-side push)
-- [ ] Admin panel za slanje
-- [ ] Notification preferences
+- [x] **Backend za slanje notifikacija** – Next.js API `POST /api/send-push`, expo-server-sdk, čitanje tokena iz Supabase (service role), slanje u chunkovima
+- [x] **Admin panel za slanje** – stranica Notifikacije: form (naslov opciono, poruka obavezno), „Pošalji svima“, DAJANA stil (zeleno/zlatno), prikaz broja uređaja
+- [x] **EAS projectId za push** – `app.config.js` (extra.eas.projectId), projekt @anonimni/dajana-ai-app; uputstvo u POKRETANJE-SERVERA.md
+- [x] **Registracija tokena** – odložena registracija + ponovni pokušaj pri povratku u app (AppState), registracija i u (tabs) layout kad je korisnik ulogovan
+- [x] **Ikona notifikacija** – expo-notifications plugin u app.config.js: `icon: ./assets/images/icon.png`, `color: #CF8F5A`; Android kanal `dajana-announcements` (DAJANA AI, zlatna). Na iOS ikona = app icon (vidljiva u dev/production buildu; u Expo Go ostaje ikona Expo Go)
+- [x] **Gost:** Registracija tokena se ne poziva za gosta (layout `!isGuest`). U `savePushToken`: ako nema user i `isGuest`, bez loga; ako nema user a nije gost, samo `console.log` „Obavestenja će biti dostupna nakon prijave.“
+- [ ] Notification preferences (korisnik uključi/isključi kategorije)
 
 ---
 
@@ -384,10 +393,13 @@ AI savetnik koji koristi OpenAI GPT-4o Vision za analizu generisanih try-on slik
 - [ ] Haptic feedback
 
 ### Admin Panel
-- [ ] Dashboard vizualizacije
-- [ ] Responsive dizajn
-- [ ] Loading indicators
-- [ ] Toast notifikacije
+- [x] **Dashboard vizualizacije** – stat kartice (Korisnici, Outfiti, Slike, Videi), brzi linkovi ka sekcijama
+- [x] **Responsive dizajn** – main padding (p-4 sm:p-6 lg:p-8), min-w-0, grid kolone 1 / sm:2 / lg:4
+- [x] **Loading indicators** – loading.tsx za dashboard, users, analytics (skeleton)
+- [x] **Toast notifikacije** – ToastProvider + useToast(), toast na Notifikacije stranici (success/error)
+- [x] **Logo u sidebaru** – slika iz public/logo.png (fallback na „DAJANA AI” tekst ako fajl nije tu)
+- [x] **Korisnici stranica** – lista korisnika iz Supabase (profiles), tabela (email, ime, jezik, datum)
+- [x] **Statistika stranica** – brojevi (korisnici, outfiti, slike, videi), bar vizualizacije po mesecu za generacije
 
 ### Slike i Assets
 - [ ] Outfit placeholder slike
@@ -578,7 +590,7 @@ Pre commit-a proveri:
 | `app/(tabs)/_layout.tsx` | Tab layout — WardrobeRailTabBar, tabovi Home/Capsule/Videos/AI Savetnik/Profile, header stil (tema) |
 | `app/calendar.tsx` | Kalendar — mesečni prikaz (grid), prev/next, paleta belo/zlatno/krem; ulaz sa Home |
 | `components/SplashContent.tsx` | Splash sadržaj (GIF logo), koristi se u `_layout.tsx` |
-| `app/(auth)/index.tsx` | Welcome ekran (DAJANA/AI, Lottie hero, headline, swipe + animacije, Theme toggle) |
+| `app/(auth)/index.tsx` | Welcome ekran — video pozadina (zoom + translateY da se odseče logo), swipe Započni, SR/ENG; svi hookovi pre early returna |
 | `app/(tabs)/index.tsx` | Home (INDYX-inspired: hero centriran, notifikacije levo, kalendar desno, padajući hero blok) |
 | `components/WardrobeRailTabBar.tsx` | Tab bar „Wardrobe Rail” — šipka, kukice, animacije, Kapsula u sredini |
 | `components/ThemeToggle.tsx` | Prekidač svetla/tame (sunce/mesec, neumorfni stil) |
@@ -599,8 +611,9 @@ Pre commit-a proveri:
 | `stores/tryOnStore.ts` | Zustand store za AI Try-On flow (outfit, face image, generated image, status) |
 | `lib/tryOnService.ts` | Gemini 3 Pro Image API integracija — generateTryOn(), saveTryOnImage() |
 | `lib/creditService.ts` | Credit servis — getUserCredits(), hasImageCredits(), deductImageCredit() |
-| `app/try-on/_layout.tsx` | Try-On Stack layout (upload → generating → result) |
-| `app/try-on/upload.tsx` | Upload ekran — kamera/galerija, zlatni frame corners, preview |
+| `app/try-on/_layout.tsx` | Try-On Stack layout (index → upload → generating → result) |
+| `app/try-on/index.tsx` | Try-On welcome — fullscreen krem, „Slikajte lice…“, dugme Dalje → upload |
+| `app/try-on/upload.tsx` | Upload ekran — ScrollView, safe area, kamera/galerija, animacije, krem |
 | `app/try-on/generating.tsx` | Generating ekran — pulse animacije, AI poziv, credit check |
 | `app/try-on/result.tsx` | Result ekran — full-screen slika, desni floating dugmići (save/video/Dajana/share), donji red (Ponovo, Početna) |
 | `app/outfit-preview.tsx` | Modal — grid izabranih komada, izbor Slika / Video, cream paleta |
@@ -610,6 +623,9 @@ Pre commit-a proveri:
 | `app/(tabs)/videos.tsx` | Video Studio — box generisanih slika, krivina, dugme Kreiraj video, tanka vertikalna linija do Kolekcije, galerija videa (tap/long press), GeneratingBanner kada job aktivan |
 | `stores/videoStore.ts` | Zustand — generisanje + **backgroundJob**, bgPollAttempt, startBackgroundJob, completeBackgroundJob |
 | `lib/videoService.ts` | TheNewBlack AI Video API (start, poll), Supabase upload slike, saveVideo/getSavedVideos |
-| `lib/notificationService.ts` | Dozvole, Expo push token → Supabase push_tokens, lokalne notifikacije (video spreman), notification response → video-result |
+| `lib/notificationService.ts` | Dozvole, Expo push token → Supabase push_tokens; za gosta bez upozorenja; za neulogovanog log „Obavestenja će biti dostupna nakon prijave.“; video spreman, kanal dajana-announcements |
+| `app.config.js` | Expo config: extra.eas.projectId (push), plugins – expo-notifications sa icon (assets/images/icon.png) i color #CF8F5A |
+| `dajana-ai-admin`: `src/app/api/send-push/route.ts` | GET (broj tokena), POST (šalje push svima preko expo-server-sdk) |
+| `dajana-ai-admin`: `src/app/dashboard/notifications/page.tsx` | Form za naslov/poruku, „Pošalji svima“, DAJANA stil, prikaz broja uređaja |
 | `lib/backgroundVideoTask.ts` | expo-task-manager + expo-background-fetch, saveBackgroundJob/getBackgroundJob, poll u pozadini kada app zatvoren |
 | `assets/images/model.png` | Model slika za Welcome screen |

@@ -17,6 +17,7 @@ const MAX_BG_ATTEMPTS = 60; // ~10 min worth of attempts across all bg invocatio
 
 export interface BackgroundJobData {
   jobId: string;
+  userId?: string; // opciono zbog starih zapisa u AsyncStorage
   sourceImageUrl: string;
   publicImageUrl: string;
   prompt: string;
@@ -96,7 +97,11 @@ TaskManager.defineTask(VIDEO_POLL_TASK, async () => {
         job.prompt,
         job.duration
       );
-      await notifyVideoReady(saved.uri);
+      if (job.userId) {
+        const { logVideoGeneration } = await import('./generationLog');
+        await logVideoGeneration(job.userId, saved.uri);
+      }
+      await notifyVideoReady(saved.uri, job.userId ?? undefined);
       await clearBackgroundJob();
       return BackgroundFetch.BackgroundFetchResult.NewData;
     }

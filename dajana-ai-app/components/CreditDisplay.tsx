@@ -6,6 +6,7 @@
 
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import { t } from '@/lib/i18n';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -40,28 +41,25 @@ export function CreditDisplay({ credits, compact = false }: CreditDisplayProps) 
   const items: CreditItemData[] = [
     {
       icon: 'camera-outline',
-      label: 'Slike',
+      label: t('home.images'),
       limit: credits.image.limit,
       remaining: credits.image.remaining,
     },
     {
       icon: 'videocam-outline',
-      label: 'Video',
+      label: t('home.videos'),
       limit: credits.video.limit,
       remaining: credits.video.remaining,
     },
     {
       icon: 'chatbubble-ellipses-outline',
-      label: 'Analize',
+      label: t('home.analyses'),
       limit: credits.analysis.limit,
       remaining: credits.analysis.remaining,
     },
   ];
 
-  const getResetText = () => {
-    // Elegant + predictable wording (less "countdown" / tech)
-    return 'Obnova: 1. u mesecu';
-  };
+  const getResetText = () => t('credits_renewal');
 
   if (compact) {
     return (
@@ -86,7 +84,7 @@ export function CreditDisplay({ credits, compact = false }: CreditDisplayProps) 
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Krediti</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('profile.credits')}</Text>
         </View>
         <Text style={[styles.resetText, { color: colors.gray[400] }]}>{getResetText()}</Text>
       </View>
@@ -149,7 +147,7 @@ function CreditPill({ item, colors, index, isLast }: { item: CreditItemData; col
         </View>
         <View style={[styles.pillText, centerText && styles.pillTextCenter]}>
           <Text style={[styles.pillLabel, { color: colors.textSecondary }, centerText && styles.pillLabelCenter]}>{item.label}</Text>
-          <Text style={[styles.pillHint, { color: colors.gray[400] }, centerText && styles.pillHintCenter]}>ovaj mesec</Text>
+          <Text style={[styles.pillHint, { color: colors.gray[400] }, centerText && styles.pillHintCenter]}>na 31 dana</Text>
         </View>
       </View>
 

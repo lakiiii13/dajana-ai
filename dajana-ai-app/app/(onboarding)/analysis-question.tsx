@@ -91,14 +91,14 @@ export default function AnalysisQuestionScreen() {
               <MaterialCommunityIcons 
                 name="palette-swatch" 
                 size={80} 
-                color={COLORS.secondary} 
+                color={COLORS.primary} 
               />
             </View>
           </View>
 
           {/* Info Box */}
           <View style={styles.infoBox}>
-            <Feather name="info" size={18} color={COLORS.secondary} />
+            <Feather name="info" size={18} color={COLORS.primary} />
             <Text style={styles.infoText}>
               {t('onboarding.analysis_info')}
             </Text>
@@ -114,7 +114,7 @@ export default function AnalysisQuestionScreen() {
             activeOpacity={0.9}
           >
             <View style={styles.buttonContent}>
-              <Feather name="check" size={20} color={COLORS.primary} />
+              <Feather name="check" size={20} color="#FFFFFF" />
               <Text style={styles.buttonYesText}>{t('onboarding.yes_did_analysis')}</Text>
             </View>
           </TouchableOpacity>
@@ -192,7 +192,7 @@ const styles = StyleSheet.create({
   accentLine: {
     width: 30,
     height: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     marginBottom: SPACING.md,
     opacity: 0.6,
   },
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0.5,
-    borderColor: COLORS.secondary,
+    borderColor: COLORS.primary,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: 'rgba(207, 143, 90, 0.05)',
+    backgroundColor: 'rgba(13, 67, 38, 0.06)',
     borderRadius: 12,
     padding: SPACING.md,
   },
@@ -246,17 +246,16 @@ const styles = StyleSheet.create({
   },
   buttonYes: {
     height: 60,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.primary,
     borderRadius: 30,
     borderTopLeftRadius: 30,
     borderBottomLeftRadius: 30,
     borderTopRightRadius: 30,
     borderBottomRightRadius: 2,
-    borderWidth: 0.5,
-    borderColor: COLORS.secondary,
-    shadowColor: COLORS.black,
+    borderWidth: 0,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
     justifyContent: 'center',
@@ -270,7 +269,7 @@ const styles = StyleSheet.create({
   buttonYesText: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.primary.semibold,
-    color: COLORS.primary,
+    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   buttonNo: {

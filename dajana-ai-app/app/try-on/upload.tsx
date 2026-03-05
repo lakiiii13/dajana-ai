@@ -17,9 +17,11 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons, Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { t } from '@/lib/i18n';
@@ -28,12 +30,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { getUserCredits } from '@/lib/creditService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const PHOTO_AREA_HEIGHT = SCREEN_HEIGHT * 0.56;
 const CREAM = '#F8F4EF';
 const GOLD = '#CF8F5A';
+const PHOTO_AREA_HEIGHT = Math.min(SCREEN_HEIGHT * 0.48, 420);
 
 export default function TryOnUploadScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { outfitTitle, outfitImageUrl, outfitItems, setFaceImage } = useTryOnStore();
   const removeOutfitItem = useTryOnStore((s) => s.removeOutfitItem);
   const { user } = useAuthStore();
@@ -42,18 +45,21 @@ export default function TryOnUploadScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
 
-  // Load remaining credits
-  useEffect(() => {
+  const refreshCredits = useCallback(() => {
     if (user?.id) {
       getUserCredits(user.id).then((c) => setCreditsRemaining(c.imageCreditsRemaining)).catch(() => {});
     }
   }, [user?.id]);
 
+  useEffect(() => { refreshCredits(); }, [refreshCredits]);
+
+  useFocusEffect(refreshCredits);
+
   const handlePickFromGallery = useCallback(async () => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(t('error'), 'Potrebna je dozvola za pristup galeriji');
+        Alert.alert(t('error'), t('try_on.permission_gallery'));
         return;
       }
 
@@ -61,7 +67,7 @@ export default function TryOnUploadScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [3, 4],
-        quality: 0.8,
+        quality: 0.7,
         base64: true,
       });
 
@@ -75,7 +81,7 @@ export default function TryOnUploadScreen() {
       }
     } catch (err) {
       console.error('Gallery pick error:', err);
-      Alert.alert(t('error'), 'Greška pri izboru slike');
+      Alert.alert(t('error'), t('try_on.error_pick_image'));
     }
   }, [setFaceImage]);
 
@@ -83,14 +89,14 @@ export default function TryOnUploadScreen() {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(t('error'), 'Potrebna je dozvola za kameru');
+        Alert.alert(t('error'), t('try_on.permission_camera'));
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [3, 4],
-        quality: 0.8,
+        quality: 0.7,
         base64: true,
       });
 
@@ -104,48 +110,66 @@ export default function TryOnUploadScreen() {
       }
     } catch (err) {
       console.error('Camera error:', err);
-      Alert.alert(t('error'), 'Greška pri fotografisanju');
+      Alert.alert(t('error'), t('try_on.error_camera'));
     }
   }, [setFaceImage]);
 
   const handleContinue = useCallback(() => {
     if (!photoUri) {
-      Alert.alert(t('error'), 'Molimo izaberite sliku');
+      Alert.alert(t('error'), t('try_on.error_select_image'));
+      return;
+    }
+    if (creditsRemaining !== null && creditsRemaining <= 0) {
+      Alert.alert(
+        t('capsule.credits.no_credits'),
+        t('shop.no_subscription_no_credits'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          { text: t('try_on.shop_btn'), onPress: () => router.replace('/shop') },
+        ]
+      );
       return;
     }
     router.push('/try-on/generating');
-  }, [photoUri, router]);
+  }, [photoUri, creditsRemaining, router]);
 
   const handleBack = useCallback(() => {
     useTryOnStore.getState().reset();
     router.back();
   }, [router]);
 
-  return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Virtual Try-On</Text>
-            <Text style={styles.headerSubtitle}>{outfitTitle || 'Izabrani outfit'}</Text>
-          </View>
-          {creditsRemaining !== null ? (
-            <View style={[styles.creditBadge, creditsRemaining <= 3 && styles.creditBadgeLow]}>
-              <Ionicons name="camera-outline" size={14} color={creditsRemaining <= 3 ? COLORS.error : GOLD} />
-              <Text style={[styles.creditBadgeText, creditsRemaining <= 3 && { color: COLORS.error }]}>{creditsRemaining}</Text>
-            </View>
-          ) : (
-            <View style={{ width: 40 }} />
-          )}
-        </View>
+  const contentPadding = { paddingTop: insets.top + SPACING.sm, paddingBottom: insets.bottom + SPACING.md };
 
-        {/* Izabrana garderoba – uvek vidljiva traka, swipe + tekst */}
+  return (
+    <View style={[styles.container, contentPadding]}>
+      {/* Header – fiksiran gore, uvek ispod status bara */}
+      <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>Virtual Try-On</Text>
+          <Text style={styles.headerSubtitle}>{outfitTitle || t('try_on.selected_outfit')}</Text>
+        </View>
+        {creditsRemaining !== null ? (
+          <View style={[styles.creditBadge, creditsRemaining <= 3 && styles.creditBadgeLow]}>
+            <Ionicons name="camera-outline" size={14} color={creditsRemaining <= 3 ? COLORS.error : GOLD} />
+            <Text style={[styles.creditBadgeText, creditsRemaining <= 3 && { color: COLORS.error }]}>{creditsRemaining}</Text>
+          </View>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
+      </Animated.View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Izabrana garderoba */}
         {outfitItems.length >= 1 && (
-          <View style={styles.itemsStrip}>
+          <Animated.View entering={FadeInDown.delay(80).duration(420)} style={styles.itemsStrip}>
             <View style={styles.itemsStripHeader}>
               <Text style={styles.itemsStripTitle}>Tvoja izabrana garderoba</Text>
               {outfitItems.length > 1 && (
@@ -165,20 +189,20 @@ export default function TryOnUploadScreen() {
               {outfitItems.map((item) => (
                 <View key={item.id} style={styles.itemCard}>
                   <Image source={{ uri: item.imageUrl }} style={styles.itemThumb} resizeMode="cover" />
-                  <Text style={styles.itemName} numberOfLines={1}>{item.title || 'Outfit'}</Text>
+                  <Text style={styles.itemName} numberOfLines={1}>{item.title || t('capsule.outfit_label')}</Text>
                   <TouchableOpacity style={styles.itemRemoveBtn} onPress={() => removeOutfitItem(item.id)}>
                     <Ionicons name="close-circle" size={18} color={COLORS.gray[400]} />
                   </TouchableOpacity>
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </Animated.View>
         )}
 
-        {/* Dodaj sliku – preko celog ekrana */}
-        <View style={styles.photoSection}>
+        {/* Dodaj sliku */}
+        <Animated.View entering={FadeIn.delay(160).duration(480)} style={styles.photoSection}>
           <TouchableOpacity
-            style={styles.photoArea}
+            style={[styles.photoArea, { height: PHOTO_AREA_HEIGHT }]}
             onPress={photoUri ? handlePickFromGallery : undefined}
             activeOpacity={photoUri ? 0.8 : 1}
           >
@@ -203,17 +227,11 @@ export default function TryOnUploadScreen() {
             <View style={styles.frameCornerBR} />
           </TouchableOpacity>
 
-          {photoUri && (
-            <TouchableOpacity style={styles.changePhotoButton} onPress={handlePickFromGallery}>
-              <Feather name="refresh-cw" size={14} color={GOLD} />
-              <Text style={styles.changePhotoText}>Promeni sliku</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+        </Animated.View>
 
-        {/* Nema slike: Fotografiši se + Iz galerije. Ima sliku: samo Generiši */}
+        {/* Nema slike: Fotografiši se + Iz galerije. Ima sliku: Promeni sliku + Generiši u jednom redu */}
         {!photoUri ? (
-          <View style={styles.actions}>
+          <Animated.View entering={FadeInUp.delay(280).duration(460)} style={styles.actions}>
             <TouchableOpacity style={styles.actionButton} onPress={handleTakePhoto} activeOpacity={0.85}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="camera-outline" size={26} color={GOLD} />
@@ -226,24 +244,28 @@ export default function TryOnUploadScreen() {
               </View>
               <Text style={styles.actionLabel}>Iz galerije</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         ) : (
-          <View style={styles.generateRow}>
-            <TouchableOpacity style={styles.generateButton} onPress={handleContinue} disabled={isProcessing} activeOpacity={0.88}>
+          <Animated.View entering={FadeInUp.delay(200).duration(460)} style={styles.generateRow}>
+            <TouchableOpacity style={styles.changePhotoButton} onPress={handlePickFromGallery}>
+              <Feather name="refresh-cw" size={14} color={GOLD} />
+              <Text style={styles.changePhotoText}>Promeni sliku</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.generateButton} onPress={handleContinue} disabled={isProcessing || (creditsRemaining !== null && creditsRemaining <= 0)} activeOpacity={0.88}>
               {isProcessing ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.generateButtonText}>Generiši</Text>
               )}
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         )}
 
-        <View style={styles.infoSection}>
+        <Animated.View entering={FadeIn.delay(360).duration(400)} style={styles.infoSection}>
           <Ionicons name="information-circle-outline" size={16} color={COLORS.gray[500]} />
           <Text style={styles.infoText}>Jasna slika lica daje najbolji rezultat.</Text>
-        </View>
-      </SafeAreaView>
+        </Animated.View>
+      </ScrollView>
     </View>
   );
 }
@@ -256,8 +278,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: CREAM,
   },
-  safeArea: {
+  scroll: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: SPACING.xl,
   },
   header: {
     flexDirection: 'row',
@@ -377,14 +403,13 @@ const styles = StyleSheet.create({
   },
 
   photoSection: {
-    flex: 1,
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.md,
+    paddingBottom: SPACING.sm,
     alignItems: 'center',
   },
   photoArea: {
     width: '100%',
-    height: PHOTO_AREA_HEIGHT,
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: `${GOLD}45`,
@@ -479,14 +504,15 @@ const styles = StyleSheet.create({
   changePhotoButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.xs + 2,
-    borderRadius: BORDER_RADIUS.full,
-    marginTop: SPACING.sm,
+    paddingVertical: SPACING.sm + 2,
+    borderRadius: 20,
     gap: 6,
     borderWidth: 1,
     borderColor: `${GOLD}40`,
     backgroundColor: `${GOLD}08`,
+    minWidth: 120,
   },
   changePhotoText: {
     fontSize: FONT_SIZES.xs,
@@ -505,20 +531,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: SPACING.lg,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: `${GOLD}55`,
+    borderRadius: 22,
+    borderBottomLeftRadius: 8,
+    borderWidth: 1,
+    borderColor: `${GOLD}50`,
     backgroundColor: '#FFFCF9',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.03,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 1,
   },
   actionIconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.sm,
@@ -528,35 +555,40 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.primary.semibold,
+    fontFamily: FONTS.primary.medium,
     color: COLORS.primary,
-    letterSpacing: 0.3,
+    letterSpacing: 0.4,
   },
   generateRow: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.sm,
-    alignItems: 'center',
-  },
-  generateButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.xl + 8,
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.sm,
+    paddingBottom: SPACING.sm,
+  },
+  generateButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.md + 2,
+    paddingHorizontal: SPACING.lg,
     borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#E8E2DA',
-    backgroundColor: '#FFFFFF',
+    borderBottomLeftRadius: 6,
+    borderWidth: 0,
+    backgroundColor: COLORS.primary,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
     shadowRadius: 8,
-    elevation: 2,
+    elevation: 1,
   },
   generateButtonText: {
     fontSize: FONT_SIZES.md,
-    fontFamily: FONTS.heading.semibold,
-    color: '#8B7355',
-    letterSpacing: 0.8,
+    fontFamily: FONTS.primary.medium,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   infoSection: {
     flexDirection: 'row',

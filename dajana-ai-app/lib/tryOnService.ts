@@ -1,14 +1,13 @@
 // ===========================================
 // DAJANA AI - Try-On Service
-// Uses Gemini 3 Pro Image (Nano Banana AI) to generate
-// virtual try-on images
+// Koristi SAMO Supabase Edge Function (Gemini ključ je u Supabase Secrets, ne u app-u).
 // ===========================================
 
 import * as FileSystem from './safeFileSystem';
+import { supabase } from './supabase';
 
-const GEMINI_API_KEY = 'AIzaSyANtLzK6wR06sn1KsSY5I1Oc04AAwVNL6Y';
-const GEMINI_MODEL = 'gemini-3-pro-image-preview';
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim();
+const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
 
 export interface TryOnResult {
   imageBase64: string;
@@ -87,8 +86,14 @@ export async function generateTryOn(
   if (typeof faceImageBase64 !== 'string' || !faceImageBase64.trim()) {
     throw new Error('Slika lica nije ispravna. Pokušajte ponovo sa jasnom fotografijom.');
   }
-  console.log('[TryOn] Starting generation...');
-  console.log('[TryOn] Face base64 length:', faceImageBase64.length);
+  // Prevelika slika često izaziva 400 od Gemini / limit Supabase body
+  const approxMb = (faceImageBase64.length * 3) / 4 / 1024 / 1024;
+  if (approxMb > 2) {
+    throw new Error(
+      'Slika je prevelika. Izaberite manju fotografiju ili isečite samo lice/telo (preporuka do ~1–2 MB).'
+    );
+  }
+  console.log('[TryOn] Starting generation...', 'face ~', approxMb.toFixed(2), 'MB');
 
   // Normalize to array
   const items: TryOnOutfitItem[] = typeof outfitImageUrlOrItems === 'string'
@@ -102,108 +107,66 @@ export async function generateTryOn(
     items.map((item) => imageUrlToBase64(item.imageUrl))
   );
 
-  // 2. Build the prompt
-  const prompt = buildTryOnPrompt(items);
-
-  // 3. Build the request body — person image + all outfit images
-  const imageParts: any[] = [
-    { text: prompt },
-    {
-      inlineData: {
-        mimeType: 'image/jpeg',
-        data: faceImageBase64,
-      },
-    },
-  ];
-
-  outfitDataArr.forEach((od) => {
-    imageParts.push({
-      inlineData: {
-        mimeType: od.mimeType,
-        data: od.base64,
-      },
-    });
-  });
-
-  const requestBody = {
-    contents: [{ parts: imageParts }],
-    generationConfig: {
-      responseModalities: ['image', 'text'],
-      temperature: 1.0,
-    },
-  };
-
-  // 4. Call Gemini API
-  console.log('[TryOn] Calling Gemini 3 Pro Image API...');
-
-  const response = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
-
-  console.log('[TryOn] API status:', response.status);
-
-  const rawBody = await response.text();
-
-  if (!response.ok) {
-    console.error('[TryOn] API error:', response.status, rawBody.substring(0, 500));
-    if (response.status === 400) {
-      throw new Error('Neispravan zahtev. Pokušajte sa drugom slikom.');
-    } else if (response.status === 429) {
-      throw new Error('Previše zahteva. Sačekajte minut i pokušajte ponovo.');
-    } else if (response.status === 403) {
-      throw new Error('API ključ nije validan.');
-    } else if (response.status >= 500) {
-      throw new Error('Servis je privremeno nedostupan. Pokušajte ponovo za nekoliko minuta.');
-    }
-    throw new Error(`AI generisanje nije uspelo (${response.status})`);
-  }
-
-  let data: { candidates?: Array<{ content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string } }> } }>; promptFeedback?: unknown };
-  try {
-    data = JSON.parse(rawBody);
-  } catch {
-    console.error('[TryOn] Invalid JSON from API');
-    throw new Error('AI nije vratio ispravan odgovor. Pokušajte ponovo.');
-  }
-  console.log('[TryOn] Candidates:', data.candidates?.length);
-
-  // 5. Extract generated image
-  const candidates = data.candidates;
-  if (!candidates || candidates.length === 0) {
-    if (data.promptFeedback) {
-      console.error('[TryOn] Prompt feedback:', JSON.stringify(data.promptFeedback));
-      throw new Error('AI je odbio zahtev. Pokušajte sa drugom slikom.');
-    }
-    throw new Error('AI nije vratio rezultat. Pokušajte ponovo.');
-  }
-
-  const parts = candidates[0].content?.parts;
-  if (!parts || parts.length === 0) {
-    throw new Error('Prazan odgovor od AI-a.');
-  }
-
-  // Find image part
-  for (const part of parts) {
-    if (part.inlineData?.data) {
-      console.log('[TryOn] Image generated! MIME:', part.inlineData.mimeType);
-      return {
-        imageBase64: part.inlineData.data,
-        mimeType: part.inlineData.mimeType || 'image/png',
-      };
+  // 2. Prvo pokušaj Supabase Edge Function (Gemini ključ iz Supabase)
+  if (SUPABASE_URL) {
+    try {
+      console.log('[TryOn] Calling Edge Function...');
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token ?? '';
+      const edgeUrl = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/generate-try-on`;
+      const edgeRes = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+          ...(token ? { 'X-User-JWT': token } : {}),
+        },
+        body: JSON.stringify({
+          faceImageBase64,
+          outfitImages: outfitDataArr.map((od) => ({ base64: od.base64, mimeType: od.mimeType })),
+          items: items.map((i) => ({ title: i.title })),
+        }),
+      });
+      const edgeJson = await edgeRes.json().catch(() => ({}));
+      if (edgeRes.ok && edgeJson.imageBase64) {
+        console.log('[TryOn] Image from Edge Function');
+        return {
+          imageBase64: edgeJson.imageBase64,
+          mimeType: edgeJson.mimeType || 'image/png',
+        };
+      }
+      if (!edgeRes.ok && typeof edgeJson?.error === 'string') {
+        console.error('[TryOn] Edge Function error:', edgeRes.status, edgeJson.error);
+        throw new Error(edgeJson.error);
+      }
+      if (edgeRes.status === 400) {
+        const errMsg = typeof edgeJson?.error === 'string' ? edgeJson.error : 'Neispravan zahtev. Pokušajte sa manjom slikom (do ~2 MB).';
+        throw new Error(errMsg);
+      }
+      if (edgeRes.status >= 500 || edgeRes.status === 403 || edgeRes.status === 429) {
+        console.warn('[TryOn] Edge Function failed:', edgeRes.status, edgeJson?.error);
+        if (edgeRes.status === 403) {
+          throw new Error(
+            'Gemini API ključ u Supabase nije validan. Proveri Edge Function secrets (GEMINI_API_KEY).'
+          );
+        }
+        if (edgeRes.status === 429) {
+          throw new Error('Previše zahteva. Sačekajte minut i pokušajte ponovo.');
+        }
+      }
+      if (!edgeRes.ok) {
+        throw new Error(typeof edgeJson?.error === 'string' ? edgeJson.error : `Greška (${edgeRes.status}). Pokušajte ponovo.`);
+      }
+    } catch (err: any) {
+      if (err?.message) throw err;
+      throw new Error('Generisanje nije uspelo. Proverite konekciju i pokušajte ponovo.');
     }
   }
 
-  // Text response (no image)
-  for (const part of parts) {
-    if (part.text) {
-      console.warn('[TryOn] Text response:', part.text.substring(0, 200));
-      throw new Error('AI nije mogao da generiše sliku. Pokušajte sa jasnijom slikom lica.');
-    }
-  }
-
-  throw new Error('Neočekivan odgovor od AI-a.');
+  throw new Error(
+    'Try-On zahteva Supabase. U .env postavite EXPO_PUBLIC_SUPABASE_URL i deploy-ujte Edge Function generate-try-on (Gemini ključ u Supabase Secrets).'
+  );
 }
 
 /**
@@ -335,6 +298,33 @@ export async function deleteTryOnImage(uri: string | { uri?: string; path?: stri
     await FileSystem.deleteAsync(uri, { idempotent: true });
   } catch (err) {
     console.error('[TryOn] Error deleting image:', err);
+  }
+}
+
+/**
+ * Clear all local try-on data and saved outfits (call on sign out so next user doesn't see previous user's data).
+ */
+export async function clearAllLocalTryOnData(): Promise<void> {
+  const dir = FileSystem.documentDirectory;
+  if (!dir) return;
+  const tryonDir = `${dir}tryon/`;
+  try {
+    const files = await FileSystem.readDirectoryAsync(tryonDir);
+    for (const file of files) {
+      if (file.endsWith('.png')) {
+        await FileSystem.deleteAsync(`${tryonDir}${file}`, { idempotent: true });
+      }
+    }
+  } catch (err) {
+    // Dir may not exist yet
+  }
+  const outfitsIndex = `${dir}outfits/index.json`;
+  try {
+    await FileSystem.writeAsStringAsync(outfitsIndex, '[]', {
+      encoding: FileSystem.EncodingType.UTF8,
+    });
+  } catch (err) {
+    console.error('[TryOn] Error clearing outfits index:', err);
   }
 }
 

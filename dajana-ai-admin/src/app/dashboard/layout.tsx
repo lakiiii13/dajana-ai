@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/auth";
-import { Sidebar } from "@/components/sidebar";
+import { DashboardClientWrapper } from "@/components/DashboardClientWrapper";
 
 export default async function DashboardLayout({
   children,
@@ -8,10 +8,5 @@ export default async function DashboardLayout({
 }) {
   const admin = await requireAdmin();
 
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar admin={admin} />
-      <main className="flex-1 p-8">{children}</main>
-    </div>
-  );
+  return <DashboardClientWrapper admin={admin}>{children}</DashboardClientWrapper>;
 }

@@ -373,6 +373,35 @@ export interface Database {
           created_at?: string;
         };
       };
+      user_notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: 'video' | 'advice' | 'system' | 'outfit';
+          title: string;
+          body: string;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: 'video' | 'advice' | 'system' | 'outfit';
+          title: string;
+          body: string;
+          read?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: 'video' | 'advice' | 'system' | 'outfit';
+          title?: string;
+          body?: string;
+          read?: boolean;
+          created_at?: string;
+        };
+      };
     };
     Functions: {
       check_and_use_credit: {

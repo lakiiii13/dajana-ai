@@ -158,7 +158,7 @@ export default function SeasonScreen() {
                           <Feather
                             name="check"
                             size={18}
-                            color={COLORS.secondary}
+                            color={COLORS.primary}
                           />
                         )}
                       </TouchableOpacity>
@@ -171,7 +171,7 @@ export default function SeasonScreen() {
 
           {/* Info Box */}
           <View style={styles.infoBox}>
-            <Feather name="info" size={18} color={COLORS.secondary} />
+            <Feather name="info" size={18} color={COLORS.primary} />
             <Text style={styles.infoText}>
               {t('onboarding.season_info')}
             </Text>
@@ -189,11 +189,11 @@ export default function SeasonScreen() {
             <View style={styles.buttonContent}>
               <View style={{ width: 20 }} />
               {isLoading ? (
-                <ActivityIndicator color={COLORS.primary} size="small" />
+                <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.buttonText}>{t('onboarding.continue')}</Text>
               )}
-              <Feather name="arrow-right" size={20} color={COLORS.primary} />
+              <Feather name="arrow-right" size={20} color="#FFFFFF" />
             </View>
           </TouchableOpacity>
         </View>
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
   accentLine: {
     width: 30,
     height: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     marginBottom: SPACING.md,
     opacity: 0.6,
   },
@@ -309,7 +309,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.gray[200],
   },
   seasonOptionSelected: {
-    borderColor: COLORS.secondary,
+    borderColor: COLORS.primary,
     backgroundColor: COLORS.white,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 2 },
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: SPACING.sm,
-    backgroundColor: 'rgba(207, 143, 90, 0.05)',
+    backgroundColor: 'rgba(13, 67, 38, 0.06)',
     borderRadius: 12,
     padding: SPACING.md,
     marginTop: SPACING.xxl,
@@ -354,17 +354,16 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 60,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.primary,
     borderRadius: 30,
     borderTopLeftRadius: 30,
     borderBottomLeftRadius: 30,
     borderTopRightRadius: 30,
     borderBottomRightRadius: 2,
-    borderWidth: 0.5,
-    borderColor: COLORS.secondary,
-    shadowColor: COLORS.black,
+    borderWidth: 0,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.2,
     shadowRadius: 10,
     elevation: 3,
   },
@@ -378,7 +377,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.primary.semibold,
-    color: COLORS.black,
+    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
 });

@@ -30,8 +30,10 @@ import { useAuth } from '@/hooks/useAuth';
 import { SplashContent } from '@/components/SplashContent';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useVideoStore } from '@/stores/videoStore';
+import { useAuthStore } from '@/stores/authStore';
 import { registerForPushNotifications, notifyVideoReady, notifyVideoFailed, addNotificationResponseListener, getLastNotificationResponse } from '@/lib/notificationService';
-import { FONTS } from '@/constants/theme';
+import { FONTS, COLORS } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -66,17 +68,19 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const splashHidden = useRef(false);
   const [fontsLoaded, fontError] = useFonts({
-    JosefinSans_100Thin,
-    JosefinSans_300Light,
-    JosefinSans_400Regular,
-    JosefinSans_500Medium,
-    JosefinSans_600SemiBold,
-    JosefinSans_700Bold,
-    PlayfairDisplay_400Regular,
-    PlayfairDisplay_500Medium,
-    PlayfairDisplay_600SemiBold,
-    PlayfairDisplay_700Bold,
-    PlayfairDisplay_400Regular_Italic,
+    // Arquitecta (primarni) – dok klijent ne dostavi .ttf, alias na Josefin Sans
+    ArquitectaThin: JosefinSans_100Thin,
+    ArquitectaLight: JosefinSans_300Light,
+    ArquitectaRegular: JosefinSans_400Regular,
+    ArquitectaMedium: JosefinSans_500Medium,
+    ArquitectaSemibold: JosefinSans_600SemiBold,
+    ArquitectaBold: JosefinSans_700Bold,
+    // Canela (naslovi) – dok klijent ne dostavi .ttf, alias na Playfair Display
+    CanelaRegular: PlayfairDisplay_400Regular,
+    CanelaMedium: PlayfairDisplay_500Medium,
+    CanelaSemibold: PlayfairDisplay_600SemiBold,
+    CanelaBold: PlayfairDisplay_700Bold,
+    CanelaItalic: PlayfairDisplay_400Regular_Italic,
     Allura_400Regular,
     'TGValtica': require('@/assets/fonts/TG Valtica.ttf'),
   });
@@ -111,17 +115,22 @@ export default function RootLayout() {
   );
 }
 
-const SPLASH_DURATION_MS = 2000;
+const SPLASH_DURATION_MS = 3500;
+let splashEverCompleted = false;
 
 function RootLayoutNav() {
-  const { isAuthenticated, isLoading, isInitialized, profile } = useAuth();
+  const { isAuthenticated, isGuest, isLoading, isInitialized, profile } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [splashDone, setSplashDone] = useState(false);
+  const [splashDone, setSplashDone] = useState(splashEverCompleted);
   const { colors, mode } = useTheme();
 
   useEffect(() => {
-    const t = setTimeout(() => setSplashDone(true), SPLASH_DURATION_MS);
+    if (splashEverCompleted) return;
+    const t = setTimeout(() => {
+      splashEverCompleted = true;
+      setSplashDone(true);
+    }, SPLASH_DURATION_MS);
     return () => clearTimeout(t);
   }, []);
 
@@ -132,13 +141,18 @@ function RootLayoutNav() {
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
+    const inTabsGroup = segments[0] === '(tabs)';
 
-    if (!isAuthenticated) {
-      // User not logged in - redirect to welcome
+    if (!isAuthenticated && !isGuest) {
       if (!inAuthGroup) {
         router.replace('/(auth)');
       }
-    } else if (needsOnboarding) {
+    } else if (isGuest) {
+      // Gost sme (tabs) Home ili (auth) – nazad sa Home vodi na intro, pa izlazak
+      if (!inTabsGroup && !inAuthGroup) {
+        router.replace('/(tabs)');
+      }
+    } else if (isAuthenticated && needsOnboarding) {
       // User logged in but needs onboarding - start onboarding
       if (!inOnboardingGroup) {
         router.replace('/(onboarding)/measurements');
@@ -153,7 +167,7 @@ function RootLayoutNav() {
       }
       // If in onboarding with body_type set, user is completing the flow - don't interrupt
     }
-  }, [splashDone, isAuthenticated, isInitialized, isLoading, segments, needsOnboarding]);
+  }, [splashDone, isAuthenticated, isGuest, isInitialized, isLoading, segments, needsOnboarding]);
 
   if (!splashDone) {
     return (
@@ -200,9 +214,24 @@ function NotificationSetup() {
   const router = useRouter();
   const { completeBackgroundJob } = useVideoStore();
 
+  // Registruj push token (sa malim odmakom da session bude spreman) i pri povratku u app
   useEffect(() => {
-    registerForPushNotifications();
+    const run = () => {
+      registerForPushNotifications();
+    };
+    const t = setTimeout(run, 800);
     import('@/lib/backgroundVideoTask').then(({ registerBackgroundVideoTask }) => registerBackgroundVideoTask());
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
+    });
+    function run() {
+      registerForPushNotifications();
+    }
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
@@ -237,10 +266,10 @@ function NotificationSetup() {
 
 const POLL_INTERVAL = 10_000;
 const MAX_FOREGROUND_ATTEMPTS = 60;
-const GOLD = '#CF8F5A';
 const DARK = '#2C2A28';
 
 function VideoBackgroundPoller() {
+  const user = useAuthStore((s) => s.user);
   const backgroundJob = useVideoStore((s) => s.backgroundJob);
   const bgPollAttempt = useVideoStore((s) => s.bgPollAttempt);
   const setBgPollAttempt = useVideoStore((s) => s.setBgPollAttempt);
@@ -256,8 +285,10 @@ function VideoBackgroundPoller() {
       const { getBackgroundJob } = await import('@/lib/backgroundVideoTask');
       const stored = await getBackgroundJob();
       if (stored && !backgroundJob) {
+        const uid = useAuthStore.getState().user?.id ?? stored.userId ?? '';
         useVideoStore.getState().startBackgroundJob({
           jobId: stored.jobId,
+          userId: uid,
           sourceImageUrl: stored.sourceImageUrl,
           publicImageUrl: stored.publicImageUrl,
           prompt: stored.prompt,
@@ -298,7 +329,11 @@ function VideoBackgroundPoller() {
           job.prompt,
           job.duration
         );
-        await notifyVideoReady(saved.uri);
+        if (user?.id) {
+          const { logVideoGeneration } = await import('@/lib/generationLog');
+          await logVideoGeneration(user.id, saved.uri);
+        }
+        await notifyVideoReady(saved.uri, user?.id ?? undefined);
         await clearBgJobStorage();
         completeBackgroundJob(saved.uri);
         router.push('/video-result' as any);
@@ -368,9 +403,9 @@ function FloatingVideoIndicator({ attempt, duration }: { attempt: number; durati
   return (
     <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)} style={indicatorStyles.container}>
       <Animated.View style={[indicatorStyles.dot, dotStyle]} />
-      <Ionicons name="videocam" size={14} color={GOLD} />
+      <Ionicons name="videocam" size={14} color={COLORS.primary} />
       <Text style={indicatorStyles.text}>
-        Video se kreira{attempt > 0 ? ` ~${minutes} min` : '...'}
+        {attempt > 0 ? t('video.generating_min', { min: minutes }) : '...'}
       </Text>
     </Animated.View>
   );
@@ -401,7 +436,7 @@ const indicatorStyles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
   },
   text: {
     fontFamily: FONTS.primary.medium,

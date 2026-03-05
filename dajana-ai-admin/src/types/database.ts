@@ -195,6 +195,27 @@ export interface Database {
         };
         Update: Partial<Database['public']['Tables']['admin_users']['Row']>;
       };
+      user_notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: 'video' | 'advice' | 'system' | 'outfit';
+          title: string;
+          body: string;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: 'video' | 'advice' | 'system' | 'outfit';
+          title: string;
+          body: string;
+          read?: boolean;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['user_notifications']['Row']>;
+      };
     };
     Functions: {
       check_and_use_credit: {

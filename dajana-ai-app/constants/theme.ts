@@ -1,5 +1,7 @@
 // ===========================================
-// DAJANA AI - Theme Constants
+// DAJANA AI - Theme Constants (klijent: DIZAJN)
+// Boje: primary #0D4326 (tamno zelena), secondary #CF8F5A (zlatna), black, white
+// Fontovi: Arquitecta (primarni), Canela (naslovi) – učitavaju se u _layout (alias ili iz .ttf)
 // ===========================================
 
 export type ColorSet = {
@@ -81,33 +83,30 @@ export function getColors(mode: 'light' | 'dark'): ColorSet {
   return mode === 'dark' ? darkColors : lightColors;
 }
 
-// Font families - using Google Fonts alternatives
-// Arquitecta alternative: Josefin Sans (geometric sans-serif)
-// Canela alternative: Playfair Display (elegant serif)
-// Allura: Script/decorative font (similar to brand book helper fonts)
+// Font families – klijent: Arquitecta (primarni), Canela (naslovi)
+// Dok klijent ne dostavi .ttf, učitavamo alias (Josefin ≈ Arquitecta, Playfair ≈ Canela).
+// Kad stave Arquitecta*.ttf i Canela*.ttf u assets/fonts, zameni u _layout require i koristi iste ključeve ispod.
 export const FONTS = {
-  // Primary font (body text) - Josefin Sans (similar to Arquitecta)
+  // Primarni (Arquitecta) – body tekst
   primary: {
-    thin: 'JosefinSans_100Thin',
-    light: 'JosefinSans_300Light',
-    regular: 'JosefinSans_400Regular',
-    medium: 'JosefinSans_500Medium',
-    semibold: 'JosefinSans_600SemiBold',
-    bold: 'JosefinSans_700Bold',
+    thin: 'ArquitectaThin',
+    light: 'ArquitectaLight',
+    regular: 'ArquitectaRegular',
+    medium: 'ArquitectaMedium',
+    semibold: 'ArquitectaSemibold',
+    bold: 'ArquitectaBold',
   },
-  // Heading font - Playfair Display (similar to Canela)
+  // Naslovi (Canela)
   heading: {
-    regular: 'PlayfairDisplay_400Regular',
-    medium: 'PlayfairDisplay_500Medium',
-    semibold: 'PlayfairDisplay_600SemiBold',
-    bold: 'PlayfairDisplay_700Bold',
-    italic: 'PlayfairDisplay_400Regular_Italic',
+    regular: 'CanelaRegular',
+    medium: 'CanelaMedium',
+    semibold: 'CanelaSemibold',
+    bold: 'CanelaBold',
+    italic: 'CanelaItalic',
   },
-  // Script/decorative font - Allura
   script: {
     regular: 'Allura_400Regular',
   },
-  // Brand logo (Welcome) - TG Valtica
   logo: 'TGValtica',
 };
 
@@ -154,4 +153,22 @@ export const PREMIUM_BUTTON = {
   shadowOpacity: 0.08,
   shadowRadius: 10,
   elevation: 3,
+};
+
+// Elegant CTA – outline, asymmetric corner, no solid fill (boutique / editorial look)
+export const ELEGANT_CTA = {
+  borderWidth: 1,
+  borderColor: COLORS.secondary,
+  borderRadius: 20,
+  borderTopLeftRadius: 20,
+  borderTopRightRadius: 20,
+  borderBottomRightRadius: 20,
+  borderBottomLeftRadius: 6,
+  paddingVertical: SPACING.md,
+  paddingHorizontal: SPACING.lg,
+  shadowColor: COLORS.black,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.04,
+  shadowRadius: 8,
+  elevation: 1,
 };

@@ -32,6 +32,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import { useTryOnStore, OutfitItem } from '@/stores/tryOnStore';
 import { fetchOutfits, OutfitWithSaved } from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -52,12 +53,14 @@ interface Slot {
   tag: string;
 }
 
-const SLOTS: Slot[] = [
-  { type: 'outerwear', label: 'Jakna', icon: 'snow-outline', tag: 'outerwear' },
-  { type: 'top', label: 'Gornji deo', icon: 'shirt-outline', tag: 'tops' },
-  { type: 'bottom', label: 'Donji deo', icon: 'remove-outline', tag: 'bottoms' },
-  { type: 'shoes', label: 'Obuća', icon: 'footsteps-outline', tag: 'accessories' },
-];
+function getSlots(): Slot[] {
+  return [
+    { type: 'outerwear', label: t('outfit_builder.slot_outerwear'), icon: 'snow-outline', tag: 'outerwear' },
+    { type: 'top', label: t('outfit_builder.slot_top'), icon: 'shirt-outline', tag: 'tops' },
+    { type: 'bottom', label: t('outfit_builder.slot_bottom'), icon: 'remove-outline', tag: 'bottoms' },
+    { type: 'shoes', label: t('outfit_builder.slot_shoes'), icon: 'footsteps-outline', tag: 'accessories' },
+  ];
+}
 
 const SLOT_IMAGE_H = (H - 320) / 4;
 const SLOT_IMAGE_W = W * 0.5;
@@ -66,6 +69,7 @@ const PICKER_ITEM_SIZE = 80;
 export default function OutfitBuilderScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
+  const SLOTS = getSlots();
   const addOutfitItem = useTryOnStore((s) => s.addOutfitItem);
   const clearOutfitItems = useTryOnStore((s) => s.clearOutfitItems);
 
@@ -214,7 +218,7 @@ export default function OutfitBuilderScreen() {
             disabled={selectedCount === 0}
             activeOpacity={0.85}
           >
-            <Text style={styles.ctaText}>Isprobaj</Text>
+            <Text style={styles.ctaText}>{t('outfit_builder.try_btn')}</Text>
             <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
           </TouchableOpacity>
         </Animated.View>
@@ -325,7 +329,7 @@ const styles = StyleSheet.create({
   headerLine: {
     width: 32,
     height: 2,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     marginTop: 6,
     borderRadius: 1,
   },
@@ -415,7 +419,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: DARK,
+    backgroundColor: COLORS.primary,
     borderRadius: 16,
     paddingVertical: 16,
     gap: 8,

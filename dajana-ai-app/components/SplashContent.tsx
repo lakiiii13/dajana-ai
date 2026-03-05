@@ -1,76 +1,54 @@
 // ===========================================
-// DAJANA AI - Splash UI (OSB logo + animacija ulaska)
-// Koristi se u root _layout pre Stack-a.
+// DAJANA AI - Splash UI (OSB pozitiv logo + ispis teksta, sva slova bold)
 // ===========================================
 
-import { useEffect } from 'react';
-import { View, StyleSheet, Image, useWindowDimensions } from 'react-native';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withDelay,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
-import { SPACING } from '@/constants/theme';
+import { useState, useEffect } from 'react';
+import { View, StyleSheet, Image, Text, useWindowDimensions } from 'react-native';
+import { SPACING, FONTS } from '@/constants/theme';
 
-const ENTRANCE_DURATION = 1100;
-const ENTRANCE_DELAY = 120;
-// Outro: počinje ranije od kraja splasha (_layout SPLASH_DURATION_MS = 2000)
-const OUTRO_START_MS = 900;
-const OUTRO_DURATION = 1100;
+const SPLASH_LOGO = require('@/assets/images/OSB znak POZITIV.png');
+
+const LINE1_FULL = 'dajana zgonjanin';
+const LINE2_THIN = 'OTKRIJ ';
+const LINE2_BOLD = 'SVOJE BOJE';
+const CHAR_DELAY_MS = 75;
 
 export function SplashContent() {
   const { width } = useWindowDimensions();
-  const scale = useSharedValue(0.58);
-  const opacity = useSharedValue(0);
-  const translateY = useSharedValue(22);
+  const logoSize = Math.min(width * 0.4, 200);
+
+  const [line1Len, setLine1Len] = useState(0);
+  const [line2Len, setLine2Len] = useState(0);
 
   useEffect(() => {
-    const ease = Easing.out(Easing.cubic);
-    opacity.value = withDelay(
-      ENTRANCE_DELAY,
-      withTiming(1, { duration: ENTRANCE_DURATION, easing: ease })
-    );
-    scale.value = withDelay(
-      ENTRANCE_DELAY,
-      withTiming(1, { duration: ENTRANCE_DURATION, easing: ease })
-    );
-    translateY.value = withDelay(
-      ENTRANCE_DELAY,
-      withTiming(0, { duration: ENTRANCE_DURATION, easing: ease })
-    );
-  }, []);
+    if (line1Len < LINE1_FULL.length) {
+      const t = setTimeout(() => setLine1Len((n) => n + 1), CHAR_DELAY_MS);
+      return () => clearTimeout(t);
+    }
+    if (line2Len < LINE2_THIN.length + LINE2_BOLD.length) {
+      const t = setTimeout(() => setLine2Len((n) => n + 1), CHAR_DELAY_MS);
+      return () => clearTimeout(t);
+    }
+  }, [line1Len, line2Len]);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      const easeOut = Easing.in(Easing.cubic);
-      opacity.value = withTiming(0, { duration: OUTRO_DURATION, easing: easeOut });
-      scale.value = withTiming(0.92, { duration: OUTRO_DURATION, easing: easeOut });
-      translateY.value = withTiming(-20, { duration: OUTRO_DURATION, easing: easeOut });
-    }, OUTRO_START_MS);
-    return () => clearTimeout(t);
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [
-      { translateY: translateY.value },
-      { scale: scale.value },
-    ],
-  }));
-
-  const logoSize = Math.min(width * 0.46, 220);
+  const line1Visible = LINE1_FULL.slice(0, line1Len);
+  const line2ThinVisible = LINE2_THIN.slice(0, Math.min(line2Len, LINE2_THIN.length));
+  const line2BoldVisible = LINE2_BOLD.slice(0, Math.max(0, line2Len - LINE2_THIN.length));
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[styles.logoWrap, animatedStyle]}>
-        <Image
-          source={require('@/assets/images/splash-logo.jpg')}
-          style={[styles.logo, { width: logoSize, height: logoSize }]}
-          resizeMode="contain"
-        />
-      </Animated.View>
+      <Image
+        source={SPLASH_LOGO}
+        style={[styles.logo, { width: logoSize, height: logoSize }]}
+        resizeMode="contain"
+      />
+      <View style={styles.textBlock}>
+        <Text style={styles.line1}>{line1Visible}</Text>
+        <Text style={styles.line2}>
+          <Text style={styles.line2Thin}>{line2ThinVisible}</Text>
+          <Text style={styles.line2Bold}>{line2BoldVisible}</Text>
+        </Text>
+      </View>
     </View>
   );
 }
@@ -83,9 +61,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.xl,
     backgroundColor: '#ffffff',
   },
-  logoWrap: {},
   logo: {
-    width: 220,
-    height: 220,
+    width: 200,
+    height: 200,
+  },
+  textBlock: {
+    marginTop: SPACING.lg + 4,
+    alignItems: 'center',
+  },
+  line1: {
+    fontFamily: FONTS.primary.thin,
+    fontSize: 18,
+    letterSpacing: 2,
+    color: '#000000',
+    textTransform: 'lowercase',
+  },
+  line2: {
+    marginTop: 10,
+    fontSize: 14,
+    letterSpacing: 3,
+    color: '#000000',
+  },
+  line2Thin: {
+    fontFamily: FONTS.primary.thin,
+  },
+  line2Bold: {
+    fontFamily: FONTS.primary.bold,
   },
 });

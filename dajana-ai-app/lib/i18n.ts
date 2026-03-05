@@ -71,6 +71,7 @@ const translations = {
       forgot_password: 'Zaboravili ste lozinku?',
       no_account: 'Nemate nalog?',
       have_account: 'Već imate nalog?',
+      continue_as_guest: 'Nastavi kao gost',
       register: 'Registrujte se',
       login: 'Prijavite se',
       reset_password: 'Resetuj lozinku',
@@ -116,7 +117,7 @@ const translations = {
       good_morning: 'Dobro jutro',
       good_afternoon: 'Dobar dan',
       good_evening: 'Dobro veče',
-      credits_title: 'Vaši krediti ovog meseca',
+      credits_title: 'Vaši krediti (obnova na 31 dana)',
       credits_hero_subtitle: 'Koristite slike, video i analize da unapredite svoj stil sa Dajanom.',
       images: 'Slika',
       videos: 'Videa',
@@ -142,6 +143,7 @@ const translations = {
       waist: 'Struk',
       hips: 'Kukovi',
       edit_data: 'Izmeni podatke',
+      edit_link: 'Uredi',
       credits: 'Krediti',
       buy_more: 'Kupi dodatne kredite',
       theme: 'Tema',
@@ -153,7 +155,59 @@ const translations = {
       privacy_policy: 'Politika privatnosti',
       sign_out: 'Odjavi se',
       sign_out_confirm: 'Da li ste sigurni da želite da se odjavite?',
+      delete_account: 'Obriši nalog',
+      delete_account_confirm: 'Da li ste sigurni? Nalog će biti trajno obrisan sa svim podacima. Ovu radnju nije moguće poništiti.',
+      delete_account_success: 'Nalog je obrisan.',
       not_set: 'Nije uneto',
+    },
+    guest_modal: {
+      title: 'Napravite profil',
+      message: 'Ovaj sadržaj mogu da koriste samo prijavljeni korisnici. Prijavi se ili se registruj da nastaviš.',
+      sign_in: 'Prijavi se',
+      register: 'Registruj se',
+    },
+
+    // Shop (Pretplata i doplata)
+    shop: {
+      title: 'Pretplata i krediti',
+      subtitle: 'Mesečna ili godišnja pretplata obuhvata kredite za slike, videe i AI analize. Doplata za prekoračenje.',
+      section_subscription: 'Pretplata',
+      plan_monthly: 'Mesečna',
+      plan_monthly_desc: '50 slika, 2 videa, 2 AI analize – obnova svakih 31 dan.',
+      plan_yearly: 'Godišnja',
+      plan_yearly_desc: 'Isti paket kredita, plaćanje jednom godišnje sa popustom.',
+      section_topup: 'Doplata za prekoračenje',
+      topup_name: 'Paket kredita',
+      topup_desc: '+10 slika (kapsula), +1 video, +2 AI analize.',
+      popular: 'Popularno',
+      images: 'Slike',
+      videos: 'Videa',
+      analyses: 'Analize',
+      buy: 'Kupi',
+      subscribe: 'Pretplati se',
+      buy_confirm_title: 'Kupovina',
+      coming_soon_message: 'Plaćanje za %{price} će uskoro biti dostupno. Hvala na interesovanju!',
+      payment_method: 'Plaćanje: Stripe (kartice, Apple Pay, Google Pay).',
+      footer_note: 'Kad istekne pretplata, i dalje možete pregledati sačuvane slike, videe i savete; novo generisanje zahteva obnovu ili dopunu.',
+      no_subscription_no_credits: 'Nemate aktivnu pretplatu niti kredite za generisanje. Obnovite pretplatu ili kupite dopunu u Shopu.',
+    },
+
+    // Payment (simulacija / Stripe)
+    payment: {
+      title: 'Plaćanje',
+      order_summary: 'Pregled',
+      card_number: 'Broj kartice',
+      card_placeholder: '4242 4242 4242 4242',
+      expiry: 'Ističe',
+      expiry_placeholder: 'MM/GG',
+      cvc: 'CVC',
+      cvc_placeholder: '123',
+      pay_btn: 'Plaćaj %{amount}',
+      processing: 'Obrada...',
+      success_title: 'Plaćanje uspešno',
+      success_message: 'Hvala vam. Vaša kupovina je zabeležena.',
+      back_to_shop: 'Nazad u Shop',
+      secure_note: 'Sigurno plaćanje putem Stripe. Ovo je simulacija – nema stvarne naplate.',
     },
 
     // Edit Profile
@@ -186,6 +240,7 @@ const translations = {
       your_measurements: 'Vaše mere',
       measurements_subtitle: 'Unesite svoje mere kako bismo izračunali vaš tip građe i prilagodili preporuke',
       height: 'Visina',
+      weight: 'Težina',
       weight_optional: 'Težina (opciono)',
       bust: 'Obim grudi',
       waist: 'Obim struka',
@@ -316,6 +371,7 @@ const translations = {
         all_body_types: 'Svi tipovi',
         all_seasons: 'Sve sezone',
       },
+      outfit_label: 'Outfit',
       outfit: {
         for_body_types: 'Za tipove građe',
         for_seasons: 'Za sezone',
@@ -345,13 +401,16 @@ const translations = {
 
     // Wardrobe choice (pre Capsule tab)
     wardrobe_choice: {
+      choice_hint: 'Kapsula ili Ormar — odaberite odakle želite da krenete.',
       capsule_title: 'Kapsula',
-      capsule_subtitle: 'Gradi sam svoju garderobu',
+      capsule_subtitle: 'Pravi svoj outfit',
       ormar_title: 'Ormar outfita',
       ormar_subtitle: 'Kompletni outfiti od Dajane',
     },
     ormar: {
       title: 'Virtualni ormar',
+      panel_subtitle: 'Izaberi outfit i isprobaj',
+      swipe_hint: 'Swipe',
       tap_hanger: 'Dodirni ofinger za gotove outfite',
       swipe_to_discover: 'Swipe za otkrivanje drugih outfita',
       complete_outfits: 'Kompletni outfiti',
@@ -361,6 +420,158 @@ const translations = {
     // Placeholders
     coming_soon: 'Uskoro',
     coming_in_phase: 'Dolazi u Fazi',
+
+    // Try-On
+    try_on: {
+      welcome_title: 'AI Try-On',
+      welcome_subtitle: 'Slikajte lice za najbolji rezultat. Izaberi fotku ili se uslikaj u sledećem koraku.',
+      welcome_next: 'Dalje',
+      welcome_secondary_btn: 'Vidi šta je u ormaru',
+      permission_gallery: 'Potrebna je dozvola za pristup galeriji',
+      permission_camera: 'Potrebna je dozvola za kameru',
+      error_pick_image: 'Greška pri izboru slike',
+      error_camera: 'Greška pri fotografisanju',
+      error_select_image: 'Molimo izaberite sliku',
+      error_no_face: 'Nedostaje slika lica. Vrati se i izaberi fotografiju.',
+      selected_outfit: 'Izabrani outfit',
+      shop_btn: 'Shop',
+      generating_step1: 'Analiziram tvoj stil...',
+      generating_step2: 'Biram savršeni kroj...',
+      generating_step3: 'Kreiram tvoj outfit...',
+      generating_step4: 'Dodajem završne detalje...',
+      generating_step5: 'Gotovo za tebe...',
+      retry: 'Ponovo',
+    },
+
+    // AI Advice / Chat
+    ai_advice: {
+      empty_subtitle: 'Napiši poruku ispod',
+      placeholder: 'Poruka Dajani…',
+      choose_image_card_title: 'Izaberi sliku koju si generisala',
+      choose_image_card_subtitle: 'Dobićeš mišljenje od Dajane',
+      choose_image_btn: 'Izaberi sliku',
+      no_images: 'Nemaš generisane slike',
+      no_images_hint: 'Isprobaj outfit u Kapsuli pa se vrati ovde',
+      modal_title: 'Izaberi sliku',
+      modal_subtitle: 'Izaberi generisanu sliku za Dajanin savet',
+      error_ai: 'Izvinite, desila se greška. Pokušajte ponovo.',
+      error_ai_comm: 'Greška u komunikaciji sa AI.',
+      no_credits_message: 'Nemate aktivnu pretplatu niti kredite za generisanje. Obnovite pretplatu ili kupite dopunu u Shopu.',
+      try_on_question: 'Isprobala sam ovaj outfit virtuelno. Kako mi stoji? Daj mi savete!',
+    },
+
+    // Profile extras
+    profile_user: 'Korisnik',
+    profile_language_sr: 'Srpski',
+    profile_language_en: 'English',
+
+    // Credits display
+    credits_renewal: 'Obnova: 31 dana od uplate',
+    credits_this_month: 'ovaj mesec',
+
+    // Video
+    video: {
+      prompt_placeholder: 'npr. okret levo...',
+      scene_label: 'OPIS SCENE',
+      hint_turn_left: 'Okret levo',
+      hint_turn_right: 'Okret desno',
+      hint_stand_still: 'Stajanje u mestu',
+      creation_title: 'Kreacija',
+      generating_min: 'Video se kreira ~%{min} min',
+      continue_in_background: 'Nastavi u pozadini',
+      video_ready: 'Tvoj video je spreman!',
+      video_ready_subtitle: 'Pogledaj sada.',
+      generated_images: 'Generisane slike',
+      create_video: 'Kreiraj video',
+      collection: 'Kolekcija',
+      no_videos_yet: 'Još uvek niste kreirali nijedan video',
+    },
+
+    // Outfit Preview
+    outfit_preview: {
+      empty_message: 'Nisi izabrala nijedan outfit',
+      back_btn: 'Nazad',
+      your_choice: 'Tvoj izbor',
+      clear_all: 'Obriši sve',
+      what_to_make: 'Šta želiš da napraviš?',
+      option_image: 'Slika',
+      option_video: 'Video',
+      try_on_btn: 'Isprobaj',
+      items_selected_one: '%{count} komad izabrano',
+      items_selected: '%{count} komada izabrano',
+      option_image_sub: 'AI Try-On fotografija',
+      option_video_sub: '5s AI animacija',
+    },
+
+    // Outfit Builder
+    outfit_builder: {
+      slot_outerwear: 'Jakna',
+      slot_top: 'Gornji deo',
+      slot_bottom: 'Donji deo',
+      slot_shoes: 'Obuća',
+      try_btn: 'Isprobaj',
+      add_item: 'Dodaj',
+      my_outfit: 'Moj outfit',
+    },
+
+    // Table builder zones (capsule)
+    table_builder: {
+      zone_outerwear: 'Kaput / Jakna',
+      zone_top: 'Majica / Bluza',
+      zone_bottom: 'Pantalone / Suknja',
+      zone_shoes: 'Cipele',
+      zone_accessory: 'Sat / Nakit',
+      zone_bag: 'Tašna',
+      screen_title: 'KAPSULA',
+      screen_subtitle: 'Složi svoj outfit',
+    },
+
+    // Atelier (pre-chat)
+    atelier: {
+      occasion_evening: 'Večernji izlazak',
+      occasion_business: 'Poslovni dan',
+      occasion_travel: 'Putovanje',
+      occasion_casual: 'Casual dan',
+      default_name: 'Ana',
+    },
+
+    // Onboarding measurements
+    onboarding_finish: 'Završi',
+
+    // Notifications
+    notifications: {
+      title: 'Obaveštenja',
+      today: 'Danas',
+      yesterday: 'Juče',
+      empty_title: 'Nema obaveštenja',
+      empty_subtitle: 'Ovde će se pojaviti obaveštenja o videima i savetima.',
+      new_count: 'nove',
+    },
+
+    // Calendar
+    calendar: {
+      title: 'Kalendar',
+      subtitle: 'Ovde su svi vaši outfiti po datumima',
+      empty: 'Nema sačuvanih kombinacija za ovaj mesec.',
+      delete_confirm: 'Obriši ovu kombinaciju?',
+      delete_title: 'Obriši outfit',
+      delete_question: 'Da li ste sigurni?',
+      outfits_for: 'Outfiti za',
+      outfit_one: 'outfit',
+      outfit_many: 'outfita',
+      pieces_one: 'komad',
+      pieces_many: 'komada',
+      add_new: 'Dodaj novi outfit',
+      january: 'Januar', february: 'Februar', march: 'Mart', april: 'April', may: 'Maj', june: 'Jun',
+      july: 'Jul', august: 'Avgust', september: 'Septembar', october: 'Oktobar', november: 'Novembar', december: 'Decembar',
+      sun: 'Ned', mon: 'Pon', tue: 'Uto', wed: 'Sre', thu: 'Čet', fri: 'Pet', sat: 'Sub',
+    },
+
+    // Common
+    not_found_title: 'Ups!',
+    not_found_message: 'Ova stranica ne postoji.',
+    not_found_link: 'Idi na početnu',
+    share_not_available: 'Deljenje nije dostupno na ovom uređaju',
   },
 
   en: {
@@ -425,6 +636,7 @@ const translations = {
       forgot_password: 'Forgot password?',
       no_account: "Don't have an account?",
       have_account: 'Already have an account?',
+      continue_as_guest: 'Continue as guest',
       register: 'Register',
       login: 'Login',
       reset_password: 'Reset password',
@@ -470,7 +682,7 @@ const translations = {
       good_morning: 'Good morning',
       good_afternoon: 'Good afternoon',
       good_evening: 'Good evening',
-      credits_title: 'Your credits this month',
+      credits_title: 'Your credits (renewal every 31 days)',
       credits_hero_subtitle: 'Use images, video and analyses to upgrade your style with Dajana.',
       images: 'Images',
       videos: 'Videos',
@@ -496,6 +708,7 @@ const translations = {
       waist: 'Waist',
       hips: 'Hips',
       edit_data: 'Edit data',
+      edit_link: 'Edit',
       credits: 'Credits',
       buy_more: 'Buy more credits',
       theme: 'Theme',
@@ -507,7 +720,59 @@ const translations = {
       privacy_policy: 'Privacy Policy',
       sign_out: 'Sign out',
       sign_out_confirm: 'Are you sure you want to sign out?',
+      delete_account: 'Delete account',
+      delete_account_confirm: 'Are you sure? Your account and all data will be permanently deleted. This cannot be undone.',
+      delete_account_success: 'Account deleted.',
       not_set: 'Not set',
+    },
+    guest_modal: {
+      title: 'Create a profile',
+      message: 'Only signed-in users can use this. Sign in or register to continue.',
+      sign_in: 'Sign in',
+      register: 'Register',
+    },
+
+    // Shop (Subscription and top-up)
+    shop: {
+      title: 'Subscription & credits',
+      subtitle: 'Monthly or yearly subscription includes credits for images, videos and AI analyses. Top-up for overage.',
+      section_subscription: 'Subscription',
+      plan_monthly: 'Monthly',
+      plan_monthly_desc: '50 images, 2 videos, 2 AI analyses – renewal every 31 days.',
+      plan_yearly: 'Yearly',
+      plan_yearly_desc: 'Same credit pack, pay once a year with discount.',
+      section_topup: 'Top-up for overage',
+      topup_name: 'Credit pack',
+      topup_desc: '+10 images (capsule), +1 video, +2 AI analyses.',
+      popular: 'Popular',
+      images: 'Images',
+      videos: 'Videos',
+      analyses: 'Analyses',
+      buy: 'Buy',
+      subscribe: 'Subscribe',
+      buy_confirm_title: 'Purchase',
+      coming_soon_message: 'Payment for %{price} will be available soon. Thank you for your interest!',
+      payment_method: 'Payment: Stripe (cards, Apple Pay, Google Pay).',
+      footer_note: 'When your subscription expires, you can still view saved images, videos and advice; new generation requires renewal or top-up.',
+      no_subscription_no_credits: 'You have no active subscription or credits for generation. Renew your subscription or buy a top-up in Shop.',
+    },
+
+    // Payment (simulation / Stripe)
+    payment: {
+      title: 'Payment',
+      order_summary: 'Order summary',
+      card_number: 'Card number',
+      card_placeholder: '4242 4242 4242 4242',
+      expiry: 'Expiry',
+      expiry_placeholder: 'MM/YY',
+      cvc: 'CVC',
+      cvc_placeholder: '123',
+      pay_btn: 'Pay %{amount}',
+      processing: 'Processing...',
+      success_title: 'Payment successful',
+      success_message: 'Thank you. Your purchase has been recorded.',
+      back_to_shop: 'Back to Shop',
+      secure_note: 'Secure payment via Stripe. This is a simulation – no real charge.',
     },
 
     // Edit Profile
@@ -540,6 +805,7 @@ const translations = {
       your_measurements: 'Your measurements',
       measurements_subtitle: 'Enter your measurements so we can calculate your body type and personalize recommendations',
       height: 'Height',
+      weight: 'Weight',
       weight_optional: 'Weight (optional)',
       bust: 'Bust',
       waist: 'Waist',
@@ -670,6 +936,7 @@ const translations = {
         all_body_types: 'All types',
         all_seasons: 'All seasons',
       },
+      outfit_label: 'Outfit',
       outfit: {
         for_body_types: 'For body types',
         for_seasons: 'For seasons',
@@ -698,13 +965,16 @@ const translations = {
     },
 
     wardrobe_choice: {
+      choice_hint: 'Capsule or Closet — choose where to start.',
       capsule_title: 'Capsule',
-      capsule_subtitle: 'Build your own wardrobe',
+      capsule_subtitle: 'Create your outfit',
       ormar_title: 'Outfit closet',
       ormar_subtitle: 'Complete outfits by Dajana',
     },
     ormar: {
       title: 'Virtual closet',
+      panel_subtitle: 'Pick an outfit and try it on',
+      swipe_hint: 'Swipe',
       tap_hanger: 'Tap the hanger for ready outfits',
       swipe_to_discover: 'Swipe to discover other outfits',
       complete_outfits: 'Complete outfits',
@@ -714,6 +984,158 @@ const translations = {
     // Placeholders
     coming_soon: 'Coming soon',
     coming_in_phase: 'Coming in Phase',
+
+    // Try-On
+    try_on: {
+      welcome_title: 'AI Try-On',
+      welcome_subtitle: 'Capture your face for the best result. Choose a photo or take one in the next step.',
+      welcome_next: 'Next',
+      welcome_secondary_btn: 'See what\'s in my closet',
+      permission_gallery: 'Permission required to access the gallery',
+      permission_camera: 'Permission required for the camera',
+      error_pick_image: 'Error selecting image',
+      error_camera: 'Error taking photo',
+      error_select_image: 'Please select an image',
+      error_no_face: 'Face image missing. Go back and choose a photo.',
+      selected_outfit: 'Selected outfit',
+      shop_btn: 'Shop',
+      generating_step1: 'Analyzing your style...',
+      generating_step2: 'Choosing the perfect cut...',
+      generating_step3: 'Creating your outfit...',
+      generating_step4: 'Adding finishing touches...',
+      generating_step5: 'Ready for you...',
+      retry: 'Again',
+    },
+
+    // AI Advice / Chat
+    ai_advice: {
+      empty_subtitle: 'Type a message below',
+      placeholder: 'Describe how you want to look today…',
+      choose_image_card_title: 'Pick an image you generated',
+      choose_image_card_subtitle: "You'll get Dajana's opinion",
+      choose_image_btn: 'Choose image',
+      no_images: "You have no generated images",
+      no_images_hint: 'Try an outfit in Capsule then come back here',
+      modal_title: 'Choose image',
+      modal_subtitle: 'Choose a generated image for Dajana\'s advice',
+      error_ai: 'Sorry, something went wrong. Please try again.',
+      error_ai_comm: 'Error communicating with AI.',
+      no_credits_message: 'You have no active subscription or credits for generation. Renew your subscription or buy a top-up in Shop.',
+      try_on_question: 'I tried this outfit virtually. How does it look? Give me advice!',
+    },
+
+    // Profile extras
+    profile_user: 'User',
+    profile_language_sr: 'Serbian',
+    profile_language_en: 'English',
+
+    // Credits display
+    credits_renewal: 'Renewal: 31 days from payment',
+    credits_this_month: 'this month',
+
+    // Video
+    video: {
+      prompt_placeholder: 'e.g. turn left...',
+      scene_label: 'SCENE DESCRIPTION',
+      hint_turn_left: 'Turn left',
+      hint_turn_right: 'Turn right',
+      hint_stand_still: 'Stand still',
+      creation_title: 'Creation',
+      generating_min: 'Video creating ~%{min} min',
+      continue_in_background: 'Continue in background',
+      video_ready: 'Your video is ready!',
+      video_ready_subtitle: 'Watch now.',
+      generated_images: 'Generated images',
+      create_video: 'Create video',
+      collection: 'Collection',
+      no_videos_yet: "You haven't created any video yet",
+    },
+
+    // Outfit Preview
+    outfit_preview: {
+      empty_message: "You haven't selected any outfit",
+      back_btn: 'Back',
+      your_choice: 'Your selection',
+      clear_all: 'Clear all',
+      what_to_make: 'What would you like to create?',
+      option_image: 'Image',
+      option_video: 'Video',
+      try_on_btn: 'Try on',
+      items_selected_one: '%{count} item selected',
+      items_selected: '%{count} items selected',
+      option_image_sub: 'AI Try-On photo',
+      option_video_sub: '5s AI animation',
+    },
+
+    // Outfit Builder
+    outfit_builder: {
+      slot_outerwear: 'Jacket',
+      slot_top: 'Top',
+      slot_bottom: 'Bottom',
+      slot_shoes: 'Shoes',
+      try_btn: 'Try on',
+      add_item: 'Add',
+      my_outfit: 'My outfit',
+    },
+
+    // Table builder zones (capsule)
+    table_builder: {
+      zone_outerwear: 'Coat / Jacket',
+      zone_top: 'Shirt / Blouse',
+      zone_bottom: 'Pants / Skirt',
+      zone_shoes: 'Shoes',
+      zone_accessory: 'Watch / Jewelry',
+      zone_bag: 'Bag',
+      screen_title: 'CAPSULE',
+      screen_subtitle: 'Build your outfit',
+    },
+
+    // Atelier (pre-chat)
+    atelier: {
+      occasion_evening: 'Evening out',
+      occasion_business: 'Business day',
+      occasion_travel: 'Travel',
+      occasion_casual: 'Casual day',
+      default_name: 'Ana',
+    },
+
+    // Onboarding measurements
+    onboarding_finish: 'Finish',
+
+    // Notifications
+    notifications: {
+      title: 'Notifications',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      empty_title: 'No notifications',
+      empty_subtitle: 'Notifications about videos and advice will appear here.',
+      new_count: 'new',
+    },
+
+    // Calendar
+    calendar: {
+      title: 'Calendar',
+      subtitle: 'All your outfits by date',
+      empty: 'No saved combinations for this month.',
+      delete_confirm: 'Delete this combination?',
+      delete_title: 'Delete outfit',
+      delete_question: 'Are you sure?',
+      outfits_for: 'Outfits for',
+      outfit_one: 'outfit',
+      outfit_many: 'outfits',
+      pieces_one: 'piece',
+      pieces_many: 'pieces',
+      add_new: 'Add new outfit',
+      january: 'January', february: 'February', march: 'March', april: 'April', may: 'May', june: 'June',
+      july: 'July', august: 'August', september: 'September', october: 'October', november: 'November', december: 'December',
+      sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat',
+    },
+
+    // Common
+    not_found_title: 'Oops!',
+    not_found_message: "This screen doesn't exist.",
+    not_found_link: 'Go to home screen',
+    share_not_available: 'Sharing is not available on this device',
   },
 };
 

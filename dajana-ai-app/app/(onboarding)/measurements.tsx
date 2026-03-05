@@ -33,13 +33,10 @@ const SILHOUETTE_HEIGHT = 500;
 
 const DAJANA_MERE_IMG = require('@/assets/images/dajana_mere.png');
 const ONBOARDING_CREAM = '#F8F4EF';
-const GOLD = COLORS.secondary; // '#CF8F5A'
 const DARK = '#1A1A1A';
 
-// Ring color from the reference image (purple glowing ring) or Gold for luxury app
-const RING_COLOR = '#8A2BE2'; // or GOLD. We will use a nice vibrant purple for contrast, or stick to GOLD. Let's use a beautiful purple to match the reference.
-// Actually, user said: "sve u boji aplikacije", so we MUST use GOLD (COLORS.secondary).
-const APP_RING_COLOR = GOLD;
+// Sve u primarnoj (tamno zelenoj) boji brenda
+const APP_RING_COLOR = COLORS.primary;
 const CREAM_RING = '#D8D2CA';
 
 // Measurements Steps
@@ -57,13 +54,15 @@ interface MeasureStep {
   ringH: number;
 }
 
-const STEPS: MeasureStep[] = [
-  { id: 'height_cm', title: 'Visina', min: 140, max: 220, initial: 165, unit: 'cm', ringY: 170, ringW: 0, ringH: 0 },
-  { id: 'bust_cm', title: 'Grudi', min: 60, max: 150, initial: 90, unit: 'cm', ringY: 114, ringW: 146, ringH: 125 },
-  { id: 'waist_cm', title: 'Struk', min: 50, max: 130, initial: 70, unit: 'cm', ringY: 214, ringW: 114, ringH: 100 },
-  { id: 'hips_cm', title: 'Kukovi', min: 60, max: 150, initial: 95, unit: 'cm', ringY: 316, ringW: 168, ringH: 146 },
-  { id: 'weight_kg', title: 'Težina', min: 40, max: 130, initial: 60, unit: 'kg', ringY: 170, ringW: 0, ringH: 0 },
-];
+function getSteps(): MeasureStep[] {
+  return [
+    { id: 'height_cm', title: t('onboarding.height'), min: 140, max: 220, initial: 165, unit: 'cm', ringY: 170, ringW: 0, ringH: 0 },
+    { id: 'bust_cm', title: t('onboarding.bust'), min: 60, max: 150, initial: 90, unit: 'cm', ringY: 114, ringW: 146, ringH: 125 },
+    { id: 'waist_cm', title: t('onboarding.waist'), min: 50, max: 130, initial: 70, unit: 'cm', ringY: 214, ringW: 114, ringH: 100 },
+    { id: 'hips_cm', title: t('onboarding.hips'), min: 60, max: 150, initial: 95, unit: 'cm', ringY: 316, ringW: 168, ringH: 146 },
+    { id: 'weight_kg', title: t('onboarding.weight'), min: 40, max: 130, initial: 60, unit: 'kg', ringY: 170, ringW: 0, ringH: 0 },
+  ];
+}
 
 const TICK_SPACING = 12;
 const HALF_WIDTH = W / 2;
@@ -149,6 +148,7 @@ export default function MeasurementsScreen() {
   const router = useRouter();
   const { updateProfile } = useAuth();
   const insets = useSafeAreaInsets();
+  const STEPS = getSteps();
   
   const [stepIndex, setStepIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -198,15 +198,6 @@ export default function MeasurementsScreen() {
       setStepIndex((prev) => prev - 1);
     } else {
       router.back();
-    }
-  };
-
-  const handleSkip = () => {
-    // Only Weight is truly optional, but we can allow skipping to next if needed
-    if (stepIndex < STEPS.length - 1) {
-      setStepIndex((prev) => prev + 1);
-    } else {
-      handleNext();
     }
   };
 
@@ -269,15 +260,9 @@ export default function MeasurementsScreen() {
         />
       </View>
 
-      {/* Footer */}
+      {/* Footer – bez opcije Preskoči ni na težini */}
       <View style={styles.footer}>
-        {activeStep.id === 'weight_kg' ? (
-          <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
-            <Text style={styles.skipText}>Preskoči</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ flex: 1 }} />
-        )}
+        <View style={{ flex: 1 }} />
         <TouchableOpacity
           style={styles.nextBtn}
           onPress={handleNext}
@@ -287,7 +272,7 @@ export default function MeasurementsScreen() {
           {isLoading ? (
             <ActivityIndicator color="#FFF" />
           ) : (
-            <Text style={styles.nextBtnText}>{stepIndex === STEPS.length - 1 ? 'Završi' : 'Dalje'}</Text>
+            <Text style={styles.nextBtnText}>{stepIndex === STEPS.length - 1 ? t('onboarding_finish') : t('next')}</Text>
           )}
           {!isLoading && <Feather name="chevron-right" size={20} color="#FFF" style={{ marginLeft: 4 }} />}
         </TouchableOpacity>
@@ -306,11 +291,11 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.md,
   },
   backBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontFamily: FONTS.heading.bold, fontSize: FONT_SIZES['2xl'], color: APP_RING_COLOR, flex: 1, textAlign: 'center' },
+  headerTitle: { fontFamily: FONTS.heading.bold, fontSize: FONT_SIZES['2xl'], color: COLORS.primary, flex: 1, textAlign: 'center' },
   
   progressContainer: { paddingHorizontal: SPACING.xl, marginTop: SPACING.lg },
   progressBar: { height: 4, backgroundColor: COLORS.gray[200], borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: GOLD },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary },
 
   modelContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginVertical: SPACING.sm },
   silhouetteWrap: { width: SILHOUETTE_WIDTH, height: SILHOUETTE_HEIGHT, alignSelf: 'center', position: 'relative' },
@@ -335,15 +320,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
   },
-  heightLineValue: { fontFamily: FONTS.heading.bold, fontSize: 16, color: APP_RING_COLOR },
+  heightLineValue: { fontFamily: FONTS.heading.bold, fontSize: 16, color: COLORS.primary },
   heightLineUnit: { fontFamily: FONTS.primary.regular, fontSize: 13, color: COLORS.gray[600] },
 
   rulerSection: { height: 118, backgroundColor: '#FFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 5, paddingTop: SPACING.sm, paddingBottom: SPACING.xs },
   
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xl, backgroundColor: '#FFF' },
-  skipBtn: { paddingVertical: SPACING.md, paddingHorizontal: SPACING.lg },
-  skipText: { fontFamily: FONTS.primary.bold, fontSize: FONT_SIZES.md, color: COLORS.gray[500], letterSpacing: 0.5 },
-  nextBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: APP_RING_COLOR, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, borderRadius: 30, shadowColor: APP_RING_COLOR, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+  nextBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, paddingVertical: SPACING.md, paddingHorizontal: SPACING.xl, borderRadius: 30, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   nextBtnText: { fontFamily: FONTS.primary.semibold, fontSize: FONT_SIZES.md, color: '#FFF', letterSpacing: 0.5 },
 });
 

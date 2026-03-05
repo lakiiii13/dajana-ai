@@ -12,6 +12,7 @@ export type VideoStatus = 'idle' | 'uploading' | 'generating' | 'polling' | 'don
 
 export interface BackgroundJobMeta {
   jobId: string;
+  userId: string;
   sourceImageUrl: string;
   publicImageUrl: string;
   prompt: string;

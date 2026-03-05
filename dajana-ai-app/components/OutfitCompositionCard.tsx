@@ -17,8 +17,9 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/t
 import { SavedOutfit } from '@/lib/tryOnService';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - SPACING.sm) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.3;
+const GRID_GAP = 10;
+const CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - GRID_GAP) / 2;
+const CARD_HEIGHT = CARD_WIDTH * 1.42;
 
 interface Props {
   outfit: SavedOutfit;
@@ -99,6 +100,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   // Image area

@@ -1,11 +1,12 @@
 // ===========================================
 // DAJANA AI - Credit Service
-// Manages user credit tracking for AI generations
-// 3 types: Images (50/mo), Videos (2/mo), Analyses (2/mo)
+// Manages user credit tracking for AI generations.
+// Obnova: 31 dana od uplate (last_reset_date), ne kalendarski mesec.
+// 3 tipa: Slike (50), Video (2), Analize (2) po periodu.
 // ===========================================
 
 import { supabase } from '@/lib/supabase';
-import { CREDIT_LIMITS } from '@/constants/credits';
+import { CREDIT_LIMITS, CREDIT_PERIOD_DAYS } from '@/constants/credits';
 
 export interface UserCredits {
   imageCreditsUsed: number;
@@ -72,12 +73,12 @@ export async function getAllCredits(userId: string): Promise<AllCredits> {
       return defaults;
     }
 
-    // Check if we need a monthly reset
+    // Obnova: 31 dana od last_reset_date (uplata), ne 1. u mesecu
     const lastReset = new Date(data.last_reset_date);
     const now = new Date();
-    const needsReset =
-      now.getMonth() !== lastReset.getMonth() ||
-      now.getFullYear() !== lastReset.getFullYear();
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const daysSinceReset = (now.getTime() - lastReset.getTime()) / msPerDay;
+    const needsReset = daysSinceReset >= CREDIT_PERIOD_DAYS;
 
     if (needsReset) {
       const { data: resetData, error: resetError } = await supabase
@@ -152,11 +153,21 @@ export async function getUserCredits(userId: string): Promise<UserCredits> {
 }
 
 /**
- * Check if user has available image credits.
+ * Check if user has available image / video / analysis credits.
  */
 export async function hasImageCredits(userId: string): Promise<boolean> {
   const all = await getAllCredits(userId);
   return all.image.remaining > 0;
+}
+
+export async function hasVideoCredits(userId: string): Promise<boolean> {
+  const all = await getAllCredits(userId);
+  return all.video.remaining > 0;
+}
+
+export async function hasAnalysisCredits(userId: string): Promise<boolean> {
+  const all = await getAllCredits(userId);
+  return all.analysis.remaining > 0;
 }
 
 /**
@@ -215,4 +226,61 @@ export async function deductImageCredit(userId: string): Promise<UserCredits> {
     bonusImageCredits: newBonusCredits,
     imageCreditsRemaining: credits.imageCreditsLimit - newUsed + newBonusCredits,
   };
+}
+
+/**
+ * Skida 1 video kredit nakon uspešnog pokretanja generisanja videa.
+ */
+export async function deductVideoCredit(userId: string): Promise<void> {
+  const all = await getAllCredits(userId);
+  if (all.video.remaining <= 0) throw new Error('Nemate dovoljno kredita za video.');
+
+  let newBonus = all.video.bonus;
+  let newUsed = all.video.used;
+  if (newBonus > 0) newBonus -= 1;
+  else newUsed += 1;
+
+  const { error } = await supabase
+    .from('user_credits')
+    .update({
+      video_credits_used: newUsed,
+      bonus_video_credits: newBonus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId);
+
+  if (error) throw new Error('Greška pri skidanju kredita.');
+}
+
+/**
+ * Skida 1 kredit za analizu nakon uspešnog odgovora Dajane (chat).
+ */
+export async function deductAnalysisCredit(userId: string): Promise<void> {
+  const all = await getAllCredits(userId);
+  if (all.analysis.remaining <= 0) throw new Error('Nemate dovoljno kredita za analizu.');
+
+  let newBonus = all.analysis.bonus;
+  let newUsed = all.analysis.used;
+  if (newBonus > 0) newBonus -= 1;
+  else newUsed += 1;
+
+  const { data, error } = await supabase
+    .from('user_credits')
+    .update({
+      analysis_credits_used: newUsed,
+      bonus_analysis_credits: newBonus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[Credits] deductAnalysisCredit error:', error.code, error.message);
+    throw new Error('Greška pri skidanju kredita.');
+  }
+  if (!data) {
+    console.error('[Credits] deductAnalysisCredit: nijedan red ažuriran (user_id=', userId, ')');
+    throw new Error('Greška pri skidanju kredita.');
+  }
 }

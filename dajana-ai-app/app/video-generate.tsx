@@ -24,10 +24,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONTS, SPACING } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import { useVideoStore } from '@/stores/videoStore';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { startVideoGeneration } from '@/lib/videoService';
 import { saveBackgroundJob } from '@/lib/backgroundVideoTask';
+import { useAuthStore } from '@/stores/authStore';
+import { hasVideoCredits, deductVideoCredit } from '@/lib/creditService';
 import { AppLogo } from '@/components/AppLogo';
 import { getSavedTryOnImages, getSavedOutfits, type SavedTryOnImage, type SavedOutfit } from '@/lib/tryOnService';
 import Animated, {
@@ -52,6 +55,7 @@ const PICKER_THUMB = (W - SPACING.lg * 2 - 14 * 2) / 3;
 
 export default function VideoGenerateScreen() {
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((s) => s.user);
   const {
     sourceImageUrl,
     prompt,
@@ -73,6 +77,7 @@ export default function VideoGenerateScreen() {
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [tryOnImages, setTryOnImages] = useState<SavedTryOnImage[]>([]);
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
+  const [sourceImageSize, setSourceImageSize] = useState<{ width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (!sourceImageUrl) {
@@ -83,6 +88,18 @@ export default function VideoGenerateScreen() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!sourceImageUrl) {
+      setSourceImageSize(null);
+      return;
+    }
+    Image.getSize(
+      sourceImageUrl,
+      (width, height) => setSourceImageSize({ width, height }),
+      () => setSourceImageSize(null)
+    );
+  }, [sourceImageUrl]);
 
   const loadSources = useCallback(async () => {
     try {
@@ -143,14 +160,40 @@ export default function VideoGenerateScreen() {
       return;
     }
 
+    if (!user?.id) {
+      Alert.alert('Prijava', 'Morate biti prijavljeni da biste generisali video.');
+      return;
+    }
+
+    try {
+      const hasCredits = await hasVideoCredits(user.id);
+      if (!hasCredits) {
+        Alert.alert(
+          t('capsule.credits.no_credits'),
+          t('shop.no_subscription_no_credits'),
+          [
+            { text: t('cancel'), style: 'cancel' },
+            { text: 'Shop', onPress: () => router.replace('/shop') },
+          ]
+        );
+        return;
+      }
+    } catch {
+      Alert.alert(t('error'), 'Nije moguće proveriti kredite.');
+      return;
+    }
+
     setError(null);
     setStatus('generating');
 
     try {
       const { jobId, publicImageUrl } = await startVideoGeneration(sourceImageUrl, prompt, duration);
+      await deductVideoCredit(user.id);
+      useAuthStore.getState().fetchCredits();
 
       const jobMeta = {
         jobId,
+        userId: user.id,
         sourceImageUrl: publicImageUrl,
         publicImageUrl,
         prompt,
@@ -223,11 +266,24 @@ export default function VideoGenerateScreen() {
               activeOpacity={0.85}
             >
               {sourceImageUrl ? (
-                <Image
-                  source={{ uri: sourceImageUrl }}
-                  style={styles.sourceImage}
-                  resizeMode="cover"
-                />
+                <View style={styles.sourceImageWrap}>
+                  <Image
+                    source={{ uri: sourceImageUrl }}
+                    style={
+                      sourceImageSize
+                        ? [
+                            styles.sourceImageTopAligned,
+                            {
+                              height:
+                                (W - SPACING.lg * 2) *
+                                (sourceImageSize.height / sourceImageSize.width),
+                            },
+                          ]
+                        : styles.sourceImage
+                    }
+                    resizeMode="cover"
+                  />
+                </View>
               ) : (
                 <View style={styles.imagePlaceholder}>
                   <View style={styles.imagePlaceholderCircle}>
@@ -250,20 +306,20 @@ export default function VideoGenerateScreen() {
 
           {/* Prompt */}
           <Animated.View entering={FadeInDown.delay(200).duration(400)}>
-            <Text style={styles.sectionLabel}>OPIS SCENE</Text>
+            <Text style={styles.sectionLabel}>{t('video.scene_label')}</Text>
             <View style={styles.promptWrap}>
               <TextInput
                 style={styles.promptInput}
                 value={prompt}
                 onChangeText={setPrompt}
-                placeholder="npr. okret levo..."
+                placeholder={t('video.prompt_placeholder')}
                 placeholderTextColor={COLORS.gray[400]}
                 multiline
                 numberOfLines={3}
               />
             </View>
             <View style={styles.promptHints}>
-              {['Okret levo', 'Okret desno', 'Stajanje u mestu'].map((h) => (
+              {[t('video.hint_turn_left'), t('video.hint_turn_right'), t('video.hint_stand_still')].map((h) => (
                 <TouchableOpacity
                   key={h}
                   style={[styles.hintChip, prompt.includes(h) && styles.hintChipActive]}
@@ -292,7 +348,7 @@ export default function VideoGenerateScreen() {
                 <Ionicons
                   name="time-outline"
                   size={24}
-                  color={duration === '5' ? COLORS.white : GOLD}
+                  color={duration === '5' ? COLORS.primary : DARK}
                 />
                 <Text
                   style={[styles.durationValue, duration === '5' && styles.durationValueActive]}
@@ -314,7 +370,7 @@ export default function VideoGenerateScreen() {
                 <Ionicons
                   name="time-outline"
                   size={24}
-                  color={duration === '10' ? COLORS.white : GOLD}
+                  color={duration === '10' ? COLORS.primary : DARK}
                 />
                 <Text
                   style={[styles.durationValue, duration === '10' && styles.durationValueActive]}
@@ -624,7 +680,7 @@ function GeneratingOverlay({
             activeOpacity={0.85}
           >
             <Ionicons name="exit-outline" size={18} color={GOLD} />
-            <Text style={genStyles.leaveBtnText}>Nastavi u pozadini</Text>
+            <Text style={genStyles.leaveBtnText}>{t('video.continue_in_background')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -697,7 +753,18 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(207,143,90,0.12)',
     height: 220,
   },
+  sourceImageWrap: {
+    width: '100%',
+    height: 220,
+    overflow: 'hidden',
+  },
   sourceImage: { width: '100%', height: '100%' },
+  sourceImageTopAligned: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: W - SPACING.lg * 2,
+  },
   imagePlaceholder: {
     flex: 1,
     alignItems: 'center',
@@ -791,17 +858,18 @@ const styles = StyleSheet.create({
     paddingVertical: 22,
     borderRadius: 18,
     backgroundColor: CARD_BG,
-    borderWidth: 1.5,
-    borderColor: 'rgba(207,143,90,0.12)',
+    borderWidth: 1,
+    borderColor: COLORS.gray[200],
   },
   durationCardActive: {
-    backgroundColor: GOLD,
-    borderColor: GOLD,
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 5,
+    backgroundColor: CARD_BG,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 2,
   },
   durationValue: {
     fontFamily: FONTS.heading.semibold,
@@ -809,14 +877,14 @@ const styles = StyleSheet.create({
     color: DARK,
     marginTop: 6,
   },
-  durationValueActive: { color: COLORS.white },
+  durationValueActive: { color: DARK },
   durationLabel: {
     fontFamily: FONTS.primary.regular,
     fontSize: 12,
     color: COLORS.gray[500],
     marginTop: 2,
   },
-  durationLabelActive: { color: 'rgba(255,255,255,0.8)' },
+  durationLabelActive: { color: COLORS.gray[600] },
 
   errorWrap: {
     flexDirection: 'row',
@@ -845,12 +913,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     paddingVertical: 16,
     borderRadius: 30,
-    shadowColor: GOLD,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 5,
   },
@@ -1046,7 +1114,7 @@ const genStyles = StyleSheet.create({
     backgroundColor: 'rgba(207,143,90,0.15)',
     overflow: 'hidden',
   },
-  progressFill: { height: '100%', backgroundColor: GOLD, borderRadius: 2 },
+  progressFill: { height: '100%', backgroundColor: COLORS.primary, borderRadius: 2 },
   progressText: {
     fontFamily: FONTS.primary.regular,
     fontSize: 13,

@@ -1,6 +1,6 @@
 // ==========================================
 // DAJANA AI - Notifikacije
-// Lista prethodnih notifikacija
+// Lista notifikacija iz baze (video spreman, Dajana iz admina, sistem)
 // ===========================================
 
 import { useState, useCallback } from 'react';
@@ -15,8 +15,11 @@ import {
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
+import { getNotificationInbox, markNotificationRead, type InboxNotificationRow } from '@/lib/notificationService';
+import { t, getLanguage } from '@/lib/i18n';
 
 export type NotificationItem = {
   id: string;
@@ -27,41 +30,32 @@ export type NotificationItem = {
   read: boolean;
 };
 
-// Primer notifikacija (kasnije zameniti API-jem)
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-  {
-    id: '1',
-    type: 'outfit',
-    title: 'Novi outfit za tebe',
-    body: 'Pogledaj preporučene kombinacije u Kapsuli.',
-    time: 'Danas, 14:32',
-    read: false,
-  },
-  {
-    id: '2',
-    type: 'video',
-    title: 'Video je spreman',
-    body: 'Tvoj AI video je generisan. Pogledaj u sekciji Video.',
-    time: 'Juče, 18:20',
-    read: true,
-  },
-  {
-    id: '3',
-    type: 'advice',
-    title: 'Mišljenje od Dajane',
-    body: 'Dajana je pregledala tvoj outfit i ostavila savet.',
-    time: 'Juče, 12:15',
-    read: true,
-  },
-  {
-    id: '4',
-    type: 'system',
-    title: 'Dobrodošli u DAJANA AI',
-    body: 'Izaberi outfit u Kapsuli i isprobaj ga uz AI.',
-    time: '9. feb 2026.',
-    read: true,
-  },
-];
+function formatTime(createdAt: string): string {
+  const d = new Date(createdAt);
+  const now = new Date();
+  const today = now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const locale = getLanguage() === 'en' ? 'en-US' : 'sr-RS';
+  if (d.toDateString() === today) {
+    return `${t('notifications.today')}, ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  if (d.toDateString() === yesterday.toDateString()) {
+    return `${t('notifications.yesterday')}, ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+}
+
+function mapInboxToItem(row: InboxNotificationRow): NotificationItem {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    time: formatTime(row.created_at),
+    read: row.read,
+  };
+}
 
 function getIconForType(type: NotificationItem['type']) {
   switch (type) {
@@ -85,22 +79,33 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const [notifications, setNotifications] = useState<NotificationItem[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const loadInbox = useCallback(async () => {
+    const rows = await getNotificationInbox();
+    setNotifications(rows.map(mapInboxToItem));
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadInbox();
+    }, [loadInbox])
+  );
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    // Simulacija osvežavanja
-    await new Promise((r) => setTimeout(r, 600));
+    await loadInbox();
     setRefreshing(false);
-  }, []);
+  }, [loadInbox]);
 
   const markAsRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
+    markNotificationRead(id);
   }, []);
 
   return (
@@ -115,9 +120,9 @@ export default function NotificationsScreen() {
           <Feather name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Notifikacije</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('notifications.title')}</Text>
           {unreadCount > 0 && (
-            <Text style={styles.headerBadge}>{unreadCount} nove</Text>
+            <Text style={styles.headerBadge}>{unreadCount} {t('notifications.new_count')}</Text>
           )}
         </View>
         <View style={styles.headerRight} />
@@ -136,9 +141,9 @@ export default function NotificationsScreen() {
             <View style={[styles.emptyIconWrap, { backgroundColor: colors.gray[100] }]}>
               <Feather name="bell" size={48} color={colors.gray[400]} />
             </View>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nema notifikacija</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('notifications.empty_title')}</Text>
             <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-              Kada budemo imali vesti za tebe, pojaviće se ovde.
+              {t('notifications.empty_subtitle')}
             </Text>
           </View>
         ) : (
@@ -264,7 +269,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     marginTop: 6,
   },
   emptyWrap: {

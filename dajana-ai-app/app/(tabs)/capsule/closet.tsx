@@ -9,6 +9,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   ImageBackground,
   Image,
   Dimensions,
@@ -20,7 +21,7 @@ import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut, useSharedValue, useAnimated
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FONTS } from '@/constants/theme';
+import { FONTS, COLORS } from '@/constants/theme';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { t } from '@/lib/i18n';
@@ -66,11 +67,13 @@ function IsprobajButtonAnimated({
   );
 }
 
+const PANEL_TOP_RATIO = 0.35; // panel malo niže
+
 function ConnectorLineSmooth({ currentCardIndex, insets }: { currentCardIndex: number; insets: { top: number } }) {
   const ofingerTop = 92;
   const lineStartY = insets.top + ofingerTop + 64;
-  const panelTop = H * 0.38;
-  const lineH = panelTop - lineStartY;
+  const lineEndY = H * PANEL_TOP_RATIO - 14; // linija završava malo iznad panela da se vidi
+  const lineH = lineEndY - lineStartY;
   const cx = W / 2;
   const ctrlOffset = 42;
   const midY = lineH / 2;
@@ -95,6 +98,7 @@ function ConnectorLineSmooth({ currentCardIndex, insets }: { currentCardIndex: n
       <Svg width={W} height={lineH} style={styles.connectorSvg}>
         <AnimatedPath animatedProps={animatedProps} stroke={LINE_WHITE} strokeWidth={1.5} fill="none" strokeLinecap="round" />
         <Circle cx={cx} cy={0} r={4} fill={LINE_WHITE} />
+        <Circle cx={cx} cy={lineH} r={4} fill={LINE_WHITE} />
       </Svg>
     </View>
   );
@@ -111,6 +115,33 @@ const LINE_WHITE = 'rgba(255,255,255,0.9)';
 const CARD_BG_BEIGE = '#F5F0E8';
 const CARD_BG_GREY = '#F0EEEA';
 const CLOSET_VIDEO_MAX_MS = 2500;
+
+// Strelica koja vodi ka ofingeru – luxury bounce, nestaje kad se panel otvori
+function TapOfingerHint({ visible, topOffset }: { visible: boolean; topOffset: number }) {
+  const translateY = useSharedValue(0);
+  useEffect(() => {
+    if (!visible) return;
+    translateY.value = withRepeat(
+      withSequence(
+        withTiming(-8, { duration: 800, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0, { duration: 800, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, [visible, translateY]);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
+  if (!visible) return null;
+  return (
+    <Animated.View style={[styles.tapOfingerHintWrap, { top: topOffset }, animatedStyle]} pointerEvents="none">
+      <View style={styles.tapOfingerLine} />
+      <View style={styles.tapOfingerArrow}>
+        <Feather name="chevron-up" size={28} color={CREAM} strokeWidth={2.5} />
+      </View>
+      <Text style={styles.tapOfingerLabel}>Dodirni vešalicu</Text>
+    </Animated.View>
+  );
+}
 
 // Hotspots on the closet image
 const FULL_OUTFITS = [
@@ -131,7 +162,7 @@ export default function ClosetScreen() {
   const insets = useSafeAreaInsets();
   const { setOutfit } = useTryOnStore();
   const [selectedOutfit, setSelectedOutfit] = useState<typeof FULL_OUTFITS[0] | null>(null);
-  const [isVideoFinished, setIsVideoFinished] = useState(false);
+  const [isVideoFinished, setIsVideoFinished] = useState(true); // true = odmah prikaži ormar, bez video ulaska
   const [showVirtualClosetPanel, setShowVirtualClosetPanel] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
 
@@ -160,14 +191,15 @@ export default function ClosetScreen() {
       setOutfit(item.id, uri, item.title);
     }
     setSelectedOutfit(null);
-    router.push('/try-on/upload' as any);
+    router.push('/try-on' as any);
   }, [setOutfit]);
 
   const panelWidth = W * 0.86;
   const panelHeight = H * 0.48;
-  const cardWidth = panelWidth - 40;
-  const cardHeight = Math.min(cardWidth, (panelHeight - 80) * 0.7);
-  const cardGap = 16;
+  const titleBarH = 56;
+  const cardWidth = panelWidth;
+  const cardHeight = panelHeight;
+  const cardGap = 0;
   const virtualClosetRef = useRef<FlatList>(null);
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: { index: number | null }[] }) => {
     if (viewableItems.length > 0 && viewableItems[0].index != null) {
@@ -190,7 +222,7 @@ export default function ClosetScreen() {
         activeOpacity={0.9}
         onPress={() => setSelectedOutfit(item)}
       >
-        <Image source={item.image} style={styles.vcCardImage} resizeMode="contain" />
+        <Image source={item.image} style={styles.vcCardImage} resizeMode="cover" />
       </TouchableOpacity>
     ),
     [cardWidth, cardHeight, cardGap]
@@ -216,7 +248,7 @@ export default function ClosetScreen() {
             <Feather name="arrow-left" size={24} color={CREAM} />
           </TouchableOpacity>
 
-          {/* Ofinger (hanger) button – skroz gore, malo iznad back dugmeta, u sredini */}
+          {/* Ofinger (hanger) button – crna pozadina, bela ikonica */}
           <TouchableOpacity
             style={[styles.ofingerBtn, { top: insets.top + 92 }]}
             activeOpacity={0.8}
@@ -225,11 +257,16 @@ export default function ClosetScreen() {
             <Ionicons name="shirt-outline" size={28} color="#FFFFFF" />
           </TouchableOpacity>
 
-          {/* Hint text – spušten da ne preklapa virtualni ormar */}
-          <View style={[styles.bottomGuide, { paddingTop: 10, paddingBottom: insets.bottom + 28 }]}>
-            <Text style={styles.guideTitle}>Uđi u svoj Ormar</Text>
-            <Text style={styles.guideSub}>{t('ormar.tap_hanger')}</Text>
-          </View>
+          {/* Strelica ka ofingeru – nestaje kad se ormar otvori */}
+          <TapOfingerHint visible={!showVirtualClosetPanel} topOffset={insets.top + 92 + 64 + 14} />
+
+          {/* Tamniji overlay kada je panel otvoren – tap van panela zatvara */}
+          {showVirtualClosetPanel && (
+            <Pressable
+              style={styles.virtualClosetBackdrop}
+              onPress={() => setShowVirtualClosetPanel(false)}
+            />
+          )}
 
           {/* Linija od ofinger dugmeta do boxa – smooth prelaz pri swipu */}
           {showVirtualClosetPanel && <ConnectorLineSmooth currentCardIndex={currentCardIndex} insets={insets} />}
@@ -237,23 +274,9 @@ export default function ClosetScreen() {
           {/* Virtual Closet panel – only when user tapped ofinger */}
           {showVirtualClosetPanel && (
             <Animated.View
-              style={[styles.virtualClosetPanel, styles.virtualClosetPanelGlass, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16, width: panelWidth, maxHeight: panelHeight }]}
+              style={[styles.virtualClosetPanel, styles.virtualClosetPanelGlass, { paddingTop: 0, paddingBottom: 0, width: panelWidth, maxHeight: panelHeight }]}
               entering={FadeIn.duration(400)}
             >
-              <View style={styles.vcTitleBar}>
-                <View style={styles.vcTitleSpacer} />
-                <Text style={styles.vcTitle} numberOfLines={1}>{t('ormar.title')}</Text>
-                <TouchableOpacity
-                  style={styles.vcCloseBtn}
-                  onPress={() => setShowVirtualClosetPanel(false)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                  <Ionicons name="close" size={24} color={DARK} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.vcSwipeHint}>{t('ormar.swipe_to_discover')}</Text>
-
               <FlatList
                 ref={virtualClosetRef}
                 data={FULL_OUTFITS}
@@ -263,13 +286,20 @@ export default function ClosetScreen() {
                 viewabilityConfig={viewabilityConfig}
                 horizontal
                 pagingEnabled
-                showsHorizontalScrollIndicator={true}
-                contentContainerStyle={[styles.vcCarouselContent, { paddingHorizontal: 24 }]}
-                snapToInterval={cardWidth + cardGap}
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.vcCarouselContentFull}
+                snapToInterval={cardWidth}
                 snapToAlignment="start"
                 decelerationRate="fast"
               />
             </Animated.View>
+          )}
+
+          {/* Swipe hint ispod celog boxa – van panela */}
+          {showVirtualClosetPanel && (
+            <View style={[styles.vcSwipeHintBelow, { top: H * PANEL_TOP_RATIO + panelHeight + 12 }]}>
+              <Text style={styles.vcSwipeHintSmall}>{t('ormar.swipe_hint')}</Text>
+            </View>
           )}
         </>
       )}
@@ -313,7 +343,7 @@ export default function ClosetScreen() {
 
                   <View style={[styles.modalLineWrap, { top: lineStartY, left: 0, width: W, height: lineH }]} pointerEvents="none">
                     <Svg width={W} height={lineH} style={StyleSheet.absoluteFill}>
-                      <Path d={pathD} stroke={GOLD} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeOpacity={0.9} />
+                      <Path d={pathD} stroke={COLORS.primary} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeOpacity={0.9} />
                     </Svg>
                   </View>
 
@@ -331,13 +361,13 @@ export default function ClosetScreen() {
         </View>
       </Modal>
 
-      {/* Entrance Video Overlay */}
+      {/* Entrance Video Overlay (isključeno – ulaz odmah u ormar bez animacije) */}
       {!isVideoFinished && (
-        <Animated.View style={styles.videoOverlay} exiting={FadeOut.duration(800)}>
+        <View style={styles.videoOverlay}>
           <VideoView
             style={styles.videoPlayer}
             player={player}
-            allowsFullscreen={false}
+            fullScreenOptions={{ allowsFullscreen: false }}
             allowsPictureInPicture={false}
             showsTimecodes={false}
             nativeControls={false}
@@ -356,7 +386,7 @@ export default function ClosetScreen() {
           >
             <Text style={styles.skipBtnText}>Preskoči</Text>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       )}
 
     </View>
@@ -392,17 +422,44 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#3a3a3a',
+    backgroundColor: '#000000',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.25)',
     zIndex: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  tapOfingerHintWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 8,
+  },
+  tapOfingerLine: {
+    width: 2,
+    height: 22,
+    backgroundColor: 'rgba(248,244,239,0.85)',
+    marginBottom: 2,
+  },
+  tapOfingerArrow: {
+    width: 48,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  tapOfingerLabel: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 13,
+    color: CREAM,
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   bottomGuide: {
     position: 'absolute',
@@ -410,7 +467,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.5)',
     paddingTop: 10,
   },
   guideTitle: {
@@ -418,12 +474,18 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: CREAM,
     letterSpacing: 0.5,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   guideSub: {
     fontFamily: FONTS.primary.regular,
     fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
+    color: 'rgba(255,252,249,0.9)',
     marginTop: 4,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   hotspotWrap: {
     position: 'absolute',
@@ -474,6 +536,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
+  virtualClosetBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    zIndex: 7,
+  },
   connectorLineWrap: {
     position: 'absolute',
     left: 0,
@@ -488,7 +555,7 @@ const styles = StyleSheet.create({
   virtualClosetPanel: {
     position: 'absolute',
     alignSelf: 'center',
-    top: H * 0.38,
+    top: H * PANEL_TOP_RATIO,
     zIndex: 9,
     borderRadius: 24,
     overflow: 'hidden',
@@ -528,17 +595,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  vcSwipeHint: {
-    fontFamily: FONTS.primary.regular,
-    fontSize: 13,
-    color: 'rgba(0,0,0,0.6)',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  vcCarouselContent: {
-    paddingVertical: 8,
+  vcTitleBarOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    zIndex: 10,
+  },
+  vcTitleOverlay: {
+    fontFamily: FONTS.heading.semibold,
+    fontSize: 18,
+    color: '#FFF',
+    flex: 1,
+    textAlign: 'center',
+  },
+  vcCloseBtnOverlay: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  vcCarouselContentFull: {
+    alignItems: 'center',
+  },
+  vcSwipeHintBelow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 9,
+  },
+  vcSwipeHintSmall: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: 11,
+    color: 'rgba(255,252,249,0.85)',
+    letterSpacing: 1.2,
+    textAlign: 'center',
   },
   vcCard: {
     borderRadius: 20,
@@ -603,12 +701,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignSelf: 'center',
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: GOLD,
-    backgroundColor: 'rgba(255, 252, 249, 0.98)',
-    shadowColor: GOLD,
+    borderWidth: 0,
+    backgroundColor: COLORS.primary,
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -621,7 +718,7 @@ const styles = StyleSheet.create({
   modalIsprobajBtnText: {
     fontFamily: FONTS.primary.semibold,
     fontSize: 18,
-    color: DARK,
+    color: '#FFFFFF',
     letterSpacing: 0.6,
   },
 });

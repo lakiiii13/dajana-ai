@@ -1,448 +1,630 @@
 // ===========================================
-// DAJANA AI - TableBuilderScreen
-// Interaktivni flat-lay builder: sto + drop zone + plusevi
+// DAJANA AI - OutfitBuilder (Kapsula)
+// Jedan plus, animacija: slika se dovlači na sto, baci, pa ostaje na stolu
 // ===========================================
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
-  ImageBackground,
   Image,
-  Dimensions,
+  ImageBackground,
+  TouchableOpacity,
+  StyleSheet,
   StatusBar,
-  ScrollView,
+  Modal,
+  Pressable,
+  Dimensions,
+  Animated,
+  PanResponder,
 } from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withTiming,
-} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, Feather } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FONTS, COLORS } from '@/constants/theme';
+import { FONTS, COLORS, SPACING } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { OutfitPickerModal } from '@/components/OutfitPickerModal';
 import { OutfitWithSaved } from '@/lib/api';
+import { CategoryId } from '@/constants/categories';
 
-const { width: W, height: H } = Dimensions.get('window');
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+const TABLE_BG = require('@/assets/images/table-outfit3.jpg');
 
-// Pozadina: tvoja slika – sačuvaj je kao assets/images/table-outfit-2.jpg
-const TABLE_IMG = require('@/assets/images/table-outfit-2.jpg');
+type ZoneId = 'outerwear' | 'top' | 'accessory' | 'bottom' | 'bag' | 'shoes';
 
-const GOLD = '#CF8F5A';
-const CREAM = '#F8F4EF';
-const DARK = '#1A1A1A';
-const GLASS = 'rgba(248,244,239,0.18)';
-const GLASS_BORDER = 'rgba(207,143,90,0.45)';
+const MIN_DIM = Math.min(SCREEN_W, SCREEN_H);
+// Kaput najveći – sve stane u njega; ostali komadi manji, u centru preko njega
+const OUTERWEAR_SIZE = Math.round(MIN_DIM * 0.78);
+const INNER_ITEM_SIZE = Math.round(MIN_DIM * 0.52);
+const BAG_SIZE = Math.round(MIN_DIM * 0.36);
+const ACCESSORY_SIZE = Math.round(MIN_DIM * 0.22);
 
-type ZoneId = 'top' | 'outerwear' | 'bottom' | 'shoes' | 'bag' | 'accessory';
-
-interface Zone {
-  id: ZoneId;
-  label: string;
-  icon: string;
-  color: string;
-  top: number;
-  left: number;
-}
-
-// Lepše poređane zone: 2 kolone + sredina (simetrično)
-const ZONES: Zone[] = [
-  { id: 'outerwear', label: 'Kaput / Jakna',     icon: 'layers-outline',     color: '#8B7355', top: H * 0.11, left: W * 0.16 },
-  { id: 'top',       label: 'Majica / Bluza',     icon: 'shirt-outline',      color: '#7A6B5A', top: H * 0.11, left: W * 0.58 },
-  { id: 'bottom',    label: 'Pantalone / Suknja', icon: 'cut-outline',         color: '#6B5E4E', top: H * 0.30, left: W * 0.37 },
-  { id: 'shoes',     label: 'Cipele',            icon: 'footsteps-outline',  color: '#5E4F3E', top: H * 0.49, left: W * 0.16 },
-  { id: 'bag',       label: 'Tašna',             icon: 'briefcase-outline',  color: '#7B6A58', top: H * 0.49, left: W * 0.58 },
-  { id: 'accessory', label: 'Nakit / Šešir',     icon: 'diamond-outline',     color: '#9A8060', top: H * 0.67, left: W * 0.37 },
-];
-
-const MOCK_COLORS: Record<ZoneId, string> = {
-  outerwear: '#8B7355',
-  top:       '#B8A898',
-  bottom:    '#6B7B8E',
-  shoes:     '#4A3C2E',
-  bag:       '#A0896E',
-  accessory: '#C4A882',
+// Jedna linija: kaput → gornji delovi → donji → obuća (sve centrirano, jedan ispod drugog)
+const ZONE_POSITIONS: Record<ZoneId, { left: number; top: number }> = {
+  outerwear: { left: 0.5, top: 0.20 },   // kaput gore
+  top: { left: 0.5, top: 0.36 },        // gornji delovi (duks, majica)
+  accessory: { left: 0.87, top: 0.60 }, // sat naslonjen na ugao torbe
+  bottom: { left: 0.5, top: 0.52 },    // donji delovi (trenerka, suknja)
+  shoes: { left: 0.5, top: 0.68 },     // obuća dole
+  bag: { left: 0.82, top: 0.66 },      // tašna malo više udesno
 };
 
-const ZONE_SIZE = 70;
+function getItemSize(zoneId: ZoneId): number {
+  if (zoneId === 'outerwear') return OUTERWEAR_SIZE;
+  if (zoneId === 'bag') return BAG_SIZE;
+  if (zoneId === 'accessory') return ACCESSORY_SIZE;
+  return INNER_ITEM_SIZE;
+}
 
-export default function TableBuilderScreen() {
+function getItemPosition(zoneId: ZoneId): { left: number; top: number } {
+  return ZONE_POSITIONS[zoneId];
+}
+
+function getZoneLabels(): { key: ZoneId; label: string }[] {
+  return [
+    { key: 'outerwear', label: t('table_builder.zone_outerwear') },
+    { key: 'top', label: t('table_builder.zone_top') },
+    { key: 'bottom', label: t('table_builder.zone_bottom') },
+    { key: 'shoes', label: t('table_builder.zone_shoes') },
+    { key: 'accessory', label: t('table_builder.zone_accessory') },
+    { key: 'bag', label: t('table_builder.zone_bag') },
+  ];
+}
+
+const ZONE_TO_CATEGORY: Record<ZoneId, CategoryId> = {
+  outerwear: 'outerwear',
+  top: 'tops',
+  accessory: 'accessories',
+  bottom: 'bottoms',
+  bag: 'accessories',
+  shoes: 'obuca',
+};
+
+type AddedEntry = { zoneId: ZoneId; item: OutfitWithSaved; entryId: number };
+
+// Lista ostaje i kad se ekran ponovo mount-uje (npr. tab, modal)
+let persistedTableItems: AddedEntry[] = [];
+let nextEntryId = 1;
+const TRASH_HIT_SLOP = 24;
+
+function getStackOffset(stackIndex: number): { x: number; y: number } {
+  if (stackIndex <= 0) return { x: 0, y: 0 };
+  const side = stackIndex % 2 === 0 ? -1 : 1;
+  const spread = Math.ceil(stackIndex / 2);
+  return {
+    x: side * spread * 56,
+    y: stackIndex * 52,
+  };
+}
+
+function DraggableItem({
+  entryId,
+  imageUrl,
+  zoneId,
+  left,
+  top,
+  size,
+  isDragging,
+  onDragStart,
+  onDrop,
+}: {
+  entryId: number;
+  imageUrl: string;
+  zoneId: ZoneId;
+  left: number;
+  top: number;
+  size: number;
+  isDragging: boolean;
+  onDragStart: (id: number) => void;
+  onDrop: (id: number, moveX: number, moveY: number) => void;
+}) {
+  const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
+      onPanResponderGrant: () => {
+        onDragStart(entryId);
+      },
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (_, gesture) => {
+        onDrop(entryId, gesture.moveX, gesture.moveY);
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: true,
+          bounciness: 7,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(pan, {
+          toValue: { x: 0, y: 0 },
+          useNativeDriver: true,
+          bounciness: 7,
+        }).start();
+      },
+    })
+  ).current;
+
+  return (
+    <Animated.View
+      {...panResponder.panHandlers}
+      style={[
+        styles.itemOnTable,
+        { left, top, width: size, height: size, zIndex: isDragging ? 99999 : entryId },
+        zoneId === 'accessory' && styles.accessoryTilt,
+        { transform: pan.getTranslateTransform() },
+      ]}
+    >
+      <Image source={{ uri: imageUrl }} style={styles.itemOnTableImage} resizeMode="contain" />
+    </Animated.View>
+  );
+}
+
+export default function OutfitBuilderScreen() {
   const insets = useSafeAreaInsets();
-  const [added, setAdded] = useState<Record<ZoneId, OutfitWithSaved>>({} as any);
-  const [activeZone, setActiveZone] = useState<ZoneId | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const CATEGORIES = getZoneLabels();
+  const trashRef = useRef<View | null>(null);
+  const [addedItems, setAddedItems] = useState<AddedEntry[]>(() => [...persistedTableItems]);
+  const [activeSlot, setActiveSlot] = useState<ZoneId | null>(null);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [draggingEntryId, setDraggingEntryId] = useState<number | null>(null);
+  const [trashRect, setTrashRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const { setOutfitTitle, clearOutfitItems, addOutfitItem } = useTryOnStore();
 
-  const count = Object.keys(added).length;
-  const canTryOn = count >= 2;
+  const totalItems = addedItems.length;
+  const canTryOn = totalItems >= 2;
+  const contentW = SCREEN_W;
+  const contentH = SCREEN_H - 140;
 
-  const tryOnScale = useSharedValue(1);
-  const tryOnStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: tryOnScale.value }],
-  }));
-
-  const handleZoneTap = useCallback((zone: Zone) => {
-    setActiveZone(zone.id);
-    setModalVisible(true);
+  useEffect(() => {
+    const maxPersistedId = persistedTableItems.reduce((max, entry) => Math.max(max, entry.entryId), 0);
+    nextEntryId = Math.max(nextEntryId, maxPersistedId + 1);
   }, []);
 
-  const handleRemoveZone = useCallback((zoneId: ZoneId) => {
-    setAdded((prev) => {
-      const next = { ...prev };
-      delete next[zoneId];
+  const onBigPlusPress = useCallback(() => {
+    setCategoryModalVisible(true);
+  }, []);
+
+  const onCategoryPick = useCallback((slotKey: ZoneId) => {
+    setActiveSlot(slotKey);
+    setCategoryModalVisible(false);
+    setPickerVisible(true);
+  }, []);
+
+  const removeItem = useCallback((entryId: number) => {
+    setAddedItems((prev) => {
+      const next = prev.filter((e) => e.entryId !== entryId);
+      persistedTableItems = next;
       return next;
     });
   }, []);
 
-  const handleSelectOutfit = useCallback((outfit: OutfitWithSaved) => {
-    if (activeZone) {
-      setAdded((prev) => ({ ...prev, [activeZone]: outfit }));
-    }
-    setModalVisible(false);
-  }, [activeZone]);
-
-  const handleTryOn = () => {
-    if (!canTryOn) return;
-    tryOnScale.value = withSpring(0.92, { damping: 8 }, () => {
-      tryOnScale.value = withSpring(1, { damping: 10 });
+  const refreshTrashRect = useCallback(() => {
+    trashRef.current?.measureInWindow((x, y, width, height) => {
+      setTrashRect({ x, y, width, height });
     });
+  }, []);
+
+  useEffect(() => {
+    if (draggingEntryId === null) return;
+    const raf = requestAnimationFrame(() => {
+      refreshTrashRect();
+      setTimeout(refreshTrashRect, 50);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [draggingEntryId, refreshTrashRect]);
+
+  const isInTrash = useCallback(
+    (moveX: number, moveY: number) => {
+      if (!trashRect) return false;
+      return (
+        moveX >= trashRect.x - TRASH_HIT_SLOP &&
+        moveX <= trashRect.x + trashRect.width + TRASH_HIT_SLOP &&
+        moveY >= trashRect.y - TRASH_HIT_SLOP &&
+        moveY <= trashRect.y + trashRect.height + TRASH_HIT_SLOP
+      );
+    },
+    [trashRect]
+  );
+
+  const onDragStart = useCallback(
+    (entryId: number) => {
+      setDraggingEntryId(entryId);
+      requestAnimationFrame(refreshTrashRect);
+    },
+    [refreshTrashRect]
+  );
+
+  const onDropItem = useCallback(
+    (entryId: number, moveX: number, moveY: number) => {
+      // Fallback hit zona za slučaj da measure kasni u prvom frame-u drag-a.
+      const fallbackBottomRightHit = moveX > SCREEN_W - 130 && moveY > SCREEN_H - 190;
+      if (isInTrash(moveX, moveY) || fallbackBottomRightHit) {
+        removeItem(entryId);
+      }
+      setDraggingEntryId(null);
+    },
+    [isInTrash, removeItem]
+  );
+
+  const selectItem = useCallback((item: OutfitWithSaved) => {
+    if (activeSlot) {
+      setAddedItems((prev) => {
+        const next: AddedEntry[] = [...prev, { zoneId: activeSlot, item, entryId: nextEntryId++ }];
+        persistedTableItems = next;
+        return next;
+      });
+      setPickerVisible(false);
+    }
+  }, [activeSlot]);
+
+  const handleTryOn = useCallback(() => {
+    if (!canTryOn) return;
     clearOutfitItems();
-    (Object.entries(added) as [ZoneId, OutfitWithSaved][]).forEach(([zoneId, outfit]) => {
+    addedItems.forEach(({ zoneId, item }) => {
       addOutfitItem({
-        id: outfit.id,
-        imageUrl: outfit.image_url,
-        title: outfit.title ?? null,
+        id: item.id,
+        imageUrl: item.image_url,
+        title: item.title ?? null,
         zoneId,
       });
     });
     setOutfitTitle('Moj outfit');
-    router.push('/try-on/upload' as any);
-  };
+    router.push('/try-on' as any);
+  }, [canTryOn, addedItems, clearOutfitItems, addOutfitItem, setOutfitTitle]);
 
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
       <StatusBar barStyle="light-content" />
-
-      <ImageBackground source={TABLE_IMG} style={styles.bg} resizeMode="cover">
+      <ImageBackground source={TABLE_BG} style={styles.bg} resizeMode="cover">
         <View style={styles.overlay} />
-
-        {/* Header */}
-        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Feather name="arrow-left" size={20} color={CREAM} />
+        <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={12}>
+            <Feather name="arrow-left" size={22} color={CREAM} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>KAPSULA</Text>
-            <Text style={styles.headerSub}>Složi svoj outfit</Text>
+            <Text style={styles.title}>{t('table_builder.screen_title')}</Text>
+            <Text style={styles.subtitle}>{t('table_builder.screen_subtitle')}</Text>
           </View>
-          <View style={styles.headerBadge}>
-            <Text style={styles.headerBadgeText}>{count}</Text>
-          </View>
+          <Text style={styles.counterNumber}>{addedItems.length}</Text>
+        </View>
+        <View style={styles.headerLine} />
+
+        <View style={[styles.canvas, { width: contentW, height: contentH }]}>
+          {/* Svi dodati komadi ostaju na stolu – kaput iza, ostalo preko */}
+          {(() => {
+            const sorted = [...addedItems].sort((a, b) =>
+              a.zoneId === 'outerwear' ? -1 : b.zoneId === 'outerwear' ? 1 : 0
+            );
+            const zoneStack = new Map<ZoneId, number>();
+            return sorted.map((entry) => {
+              const { zoneId, item, entryId } = entry;
+              const size = getItemSize(zoneId);
+              const pos = getItemPosition(zoneId);
+              const sameZoneIndex = zoneStack.get(zoneId) ?? 0;
+              zoneStack.set(zoneId, sameZoneIndex + 1);
+              const stackOffset = getStackOffset(sameZoneIndex);
+              const left = contentW * pos.left - size / 2 + stackOffset.x;
+              const top = contentH * pos.top - size / 2 + stackOffset.y;
+              return (
+                <DraggableItem
+                  key={entryId}
+                  entryId={entryId}
+                  imageUrl={item.image_url}
+                  zoneId={zoneId}
+                  left={left}
+                  top={top}
+                  size={size}
+                  isDragging={draggingEntryId === entryId}
+                  onDragStart={onDragStart}
+                  onDrop={onDropItem}
+                />
+              );
+            });
+          })()}
+          {totalItems === 0 && (
+            <TouchableOpacity
+              style={styles.plusCenter}
+              onPress={onBigPlusPress}
+              activeOpacity={0.7}
+              hitSlop={24}
+            >
+              <Feather name="plus" size={64} color={CREAM} strokeWidth={2.5} />
+            </TouchableOpacity>
+          )}
+          {draggingEntryId !== null && (
+            <View pointerEvents="none" style={styles.trashWrap}>
+              <View ref={trashRef} style={styles.trashBin}>
+                <Feather name="trash-2" size={26} color="#fff" />
+                <Text style={styles.trashText}>Obriši</Text>
+              </View>
+            </View>
+          )}
         </View>
 
-        {/* Drop Zones – lepše poređani */}
-        {ZONES.map((zone) => {
-          const item = added[zone.id];
-          const isAdded = !!item;
-          return (
-            <View key={zone.id} style={[styles.zone, { top: zone.top, left: zone.left }]}>
-              {isAdded ? (
-                <Animated.View
-                  entering={FadeIn.duration(280)}
-                  style={[styles.zoneAdded, { backgroundColor: COLORS.white }]}
-                >
-                  <Image source={{ uri: item.image_url }} style={styles.zoneImage} resizeMode="cover" />
-                  <TouchableOpacity
-                    style={styles.zoneRemoveBtn}
-                    activeOpacity={0.8}
-                    onPress={() => handleRemoveZone(zone.id)}
-                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                  >
-                    <Ionicons name="close" size={12} color={COLORS.white} />
-                  </TouchableOpacity>
-                </Animated.View>
-              ) : (
-                <TouchableOpacity activeOpacity={0.85} onPress={() => handleZoneTap(zone)}>
-                  <Animated.View entering={FadeIn.duration(200)} style={styles.zonePlus}>
-                    <Ionicons name="add" size={22} color={GOLD} />
-                    <Text style={styles.zonePlusLabel} numberOfLines={1}>{zone.label}</Text>
-                  </Animated.View>
-                </TouchableOpacity>
-              )}
-            </View>
-          );
-        })}
-
-        {/* Modal za biranje komada */}
-        <OutfitPickerModal
-          visible={modalVisible}
-          onClose={() => setModalVisible(false)}
-          onSelect={handleSelectOutfit}
-        />
-
-        {/* Hint tekst na dnu */}
-        {count === 0 && (
-          <Animated.View
-            entering={FadeIn.delay(600).duration(500)}
-            exiting={FadeOut.duration(300)}
-            style={styles.hintWrap}
-          >
-            <Text style={styles.hintText}>Dodaj najmanje 2 komada da bi isprobao outfit</Text>
-          </Animated.View>
+        {totalItems > 0 && (
+          <View style={[styles.addFloatingWrap, { bottom: insets.bottom + 112 }]}>
+            <TouchableOpacity style={styles.addFloatingBtn} onPress={onBigPlusPress} activeOpacity={0.88}>
+              <Feather name="plus" size={20} color="#fff" />
+              <Text style={styles.addFloatingText}>Dodaj</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
-        {/* Isprobaj – elegantno dugme */}
-        <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
-          <Animated.View style={tryOnStyle}>
-            <TouchableOpacity
-              style={[styles.tryOnBtn, canTryOn ? styles.tryOnBtnActive : styles.tryOnBtnDisabled]}
-              activeOpacity={canTryOn ? 0.88 : 1}
-              onPress={handleTryOn}
-            >
-              <Text style={[styles.tryOnText, { color: canTryOn ? COLORS.white : 'rgba(255,255,255,0.4)' }]}>
-                Isprobaj outfit
-              </Text>
-              {canTryOn && (
-                <View style={styles.tryOnBadge}>
-                  <Text style={styles.tryOnBadgeText}>{count}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.lg }]}>
+        <Text style={styles.hint}>
+          {totalItems < 2
+            ? `Dodaj najmanje ${2 - totalItems} komad${totalItems === 1 ? '' : 'a'} da bi isprobao outfit`
+            : 'Outfit je spreman za probanje!'}
+        </Text>
+        <TouchableOpacity
+          style={[styles.tryBtn, totalItems < 2 && styles.tryBtnDisabled]}
+          onPress={handleTryOn}
+          disabled={totalItems < 2}
+          activeOpacity={0.88}
+        >
+          <Text style={[styles.tryBtnText, totalItems < 2 && styles.tryBtnTextDisabled]}>
+            Isprobaj outfit
+          </Text>
+        </TouchableOpacity>
         </View>
+
+        <Modal
+        visible={categoryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCategoryModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setCategoryModalVisible(false)}>
+          <View style={styles.categorySheet}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Šta dodaješ?</Text>
+            {CATEGORIES.map(({ key, label }) => (
+              <TouchableOpacity
+                key={key}
+                style={styles.categoryBtn}
+                onPress={() => onCategoryPick(key)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.categoryBtnText}>{label}</Text>
+                <Feather name="chevron-right" size={18} color={COLORS.gray[400]} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+        <OutfitPickerModal
+          visible={pickerVisible}
+          onClose={() => setPickerVisible(false)}
+          onSelect={selectItem}
+          initialCategoryId={activeSlot ? ZONE_TO_CATEGORY[activeSlot] : undefined}
+        />
       </ImageBackground>
     </View>
   );
 }
 
+const CREAM = '#F8F4EF';
+const GOLD = COLORS.secondary;
+const DARK = '#1A1A1A';
+const MUTED = '#9A9087';
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-
+  screen: { flex: 1 },
   bg: { flex: 1, width: '100%', height: '100%' },
-
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(10,9,7,0.38)',
+    backgroundColor: 'rgba(12,10,8,0.35)',
   },
-
-  /* Header */
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 12,
-    zIndex: 10,
+    paddingBottom: SPACING.sm,
   },
-
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: 'rgba(255,255,255,0.18)',
   },
-
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-
-  headerTitle: {
+  headerCenter: { flex: 1, alignItems: 'center' },
+  title: {
     fontFamily: FONTS.heading.semibold,
-    fontSize: 18,
-    color: CREAM,
+    fontSize: 22,
     letterSpacing: 4,
+    color: '#FFF',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-
-  headerSub: {
+  subtitle: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 14,
+    letterSpacing: 1,
+    color: '#FFF',
+    marginTop: 4,
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  counterNumber: {
     fontFamily: FONTS.primary.light,
-    fontSize: 11,
-    color: GOLD,
-    letterSpacing: 1.5,
-    marginTop: 2,
+    fontSize: 20,
+    color: CREAM,
+    minWidth: 24,
+    textAlign: 'right',
   },
-
-  headerBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: GOLD + '22',
-    borderWidth: 1.5,
-    borderColor: GOLD,
+  headerLine: { height: 1, backgroundColor: 'rgba(255,255,255,0.12)', marginHorizontal: 20 },
+  canvas: {
+    flex: 1,
+    alignSelf: 'center',
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  headerBadgeText: {
-    fontFamily: FONTS.primary.bold,
-    fontSize: 16,
-    color: GOLD,
-  },
-
-  /* Drop Zones */
-  zone: {
+  itemOnTable: {
     position: 'absolute',
-    width: ZONE_SIZE + 20,
-    alignItems: 'center',
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
-
-  zonePlus: {
-    width: ZONE_SIZE,
-    height: ZONE_SIZE,
-    borderRadius: ZONE_SIZE / 2,
-    backgroundColor: GLASS,
-    borderWidth: 1.5,
-    borderColor: GLASS_BORDER,
+  itemOnTableImage: {
+    width: '100%',
+    height: '100%',
+  },
+  accessoryTilt: {
+    transform: [{ rotate: '-14deg' }],
+  },
+  plusCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trashWrap: {
+    position: 'absolute',
+    right: 18,
+    bottom: 18,
+    alignItems: 'flex-end',
+    justifyContent: 'flex-end',
+  },
+  trashBin: {
+    width: 74,
+    height: 74,
+    borderRadius: 18,
+    backgroundColor: 'rgba(18,18,18,0.88)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
-    elevation: 3,
-  },
-
-  zonePlusLabel: {
-    position: 'absolute',
-    bottom: -18,
-    fontFamily: FONTS.primary.medium,
-    fontSize: 9,
-    color: CREAM,
-    letterSpacing: 0.2,
-    textAlign: 'center',
-    width: ZONE_SIZE + 24,
-  },
-
-  zoneAdded: {
-    width: ZONE_SIZE,
-    height: ZONE_SIZE,
-    borderRadius: ZONE_SIZE / 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: GOLD,
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 2 },
     elevation: 6,
-  },
-
-  zoneAddedLabel: {
-    position: 'absolute',
-    bottom: -20,
-    fontFamily: FONTS.primary.regular,
-    fontSize: 10,
-    color: GOLD,
-    letterSpacing: 0.3,
-    textAlign: 'center',
-    width: ZONE_SIZE + 20,
-  },
-
-  zoneImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: ZONE_SIZE / 2,
-  },
-
-  zoneRemoveBtn: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.16)',
   },
-
-  /* Hint */
-  hintWrap: {
+  trashText: {
+    marginTop: 2,
+    fontFamily: FONTS.primary.semibold,
+    color: '#fff',
+    fontSize: 10,
+    letterSpacing: 0.2,
+  },
+  addFloatingWrap: {
     position: 'absolute',
-    bottom: 120,
     left: 0,
     right: 0,
     alignItems: 'center',
-    paddingHorizontal: 32,
+    zIndex: 5000,
   },
-
-  hintText: {
-    fontFamily: FONTS.primary.light,
-    fontSize: 12,
-    color: 'rgba(248,244,239,0.55)',
-    textAlign: 'center',
-    letterSpacing: 0.3,
-    lineHeight: 18,
-  },
-
-  /* Bottom bar */
-  bottomBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-
-  tryOnBtn: {
+  addFloatingBtn: {
+    minWidth: 120,
+    height: 46,
+    borderRadius: 23,
+    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    borderWidth: 0,
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  addFloatingText: {
+    marginLeft: 8,
+    fontFamily: FONTS.primary.medium,
+    fontSize: 15,
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
+  },
+  footer: { paddingHorizontal: 24, alignItems: 'center', paddingTop: 8 },
+  hint: {
+    fontFamily: FONTS.primary.light,
+    fontSize: 12,
+    color: 'rgba(248,244,239,0.9)',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  tryBtn: {
+    width: '100%',
+    maxWidth: 320,
+    marginTop: 14,
     paddingVertical: 16,
-    paddingHorizontal: 36,
-    borderRadius: 40,
-    minWidth: 220,
+    backgroundColor: COLORS.primary,
+    borderRadius: 28,
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
   },
-
-  tryOnBtnActive: {
-    backgroundColor: GOLD,
-    shadowColor: GOLD,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-
-  tryOnBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-
-  tryOnText: {
+  tryBtnDisabled: { backgroundColor: 'rgba(0,0,0,0.06)', shadowOpacity: 0, elevation: 0 },
+  tryBtnText: {
     fontFamily: FONTS.primary.semibold,
     fontSize: 15,
+    color: COLORS.white,
     letterSpacing: 0.5,
   },
-
-  tryOnBadge: {
-    marginLeft: 10,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  tryBtnTextDisabled: { color: MUTED },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
   },
-
-  tryOnBadgeText: {
-    fontFamily: FONTS.primary.bold,
-    fontSize: 12,
+  categorySheet: {
+    backgroundColor: CREAM,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
+  },
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: COLORS.gray[300],
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  sheetTitle: {
+    fontFamily: FONTS.heading.semibold,
+    fontSize: 18,
+    letterSpacing: 1,
+    color: DARK,
+    marginBottom: 16,
+  },
+  categoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+  },
+  categoryBtnText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 15,
     color: DARK,
   },
 });

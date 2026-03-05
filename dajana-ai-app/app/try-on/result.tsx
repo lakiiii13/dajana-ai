@@ -24,6 +24,7 @@ import * as Sharing from 'expo-sharing';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { AppLogo } from '@/components/AppLogo';
 import { useTryOnStore } from '@/stores/tryOnStore';
+import { t } from '@/lib/i18n';
 
 const { width: W, height: H } = Dimensions.get('window');
 const CREAM = '#F8F4EF';
@@ -266,59 +267,69 @@ export default function TryOnResultScreen() {
         )}
       </View>
 
-      {/* Dugmad – elegantno raspoređena, povezana vizuelno sa okvirom */}
+      {/* Desna strana: Sačuvaj, Video, Dajana, Podeli — kao u video sekciji */}
       <Animated.View
         style={[
-          styles.actionsWrap,
+          styles.sideCol,
           {
-            paddingBottom: insets.bottom + SPACING.lg,
+            paddingBottom: insets.bottom + 80,
             opacity: uiOpacity,
             transform: [{ translateY: uiTranslateY }],
           },
         ]}
       >
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionBtn} onPress={handleSave} activeOpacity={0.85}>
-            <View style={[styles.actionIconWrap, isSaved && styles.actionIconWrapFilled]}>
-              <Ionicons
-                name={isSaved ? 'heart' : 'heart-outline'}
-                size={22}
-                color={isSaved ? COLORS.white : GOLD}
-              />
-            </View>
-            <Text style={styles.actionLabel}>{isSaved ? 'Sačuvano' : 'Sačuvaj'}</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.sideBtn} onPress={handleSave} activeOpacity={0.85}>
+          <View style={[styles.sideCircle, isSaved && styles.sideCircleActive]}>
+            <Ionicons
+              name={isSaved ? 'heart' : 'heart-outline'}
+              size={20}
+              color={isSaved ? GOLD : DARK}
+            />
+          </View>
+          <Text style={styles.sideBtnLabel}>{isSaved ? t('capsule.outfit.saved') : t('capsule.outfit.save')}</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={handleGoToVideo} activeOpacity={0.85}>
-            <View style={styles.actionIconWrap}>
-              <Ionicons name="videocam-outline" size={22} color={GOLD} />
-            </View>
-            <Text style={styles.actionLabel}>Video</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.sideBtn} onPress={handleGoToVideo} activeOpacity={0.85}>
+          <View style={styles.sideCircle}>
+            <Ionicons name="videocam-outline" size={20} color={DARK} />
+          </View>
+          <Text style={styles.sideBtnLabel}>{t('tabs.videos')}</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={handleAskDajana} activeOpacity={0.85}>
-            <View style={styles.actionIconWrap}>
-              <Text style={styles.dLetter}>D</Text>
-            </View>
-            <Text style={styles.actionLabel}>Dajana</Text>
-          </TouchableOpacity>
+        <TouchableOpacity style={styles.sideBtn} onPress={handleAskDajana} activeOpacity={0.85}>
+          <View style={styles.sideCircle}>
+            <Text style={styles.sideCircleD}>D</Text>
+          </View>
+          <Text style={styles.sideBtnLabel}>{t('tabs.ai_advice')}</Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionBtn} onPress={handleShare} activeOpacity={0.85}>
-            <View style={styles.actionIconWrap}>
-              <Ionicons name="share-outline" size={20} color={GOLD} />
-            </View>
-            <Text style={styles.actionLabel}>Podeli</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.sideBtn} onPress={handleShare} activeOpacity={0.85}>
+          <View style={styles.sideCircle}>
+            <Ionicons name="share-outline" size={20} color={DARK} />
+          </View>
+          <Text style={styles.sideBtnLabel}>{t('capsule.outfit.share')}</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleTryAgain} activeOpacity={0.88}>
-            <Ionicons name="refresh-outline" size={18} color={GOLD} />
-            <Text style={styles.primaryBtnText}>Ponovo</Text>
+      {/* Donji red — manja, elegantna dugmad Ponovo + Početna */}
+      <Animated.View
+        style={[
+          styles.bottomRow,
+          {
+            paddingBottom: insets.bottom + SPACING.md,
+            opacity: uiOpacity,
+            transform: [{ translateY: uiTranslateY }],
+          },
+        ]}
+      >
+        <View style={styles.bottomRowInner}>
+          <TouchableOpacity style={styles.bottomChip} onPress={handleTryAgain} activeOpacity={0.85}>
+            <Ionicons name="refresh-outline" size={16} color={DARK} />
+            <Text style={styles.bottomChipText}>{t('try_on.retry')}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryBtn} onPress={handleGoHome} activeOpacity={0.88}>
-            <Ionicons name="home-outline" size={18} color={GOLD} />
-            <Text style={styles.primaryBtnText}>Početna</Text>
+          <TouchableOpacity style={styles.bottomChip} onPress={handleGoHome} activeOpacity={0.85}>
+            <Ionicons name="home-outline" size={16} color={DARK} />
+            <Text style={styles.bottomChipText}>{t('tabs.home')}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>
@@ -453,68 +464,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionsWrap: {
+  sideCol: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    right: SPACING.md,
     bottom: 0,
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.md,
-    gap: SPACING.md,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-  },
-  actionBtn: {
     alignItems: 'center',
-    minWidth: 72,
+    gap: 14,
+    zIndex: 10,
   },
-  actionIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  sideBtn: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
+    gap: 4,
+  },
+  sideCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFCF9',
-    borderWidth: 1.5,
-    borderColor: `${GOLD}50`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: `${GOLD}40`,
   },
-  actionIconWrapFilled: {
-    backgroundColor: GOLD,
+  sideCircleActive: {
+    backgroundColor: `${GOLD}18`,
     borderColor: GOLD,
   },
-  actionLabel: {
-    fontFamily: FONTS.primary.semibold,
-    fontSize: 11,
-    color: DARK,
-    letterSpacing: 0.3,
-  },
-  dLetter: {
+  sideCircleD: {
     fontFamily: FONTS.heading.bold,
-    fontSize: 18,
-    color: GOLD,
+    fontSize: 16,
+    color: DARK,
   },
-  primaryBtn: {
-    flex: 1,
-    flexDirection: 'row',
+  sideBtnLabel: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 10,
+    color: DARK,
+    letterSpacing: 0.2,
+  },
+  bottomRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.md,
-    borderRadius: 24,
-    gap: 8,
-    backgroundColor: '#FFFCF9',
-    borderWidth: 1.5,
-    borderColor: `${GOLD}55`,
-    maxWidth: 200,
+    zIndex: 10,
   },
-  primaryBtnText: {
-    fontFamily: FONTS.heading.semibold,
-    fontSize: FONT_SIZES.sm,
+  bottomRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bottomChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#FFFCF9',
+    borderWidth: 1,
+    borderColor: 'rgba(44,42,40,0.12)',
+  },
+  bottomChipText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 13,
     color: DARK,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   errorWrap: {
     flex: 1,

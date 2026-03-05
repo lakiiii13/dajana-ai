@@ -9,8 +9,8 @@ import { supabase } from './supabase';
 import { decode } from 'base64-arraybuffer';
 import { toPathString } from './fileSystemPath';
 
-const API_KEY = 'USXCRCWDWH8OPNNHDT3VQCBUJQIYJE';
-const BASE = 'https://thenewblack.ai/api/1.1/wf';
+const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim().replace(/\/$/, '');
+const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
 
 export interface VideoStartResult {
   jobId: string;
@@ -92,9 +92,27 @@ async function ensurePublicUrl(imageUrl: string): Promise<string> {
   return urlData.publicUrl;
 }
 
+const VIDEO_START_RETRIES = 3;
+const VIDEO_START_RETRY_DELAY_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Map server/Edge error text to jasne poruke za korisnika. */
+function friendlyVideoError(serverMessage: string): string {
+  const s = serverMessage.toLowerCase();
+  if (s.includes('prebukiran') || s.includes('previše zahteva') || s.includes('429')) return 'Servis je privremeno prebukiran. Sačekajte malo i pokušajte ponovo.';
+  if (s.includes('ključ') || s.includes('api key') || s.includes('invalid') || s.includes('401') || s.includes('403')) return 'Video API ključ nije ispravan. Administrator treba da proveri VIDEO_API_KEY u Supabase.';
+  if (s.includes('veza') || s.includes('network') || s.includes('timeout') || s.includes('failed')) return 'Veza sa servisom nije uspela. Proverite internet i pokušajte ponovo.';
+  if (s.includes('nije podešen') || s.includes('not set')) return 'Video servis nije podešen. Administrator treba da doda VIDEO_API_KEY u Supabase Secrets.';
+  if (serverMessage.length > 0 && serverMessage.length < 180) return serverMessage;
+  return 'Servis za video je privremeno nedostupan. Pokušajte ponovo za nekoliko trenutaka.';
+}
+
 /**
  * Step 1: Start video generation (returns a job ID).
- * Automatically uploads local files to get a public URL.
+ * Retry do 3 puta na 5xx/mrežu; jasne poruke grešaka.
  */
 export async function startVideoGeneration(
   imageUrl: string | { uri?: string; path?: string },
@@ -111,30 +129,70 @@ export async function startVideoGeneration(
   console.log('[Video] Starting generation, duration:', duration);
 
   const publicUrl = await ensurePublicUrl(pathOrUrl);
-  console.log('[Video] Using image URL:', publicUrl.substring(0, 80));
+  console.log('[Video] Using image URL:', publicUrl);
 
-  const formData = new FormData();
-  formData.append('image', publicUrl);
-  formData.append('prompt', prompt);
-  formData.append('time', duration);
-
-  const res = await fetch(`${BASE}/ai-video?api_key=${API_KEY}`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  const responseText = await res.text().catch(() => '');
-  if (!res.ok) {
-    console.error('[Video] Start error:', res.status, responseText);
-    if (res.status >= 500) {
-      throw new Error('Servis za video je privremeno nedostupan. Pokušajte ponovo kasnije.');
-    }
-    throw new Error(`Video API greška: ${res.status}`);
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error(
+      'Video zahteva Supabase. U .env postavite EXPO_PUBLIC_SUPABASE_URL i EXPO_PUBLIC_SUPABASE_ANON_KEY. Deploy-ujte Edge Functions video-start i video-result i u Supabase Secrets dodajte VIDEO_API_KEY.'
+    );
   }
 
-  const jobId = responseText;
-  console.log('[Video] Job ID:', jobId.trim());
-  return { jobId: jobId.trim(), publicImageUrl: publicUrl };
+  const edgeUrl = `${SUPABASE_URL}/functions/v1/video-start`;
+  const body = JSON.stringify({ image: publicUrl, prompt, time: duration });
+  let lastErrMsg = '';
+
+  for (let attempt = 1; attempt <= VIDEO_START_RETRIES; attempt++) {
+    try {
+      const res = await fetch(edgeUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body,
+      });
+
+      const responseText = await res.text().catch(() => '');
+      if (!res.ok) {
+        let errMsg = 'Servis za video je privremeno nedostupan. Pokušajte ponovo kasnije.';
+        try {
+          const j = JSON.parse(responseText);
+          if (j.error && typeof j.error === 'string') errMsg = j.error;
+        } catch {}
+        lastErrMsg = errMsg;
+        if (res.status === 401 || res.status === 403 || res.status === 429) {
+          throw new Error(friendlyVideoError(errMsg));
+        }
+        if (attempt < VIDEO_START_RETRIES && res.status >= 500) {
+          console.warn('[Video] Start attempt', attempt, 'failed', res.status, '- retrying...');
+          await sleep(VIDEO_START_RETRY_DELAY_MS * attempt);
+          continue;
+        }
+        throw new Error(friendlyVideoError(errMsg));
+      }
+
+      let data: { jobId?: string };
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        throw new Error('Neispravan odgovor od video servisa. Pokušajte ponovo.');
+      }
+      const jobId = String(data.jobId ?? responseText).trim();
+      console.log('[Video] Job ID:', jobId);
+      return { jobId, publicImageUrl: publicUrl };
+    } catch (e: unknown) {
+      lastErrMsg = e instanceof Error ? e.message : String(e);
+      if (attempt < VIDEO_START_RETRIES) {
+        console.warn('[Video] Start attempt', attempt, 'error - retrying...', lastErrMsg);
+        await sleep(VIDEO_START_RETRY_DELAY_MS * attempt);
+        continue;
+      }
+      throw new Error(friendlyVideoError(lastErrMsg));
+    }
+  }
+
+  throw new Error(friendlyVideoError(lastErrMsg || 'Servis za video nije dostupan. Pokušajte ponovo.'));
 }
 
 /**
@@ -143,40 +201,47 @@ export async function startVideoGeneration(
 export async function getVideoResult(jobId: string): Promise<VideoResult> {
   console.log('[Video] Checking result for:', jobId);
 
-  const formData = new FormData();
-  formData.append('id', jobId);
-
-  const res = await fetch(`${BASE}/results_video?api_key=${API_KEY}`, {
-    method: 'POST',
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    if (res.status === 404 || text.includes('not ready')) {
-      return { videoUrl: null };
-    }
-    console.error('[Video] Result error:', res.status, text);
-    throw new Error(`Video result error: ${res.status}`);
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error('Video zahteva Supabase. Postavite EXPO_PUBLIC_SUPABASE_URL i anon key.');
   }
 
-  const body = await res.text();
-  const url = body.trim();
+  const edgeUrl = `${SUPABASE_URL}/functions/v1/video-result`;
+  const res = await fetch(edgeUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ jobId }),
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    if (res.status === 404 || text.toLowerCase().includes('not ready')) return { videoUrl: null };
+    console.error('[Video] Result error:', res.status, text);
+    let errMsg = 'Greška pri proveri videa. Pokušajte ponovo.';
+    try {
+      const j = JSON.parse(text);
+      if (j.error && typeof j.error === 'string') errMsg = friendlyVideoError(j.error);
+    } catch {}
+    throw new Error(errMsg);
+  }
+  let data: { videoUrl?: string | null };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return { videoUrl: null };
+  }
+  let url: string | null = data.videoUrl ?? null;
 
-  // API returns various non-URL strings while processing
   const notReady =
     !url ||
     url.length < 20 ||
     !url.startsWith('http') ||
-    url.toLowerCase().includes('error') ||
-    url.toLowerCase().includes('not ready') ||
-    url.toLowerCase().includes('processing') ||
-    url.toLowerCase().includes('pending') ||
-    url.toLowerCase().includes('generating') ||
-    url.toLowerCase().includes('queue');
+    /error|not ready|processing|pending|generating|queue/i.test(url);
 
   if (notReady) {
-    console.log('[Video] Not ready yet, response:', url.substring(0, 80));
+    console.log('[Video] Not ready yet, response:', (url || '').substring(0, 80));
     return { videoUrl: null };
   }
 
@@ -199,7 +264,7 @@ export async function pollVideoResult(
     if (result.videoUrl) return result.videoUrl;
     await new Promise((r) => setTimeout(r, intervalMs));
   }
-  throw new Error('Video generation timed out');
+  throw new Error('Video se dugo generiše. Možete pokušati ponovo ili proveriti kasnije u sekciji Video.');
 }
 
 // ---- Local gallery (saved videos) ----
@@ -279,4 +344,26 @@ export async function deleteSavedVideo(id: string): Promise<void> {
   }
   list = list.filter((v) => v.id !== id);
   await FileSystem.writeAsStringAsync(metaPath, JSON.stringify(list));
+}
+
+/**
+ * Clear all local saved videos (call on sign out so next user doesn't see previous user's data).
+ */
+export async function clearAllLocalVideos(): Promise<void> {
+  const metaPath = `${VIDEOS_DIR}meta.json`;
+  let list: SavedVideo[] = [];
+  try {
+    const raw = await FileSystem.readAsStringAsync(metaPath);
+    list = JSON.parse(raw);
+  } catch {}
+  for (const v of list) {
+    try {
+      await FileSystem.deleteAsync(v.uri, { idempotent: true });
+    } catch {}
+  }
+  try {
+    await FileSystem.writeAsStringAsync(metaPath, '[]');
+  } catch (e) {
+    console.error('[Video] Error clearing saved videos list:', e);
+  }
 }

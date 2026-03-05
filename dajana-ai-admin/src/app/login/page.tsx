@@ -45,9 +45,12 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-baseline justify-center gap-1 mb-4">
-            <span className="text-3xl font-bold text-[#0D4326] tracking-wider">DAJANA</span>
-            <span className="text-2xl font-light text-[#CF8F5A]">AI</span>
+          <div className="relative w-48 h-14 mx-auto mb-4">
+            <img
+              src="/OSB%20logo%20horizontalni%20pozitiv.jpg"
+              alt="Logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <CardTitle className="text-xl">Admin Panel</CardTitle>
           <CardDescription>Prijavite se za pristup administraciji</CardDescription>

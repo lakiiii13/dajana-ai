@@ -1,7 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,8 +18,7 @@ import { t } from '@/lib/i18n';
 import { useTheme } from '@/contexts/ThemeContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { CreditDisplay } from '@/components/CreditDisplay';
-import { getAllCredits, AllCredits } from '@/lib/creditService';
-import { AppLogo } from '@/components/AppLogo';
+import { deleteMyAccount } from '@/lib/deleteAccount';
 
 const HAIRLINE_GOLD = 'rgba(207,143,90,0.30)';
 const HAIRLINE_GREEN = 'rgba(13,67,38,0.12)';
@@ -27,18 +26,22 @@ const RADIUS = 22;
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ scrollToCredits?: string }>();
   const { colors, mode } = useTheme();
-  const { profile, credits, language, setLanguage, signOut } = useAuth();
-  const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [allCredits, setAllCredits] = useState<AllCredits | null>(null);
+  const { profile, allCredits, fetchCredits, fetchSubscription, language, setLanguage, signOut } = useAuth();
 
-  // Load credits when screen focuses
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const creditsSectionY = useRef(0);
+
+  // Osveži kredite kad uđeš na Profil (da se vidi ažurirano posle skidanja)
   useFocusEffect(
     useCallback(() => {
       if (profile?.id) {
-        getAllCredits(profile.id).then(setAllCredits).catch(console.error);
+        fetchCredits();
+        fetchSubscription();
       }
-    }, [profile?.id])
+    }, [profile?.id, fetchCredits, fetchSubscription])
   );
 
   const handleLanguageChange = useCallback(async (lang: 'sr' | 'en') => {
@@ -71,6 +74,30 @@ export default function ProfileScreen() {
     );
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      t('profile.delete_account'),
+      t('profile.delete_account_confirm'),
+      [
+        { text: t('cancel'), style: 'cancel' },
+        {
+          text: t('profile.delete_account'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMyAccount();
+              await signOut();
+              Alert.alert(t('profile.delete_account'), t('profile.delete_account_success'));
+              router.replace('/(auth)');
+            } catch (err: any) {
+              Alert.alert(t('error'), err?.message ?? t('auth.error_generic'));
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const getBodyTypeName = () => {
     if (!profile?.body_type) return t('profile.not_set');
     const bodyType = BODY_TYPES[profile.body_type];
@@ -91,9 +118,23 @@ export default function ProfileScreen() {
   const border = mode === 'dark' ? 'rgba(232,226,218,0.16)' : HAIRLINE_GREEN;
   const borderGold = mode === 'dark' ? 'rgba(207,143,90,0.22)' : HAIRLINE_GOLD;
 
+  const scrollToCreditsIfRequested = useCallback(() => {
+    if (params.scrollToCredits && scrollRef.current) {
+      const y = Math.max(0, creditsSectionY.current - 24);
+      scrollRef.current.scrollTo({ y, animated: true });
+      router.setParams({ scrollToCredits: undefined });
+    }
+  }, [params.scrollToCredits, router]);
+
+  useEffect(() => {
+    if (!params.scrollToCredits) return;
+    const t = setTimeout(scrollToCreditsIfRequested, 200);
+    return () => clearTimeout(t);
+  }, [params.scrollToCredits, scrollToCreditsIfRequested]);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
-      <ScrollView style={styles.scrollWrap} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={styles.scrollWrap} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Profile Hero */}
         <View style={[styles.heroWrap, { backgroundColor: bg }]}>
           <View style={[styles.heroCard, { backgroundColor: surface, borderColor: borderGold }]}>
@@ -105,35 +146,21 @@ export default function ProfileScreen() {
 
             <View style={styles.heroTopRow}>
               <Text style={[styles.pageTitle, { color: text }]}>Profil</Text>
-              <TouchableOpacity
-                style={[styles.iconBtn, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}
-                onPress={handleEditProfile}
-                activeOpacity={0.85}
-              >
-                <Feather name="edit-2" size={18} color={GOLD} />
+              <TouchableOpacity onPress={handleEditProfile} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Text style={[styles.editLink, { color: GOLD }]}>{t('profile.edit_link')}</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.avatarWrap}>
-              <LinearGradient colors={[GOLD, '#E7C3A5']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatarRing}>
-                <View style={[styles.avatarInner, { backgroundColor: bg }]}>
-                  <Text style={[styles.avatarText, { color: GOLD }]}>
-                    {profile?.full_name?.charAt(0)?.toUpperCase() || 'K'}
-                  </Text>
-                </View>
-              </LinearGradient>
-            </View>
-
-            <Text style={[styles.name, { color: text }]}>{profile?.full_name || (language === 'en' ? 'User' : 'Korisnik')}</Text>
+            <Text style={[styles.name, { color: text }]}>{profile?.full_name || t('profile_user')}</Text>
             <Text style={[styles.email, { color: textMuted }]}>{profile?.email}</Text>
 
             <TouchableOpacity
-              style={[styles.primaryCta, { backgroundColor: COLORS.primary, borderColor: borderGold }]}
+              style={[styles.primaryCta, { backgroundColor: 'transparent', borderColor: borderGold }]}
               onPress={handleEditProfile}
-              activeOpacity={0.9}
+              activeOpacity={0.85}
             >
-              <Text style={styles.primaryCtaText}>{t('profile.edit_data')}</Text>
-              <Feather name="arrow-right" size={18} color="#FFFFFF" />
+              <Text style={[styles.primaryCtaText, { color: text }]}>{t('profile.edit_data')}</Text>
+              <Feather name="chevron-right" size={18} color={GOLD} style={{ opacity: 0.9 }} />
             </TouchableOpacity>
           </View>
         </View>
@@ -175,22 +202,28 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Credits */}
-      <View style={styles.section}>
+      {/* Credits — scroll target kada se dođe sa home ikonice kredita */}
+      <View
+        style={styles.section}
+        onLayout={(e) => {
+          creditsSectionY.current = e.nativeEvent.layout.y;
+          if (params.scrollToCredits) setTimeout(scrollToCreditsIfRequested, 100);
+        }}
+      >
         <Text style={[styles.sectionTitle, { color: text }]}>{t('profile.credits')}</Text>
         
         <View style={[styles.creditsCardNew, { backgroundColor: surface, borderColor: borderGold }]}>
           <CreditDisplay credits={allCredits} compact />
         </View>
 
-        <TouchableOpacity style={[styles.secondaryCta, { backgroundColor: surface, borderColor: borderGold }]} activeOpacity={0.9}>
+        <TouchableOpacity style={[styles.secondaryCta, { backgroundColor: surface, borderColor: borderGold }]} onPress={() => router.push('/shop')} activeOpacity={0.9}>
           <View style={styles.secondaryCtaLeft}>
             <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
-              <Feather name="plus-circle" size={18} color={GOLD} />
+              <Feather name="plus" size={16} color={GOLD} />
             </View>
             <Text style={[styles.secondaryCtaText, { color: text }]}>{t('profile.buy_more')}</Text>
           </View>
-          <Feather name="chevron-right" size={20} color={mode === 'dark' ? 'rgba(255,255,255,0.35)' : 'rgba(13,67,38,0.35)'} />
+          <Feather name="chevron-right" size={18} color={GOLD} style={{ opacity: 0.7 }} />
         </TouchableOpacity>
       </View>
 
@@ -210,7 +243,7 @@ export default function ProfileScreen() {
               <Feather name="globe" size={18} color={GOLD} />
             </View>
             <Text style={[styles.menuItemText, { color: text }]}>{t('profile.language')}</Text>
-            <Text style={[styles.menuItemValue, { color: textMuted }]}>{language === 'en' ? 'English' : 'Srpski'}</Text>
+            <Text style={[styles.menuItemValue, { color: textMuted }]}>{language === 'en' ? t('profile_language_en') : t('profile_language_sr')}</Text>
             <Feather name="chevron-right" size={20} color={mode === 'dark' ? 'rgba(255,255,255,0.35)' : COLORS.gray[400]} />
           </TouchableOpacity>
 
@@ -241,14 +274,19 @@ export default function ProfileScreen() {
       </View>
 
       {/* Logout */}
-      <TouchableOpacity style={[styles.logoutButton, { backgroundColor: surface, borderColor: mode === 'dark' ? 'rgba(239,68,68,0.35)' : 'rgba(239,68,68,0.30)' }]} onPress={handleSignOut} activeOpacity={0.9}>
-        <Feather name="log-out" size={22} color={COLORS.error} />
+      <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut} activeOpacity={0.9}>
+        <Feather name="log-out" size={22} color="#FFFFFF" />
         <Text style={styles.logoutText}>{t('profile.sign_out')}</Text>
       </TouchableOpacity>
 
+      {/* Obriši nalog – skroz na dnu */}
+      <TouchableOpacity style={[styles.deleteAccountButton, { backgroundColor: surface, borderColor: mode === 'dark' ? 'rgba(120,120,120,0.4)' : 'rgba(0,0,0,0.12)' }]} onPress={handleDeleteAccount} activeOpacity={0.9}>
+        <Feather name="trash-2" size={20} color={COLORS.gray[500]} />
+        <Text style={[styles.deleteAccountText, { color: colors.textSecondary }]}>{t('profile.delete_account')}</Text>
+      </TouchableOpacity>
+
       <View style={styles.footer}>
-        <AppLogo height={24} maxWidth={120} />
-        <Text style={styles.version}>v1.0.0</Text>
+        <Text style={[styles.version, { color: textMuted }]}>v1.0.0</Text>
       </View>
 
       {/* Language Selection Modal */}
@@ -367,49 +405,17 @@ const styles = StyleSheet.create({
     fontSize: 28,
     letterSpacing: 1.6,
   },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-  },
-  avatarWrap: {
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  avatarRing: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  avatarInner: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(232,226,218,0.90)',
-  },
-  avatarText: {
-    fontSize: FONT_SIZES['4xl'],
-    fontFamily: FONTS.heading.bold,
+  editLink: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 15,
+    letterSpacing: 0.4,
   },
   name: {
     fontSize: FONT_SIZES.xl,
     fontFamily: FONTS.heading.semibold,
-    color: DARK,
     letterSpacing: 0.5,
     textAlign: 'center',
+    marginTop: SPACING.xs,
   },
   email: {
     fontSize: FONT_SIZES.sm,
@@ -420,24 +426,18 @@ const styles = StyleSheet.create({
   },
   primaryCta: {
     marginTop: SPACING.lg,
-    borderRadius: 18,
-    paddingVertical: SPACING.md,
-    paddingHorizontal: SPACING.lg,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 14,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 12,
-    elevation: 2,
   },
   primaryCtaText: {
     fontSize: FONT_SIZES.sm,
-    fontFamily: FONTS.primary.semibold,
-    color: '#FFFFFF',
-    letterSpacing: 0.3,
+    fontFamily: FONTS.primary.medium,
+    letterSpacing: 0.4,
   },
   section: {
     marginTop: SPACING.xl,
@@ -522,8 +522,8 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    backgroundColor: CARD_BG,
-    borderRadius: 18,
+    borderRadius: 20,
+    borderBottomLeftRadius: 6,
     borderWidth: 1,
   },
   secondaryCtaLeft: {
@@ -583,15 +583,30 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     margin: SPACING.lg,
     padding: SPACING.lg,
-    backgroundColor: CARD_BG,
+    backgroundColor: COLORS.primary,
     borderRadius: 12,
-    borderWidth: 0.5,
-    borderColor: COLORS.error,
+    borderWidth: 0,
   },
   logoutText: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.primary.semibold,
-    color: COLORS.error,
+    color: '#FFFFFF',
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+    marginHorizontal: SPACING.lg,
+    marginBottom: SPACING.md,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  deleteAccountText: {
+    fontSize: FONT_SIZES.sm,
+    fontFamily: FONTS.primary.regular,
   },
   footer: {
     alignItems: 'center',

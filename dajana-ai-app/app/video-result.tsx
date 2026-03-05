@@ -191,11 +191,10 @@ export default function VideoResultScreen() {
         )}
       </TouchableOpacity>
 
-      {/* Right-side actions */}
+      {/* Desna strana: Sačuvaj, Podeli, Preuzmi, Novi — više na ekranu, u fazonu app-a */}
       <Animated.View
-        style={[styles.sideCol, { paddingBottom: insets.bottom + 100 }, sideStyle]}
+        style={[styles.sideCol, { paddingBottom: insets.bottom + 140 }, sideStyle]}
       >
-        {/* Save / Heart */}
         <TouchableOpacity style={styles.sideBtn} onPress={handleSave} activeOpacity={0.7}>
           <View style={[styles.sideCircle, saved && styles.sideCircleActive]}>
             <Ionicons
@@ -207,7 +206,6 @@ export default function VideoResultScreen() {
           <Text style={styles.sideBtnLabel}>Sačuvaj</Text>
         </TouchableOpacity>
 
-        {/* Share */}
         <TouchableOpacity style={styles.sideBtn} onPress={handleShare} activeOpacity={0.7}>
           <View style={styles.sideCircle}>
             <Ionicons name="share-social-outline" size={22} color={COLORS.white} />
@@ -215,7 +213,6 @@ export default function VideoResultScreen() {
           <Text style={styles.sideBtnLabel}>Podeli</Text>
         </TouchableOpacity>
 
-        {/* Download */}
         <TouchableOpacity style={styles.sideBtn} onPress={handleDownload} activeOpacity={0.7}>
           <View style={styles.sideCircle}>
             <Ionicons name="download-outline" size={22} color={COLORS.white} />
@@ -223,7 +220,6 @@ export default function VideoResultScreen() {
           <Text style={styles.sideBtnLabel}>Preuzmi</Text>
         </TouchableOpacity>
 
-        {/* New video */}
         <TouchableOpacity style={styles.sideBtn} onPress={handleNewVideo} activeOpacity={0.7}>
           <View style={styles.sideCircle}>
             <Ionicons name="refresh-outline" size={22} color={COLORS.white} />
@@ -232,19 +228,20 @@ export default function VideoResultScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* Bottom row */}
+      {/* Donji red — centriran: Ponovo + Početna */}
       <Animated.View
-        style={[styles.bottomRow, { paddingBottom: insets.bottom + 14 }, bottomStyle]}
+        style={[styles.bottomRow, { paddingBottom: insets.bottom + SPACING.lg }, bottomStyle]}
       >
-        <TouchableOpacity style={styles.bottomChip} onPress={handleNewVideo} activeOpacity={0.85}>
-          <Ionicons name="videocam-outline" size={16} color={COLORS.white} />
-          <Text style={styles.bottomChipText}>Ponovo</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.bottomChip} onPress={handleGoHome} activeOpacity={0.85}>
-          <Ionicons name="home-outline" size={16} color={COLORS.white} />
-          <Text style={styles.bottomChipText}>Početna</Text>
-        </TouchableOpacity>
+        <View style={styles.bottomRowInner}>
+          <TouchableOpacity style={styles.bottomChip} onPress={handleNewVideo} activeOpacity={0.85}>
+            <Ionicons name="videocam-outline" size={18} color={COLORS.white} />
+            <Text style={styles.bottomChipText}>Ponovo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bottomChip} onPress={handleGoHome} activeOpacity={0.85}>
+            <Ionicons name="home-outline" size={18} color={COLORS.white} />
+            <Text style={styles.bottomChipText}>Početna</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </View>
   );
@@ -364,30 +361,36 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  /* Bottom row */
+  /* Bottom row — centriran, elegantan razmak */
   bottomRow: {
     position: 'absolute',
     bottom: 0,
-    left: 14,
-    flexDirection: 'row',
-    gap: 10,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
     zIndex: 10,
+  },
+  bottomRowInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   bottomChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.2)',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    borderWidth: 0,
   },
   bottomChipText: {
     fontFamily: FONTS.primary.medium,
-    fontSize: 13,
+    fontSize: 14,
     color: COLORS.white,
+    letterSpacing: 0.3,
   },
 
   /* Error */
@@ -400,7 +403,7 @@ const styles = StyleSheet.create({
   errorBtn: {
     paddingVertical: 10,
     paddingHorizontal: 24,
-    backgroundColor: GOLD,
+    backgroundColor: COLORS.primary,
     borderRadius: 14,
   },
   errorBtnText: {

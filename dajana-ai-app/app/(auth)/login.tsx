@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   accentLine: {
     width: 30,
     height: 1,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     marginBottom: SPACING.md,
     opacity: 0.6,
   },
@@ -294,14 +294,13 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 60,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.primary,
     borderRadius: 30,
     borderTopLeftRadius: 30,
     borderBottomLeftRadius: 30,
     borderTopRightRadius: 30,
     borderBottomRightRadius: 2,
-    borderWidth: 0.5,
-    borderColor: COLORS.secondary,
+    borderWidth: 0,
     shadowColor: COLORS.black,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
@@ -321,7 +320,7 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.primary.semibold,
-    color: COLORS.black,
+    color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   divider: {
@@ -339,7 +338,7 @@ const styles = StyleSheet.create({
   dividerDiamond: {
     width: 4,
     height: 4,
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.primary,
     transform: [{ rotate: '45deg' }],
     marginHorizontal: SPACING.sm,
   },

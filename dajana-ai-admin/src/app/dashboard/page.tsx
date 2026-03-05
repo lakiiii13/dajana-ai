@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/server";
-import { Users, Shirt, Image, Video } from "lucide-react";
+import { Users, Shirt, Image, Video, ArrowRight } from "lucide-react";
 
 async function getStats() {
   const supabase = createAdminClient();
@@ -66,30 +67,41 @@ export default async function DashboardPage() {
       </div>
 
       <div className="mt-8">
-        <Card>
+        <Card className="border-[#0D4326]/10">
           <CardHeader>
-            <CardTitle>Dobrodošli u DAJANA AI Admin</CardTitle>
+            <CardTitle>Brzi linkovi</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600">
-              Koristite navigaciju sa leve strane za upravljanje aplikacijom.
-            </p>
-            <ul className="mt-4 space-y-2 text-sm text-gray-600">
-              <li>
-                <strong>Outfiti</strong> - Dodajte, izmenite ili obrišite outfite
-                za kapsulu
-              </li>
-              <li>
-                <strong>Korisnici</strong> - Pregled registrovanih korisnika
-              </li>
-              <li>
-                <strong>Statistika</strong> - Analitika korišćenja aplikacije
-              </li>
-              <li>
-                <strong>Notifikacije</strong> - Slanje push notifikacija
-                korisnicima
-              </li>
-            </ul>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Link
+                href="/dashboard/outfits"
+                className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-[#CF8F5A]/30 transition-colors"
+              >
+                <span className="font-medium text-gray-800">Outfiti</span>
+                <ArrowRight className="w-4 h-4 text-[#CF8F5A]" />
+              </Link>
+              <Link
+                href="/dashboard/users"
+                className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-[#CF8F5A]/30 transition-colors"
+              >
+                <span className="font-medium text-gray-800">Korisnici</span>
+                <ArrowRight className="w-4 h-4 text-[#CF8F5A]" />
+              </Link>
+              <Link
+                href="/dashboard/analytics"
+                className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-[#CF8F5A]/30 transition-colors"
+              >
+                <span className="font-medium text-gray-800">Statistika</span>
+                <ArrowRight className="w-4 h-4 text-[#CF8F5A]" />
+              </Link>
+              <Link
+                href="/dashboard/notifications"
+                className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 hover:border-[#CF8F5A]/30 transition-colors"
+              >
+                <span className="font-medium text-gray-800">Notifikacije</span>
+                <ArrowRight className="w-4 h-4 text-[#CF8F5A]" />
+              </Link>
+            </div>
           </CardContent>
         </Card>
       </div>

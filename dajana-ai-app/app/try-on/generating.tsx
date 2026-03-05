@@ -9,19 +9,26 @@ import { useRouter } from 'expo-router';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { useAuthStore } from '@/stores/authStore';
 import { generateTryOn, saveTryOnImage, saveOutfitComposition } from '@/lib/tryOnService';
-import { FONTS } from '@/constants/theme';
+import { hasImageCredits, deductImageCredit } from '@/lib/creditService';
+import { logImageGeneration } from '@/lib/generationLog';
+import { FONTS, COLORS } from '@/constants/theme';
 import { AppLogo } from '@/components/AppLogo';
+import { t } from '@/lib/i18n';
 
 const { width: SW } = Dimensions.get('window');
+const CREAM = '#F8F4EF';
+const GOLD = '#CF8F5A';
+const DARK = '#2C2A28';
 
-// --- Stage definitions ---
-const STAGES = [
-  { label: 'Analiziram tvoj stil...', icon: '✦' },
-  { label: 'Biram savršeni kroj...', icon: '◇' },
-  { label: 'Kreiram tvoj outfit...', icon: '✧' },
-  { label: 'Dodajem završne detalje...', icon: '❋' },
-  { label: 'Gotovo za tebe...', icon: '♡' },
-];
+function getStages() {
+  return [
+    { label: t('try_on.generating_step1'), icon: '✦' },
+    { label: t('try_on.generating_step2'), icon: '◇' },
+    { label: t('try_on.generating_step3'), icon: '✧' },
+    { label: t('try_on.generating_step4'), icon: '❋' },
+    { label: t('try_on.generating_step5'), icon: '♡' },
+  ];
+}
 
 const STAGE_DURATION = 5500; // ms per stage
 
@@ -40,6 +47,7 @@ export default function TryOnGeneratingScreen() {
   const textFade = useRef(new Animated.Value(0)).current;
   const textSlide = useRef(new Animated.Value(12)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const STAGES = getStages();
   const dotAnims = useRef(STAGES.map(() => new Animated.Value(0))).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -116,12 +124,23 @@ export default function TryOnGeneratingScreen() {
     const hasItems = outfitItems.length > 0;
     const hasSingle = outfitId && outfitImageUrl;
     if (!faceImageBase64) {
-      setError('Nedostaje slika lica. Vrati se i izaberi fotografiju.');
+      setError(t('try_on.error_no_face'));
       router.replace('/try-on/upload');
       return;
     }
     if (!hasItems && !hasSingle) {
       setError('Nedostaje outfit. Izaberi outfit u Kapsuli ili Ormaru.');
+      router.replace('/try-on/upload');
+      return;
+    }
+    if (!user?.id) {
+      setError('Morate biti prijavljeni.');
+      router.replace('/try-on/upload');
+      return;
+    }
+    const hasCredits = await hasImageCredits(user.id);
+    if (!hasCredits) {
+      setError('Nemate dovoljno kredita za slike. Kupite više u Profilu.');
       router.replace('/try-on/upload');
       return;
     }
@@ -134,7 +153,11 @@ export default function TryOnGeneratingScreen() {
         : [{ imageUrl: outfitImageUrl!, title: outfitTitle || null }];
 
       const result = await generateTryOn(faceImageBase64, items);
+      await deductImageCredit(user.id);
+      useAuthStore.getState().fetchCredits();
       const savedUri = await saveTryOnImage(result.imageBase64, effectiveOutfitId);
+
+      await logImageGeneration(user.id, effectiveOutfitId ?? null, savedUri ?? null);
 
       const compositionItems = hasItems
         ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title }))
@@ -150,7 +173,7 @@ export default function TryOnGeneratingScreen() {
       setError(err.message || 'Generation failed');
       router.replace('/try-on/result');
     }
-  }, [faceImageBase64, outfitImageUrl, outfitId, outfitTitle, outfitItems]);
+  }, [faceImageBase64, outfitImageUrl, outfitId, outfitTitle, outfitItems, user?.id]);
 
   useEffect(() => { runGeneration(); }, [runGeneration]);
 
@@ -197,7 +220,7 @@ export default function TryOnGeneratingScreen() {
             });
             const dotBg = dotAnims[idx].interpolate({
               inputRange: [0, 1],
-              outputRange: ['#D8D3CC', '#3C3C3C'],
+              outputRange: ['#D8D3CC', COLORS.primary],
             });
             const isActive = idx <= stageIndex;
             return (
@@ -207,7 +230,7 @@ export default function TryOnGeneratingScreen() {
                   styles.dot,
                   idx === stageIndex && styles.dotActive,
                   {
-                    backgroundColor: isActive ? '#3C3C3C' : '#D8D3CC',
+                    backgroundColor: isActive ? COLORS.primary : '#D8D3CC',
                     transform: [{ scale: dotScale }],
                   },
                 ]}
@@ -241,7 +264,7 @@ export default function TryOnGeneratingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FDFBF8',
+    backgroundColor: CREAM,
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 80,
@@ -256,7 +279,7 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.logo || FONTS.heading.bold,
     fontSize: 18,
     letterSpacing: 8,
-    color: '#3C3C3C',
+    color: DARK,
   },
   brandSub: {
     fontFamily: FONTS.primary.light,
@@ -272,13 +295,13 @@ const styles = StyleSheet.create({
   },
   stageIcon: {
     fontSize: 42,
-    color: '#C9A962',
+    color: COLORS.primary,
     marginBottom: 4,
   },
   stageText: {
     fontFamily: FONTS.primary.medium,
     fontSize: 17,
-    color: '#3C3C3C',
+    color: DARK,
     letterSpacing: 0.5,
     textAlign: 'center',
   },
@@ -307,13 +330,13 @@ const styles = StyleSheet.create({
   progressTrack: {
     width: '100%',
     height: 2,
-    backgroundColor: '#E8E4E0',
+    backgroundColor: 'rgba(207,143,90,0.2)',
     borderRadius: 1,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#3C3C3C',
+    backgroundColor: COLORS.primary,
     borderRadius: 1,
     overflow: 'hidden',
   },
@@ -323,7 +346,7 @@ const styles = StyleSheet.create({
     left: 0,
     width: 60,
     height: '100%',
-    backgroundColor: 'rgba(255,255,255,0.4)',
+    backgroundColor: 'rgba(255,255,255,0.45)',
   },
   stageCounter: {
     fontFamily: FONTS.primary.regular,

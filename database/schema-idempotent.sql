@@ -158,6 +158,17 @@ CREATE TABLE IF NOT EXISTS saved_outfits (
   UNIQUE(user_id, outfit_id)
 );
 
+-- Inbox notifikacija (video spreman, Dajana iz admina, sistem) – prikaz u sekciji Notifikacije
+CREATE TABLE IF NOT EXISTS user_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('video', 'advice', 'system', 'outfit')),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- =========================================
 -- 4. INDEXES (IF NOT EXISTS)
 -- =========================================
@@ -169,6 +180,7 @@ CREATE INDEX IF NOT EXISTS idx_generations_status ON generations(status);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_outfits_user ON saved_outfits(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_notifications_user_created ON user_notifications(user_id, created_at DESC);
 
 -- =========================================
 -- 5. ROW LEVEL SECURITY
@@ -183,6 +195,8 @@ CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.
 DO $$ BEGIN ALTER TABLE user_credits ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can view own credits" ON user_credits;
 CREATE POLICY "Users can view own credits" ON user_credits FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own credits" ON user_credits;
+CREATE POLICY "Users can update own credits" ON user_credits FOR UPDATE USING (auth.uid() = user_id);
 
 DO $$ BEGIN ALTER TABLE outfits ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Authenticated users can view active outfits" ON outfits;
@@ -209,6 +223,14 @@ CREATE POLICY "Users can manage own push token" ON push_tokens FOR ALL USING (au
 DO $$ BEGIN ALTER TABLE saved_outfits ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can manage own saved outfits" ON saved_outfits;
 CREATE POLICY "Users can manage own saved outfits" ON saved_outfits FOR ALL USING (auth.uid() = user_id);
+
+DO $$ BEGIN ALTER TABLE user_notifications ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DROP POLICY IF EXISTS "Users can view own notifications" ON user_notifications;
+CREATE POLICY "Users can view own notifications" ON user_notifications FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own notifications" ON user_notifications;
+CREATE POLICY "Users can update own notifications" ON user_notifications FOR UPDATE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own notifications" ON user_notifications;
+CREATE POLICY "Users can insert own notifications" ON user_notifications FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- =========================================
 -- 6. FUNCTIONS (CREATE OR REPLACE = idempotent)

@@ -5,6 +5,7 @@
 // ===========================================
 
 import React, { useEffect, useCallback } from 'react';
+import { t } from '@/lib/i18n';
 import {
   View,
   Text,
@@ -45,10 +46,10 @@ const SHINE = 'rgba(255, 255, 255, 0.55)';
 const BUTTON_RADIUS = 26;
 
 const OCCASIONS = [
-  { id: 'evening', label: 'Večernji izlazak', icon: 'moon-outline' as const },
-  { id: 'business', label: 'Poslovni dan', icon: 'briefcase-outline' as const },
-  { id: 'travel', label: 'Putovanje', icon: 'airplane-outline' as const },
-  { id: 'casual', label: 'Casual dan', icon: 'sunny-outline' as const },
+  { id: 'evening', labelKey: 'atelier.occasion_evening', icon: 'moon-outline' as const },
+  { id: 'business', labelKey: 'atelier.occasion_business', icon: 'briefcase-outline' as const },
+  { id: 'travel', labelKey: 'atelier.occasion_travel', icon: 'airplane-outline' as const },
+  { id: 'casual', labelKey: 'atelier.occasion_casual', icon: 'sunny-outline' as const },
 ];
 
 interface AtelierFlowProps {
@@ -59,7 +60,7 @@ interface AtelierFlowProps {
 }
 
 export function AtelierFlow({ userName, step, onNext, onComplete }: AtelierFlowProps) {
-  const displayName = userName?.trim() || 'Ana';
+  const displayName = userName?.trim() || t('atelier.default_name');
   const contentOpacity = useSharedValue(0);
   const contentTranslateY = useSharedValue(24);
   const buttonGlow = useSharedValue(0.25);
@@ -278,7 +279,7 @@ export function AtelierFlow({ userName, step, onNext, onComplete }: AtelierFlowP
                       <View style={styles.cardIconWrap}>
                         <Ionicons name={occ.icon} size={22} color={BRAND_GREEN} />
                       </View>
-                      <Text style={styles.cardLabel}>{occ.label}</Text>
+                      <Text style={styles.cardLabel}>{t(occ.labelKey)}</Text>
                       <Ionicons name="chevron-forward" size={18} color="rgba(13,67,38,0.55)" />
                     </Pressable>
                   </Animated.View>
@@ -356,7 +357,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   headline: {
-    fontFamily: FONTS.logo,
+    fontFamily: FONTS.heading.semibold,
     fontSize: FONT_SIZES['4xl'],
     color: BRAND_GREEN,
     textAlign: 'center',

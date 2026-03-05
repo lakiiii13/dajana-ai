@@ -1,90 +1,144 @@
 // ===========================================
 // DAJANA AI - Kapsula Choice Screen
-// Split 50/50: KAPSULA (gradi outfit) | ORMAR (gotovi outfiti)
-// Animirana zlatna linija u centru
+// Kapsula LEVO (gde se bira), gore desno + dole desno dve opcije, linije od Kapsule ka njima
 // ===========================================
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
-  ImageBackground,
   StatusBar,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { FONTS } from '@/constants/theme';
+import Svg, { Path } from 'react-native-svg';
+import { FONTS, COLORS } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 
 const { width: W, height: H } = Dimensions.get('window');
 
-const TABLE_IMG = require('@/assets/images/table-outfit.jpg');
-const CLOSET_IMG = require('@/assets/images/slika_za_kapsulu.jpg');
-
-const GOLD = '#CF8F5A';
 const CREAM = '#F8F4EF';
-const DARK = '#1A1A1A';
+const CREAM_BOX = '#F2EDE8';
+const BORDER_BROWN = 'rgba(196,167,125,0.5)';
+const LINE_COLOR = 'rgba(207,143,90,0.32)';
+const TEXT_DARK = '#1A1A1A';
+const TEXT_SECONDARY = '#5C5C5C';
+const GOLD = COLORS.secondary;
+
+const BOX_LEFT = 20;
+const BOX_WIDTH = 148;
+const BOX_HEIGHT_APPROX = 48;
+const CARD_RIGHT = 20;
+const CARD_WIDTH = 132;
+const CARD_HEIGHT_APPROX = 82;
 
 export default function CapsuleChoiceScreen() {
   const insets = useSafeAreaInsets();
 
+  const titleShine = useSharedValue(0.88);
+  useEffect(() => {
+    titleShine.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.ease) }),
+        withTiming(0.88, { duration: 2200, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const titleAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: titleShine.value,
+  }));
+
+  const cardCenterX = W - CARD_RIGHT - CARD_WIDTH / 2;
+  const cardTopY = insets.top + H * 0.10;
+  const cardBottomY = insets.top + H * 0.52;
+  const midY = (cardTopY + CARD_HEIGHT_APPROX / 2 + cardBottomY + CARD_HEIGHT_APPROX / 2) / 2;
+  const boxTop = midY - BOX_HEIGHT_APPROX / 2;
+  const boxCenterY = boxTop + BOX_HEIGHT_APPROX / 2;
+  const startX = BOX_LEFT + BOX_WIDTH + 6;
+
+  const fromX = -W * 0.18;
+  const pathIntoBox = `M ${fromX} ${boxCenterY} L ${BOX_LEFT - 1} ${boxCenterY}`;
+  const pathToTop = `M ${startX} ${boxCenterY} C ${startX + 40} ${boxCenterY} ${cardCenterX - 48} ${cardTopY + 18} ${cardCenterX - 38} ${cardTopY + 36}`;
+  const pathToBottom = `M ${startX} ${boxCenterY} C ${startX + 44} ${boxCenterY + 12} ${cardCenterX - 50} ${cardBottomY - 6} ${cardCenterX - 40} ${cardBottomY + 30}`;
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" backgroundColor={CREAM} />
 
-      {/* Leva polovina: KAPSULA – tekst u sredini, primamljiv */}
+      {/* Back */}
       <TouchableOpacity
-        style={styles.half}
-        activeOpacity={0.88}
-        onPress={() => router.push('/(tabs)/capsule/table-builder' as any)}
+        style={[styles.backBtn, { top: insets.top + 10 }]}
+        onPress={() => router.back()}
+        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
       >
-        <ImageBackground source={TABLE_IMG} style={styles.halfBg} resizeMode="cover">
-          <View style={styles.halfOverlay} />
-          <Animated.View
-            entering={FadeIn.delay(200).duration(500)}
-            style={[styles.labelWrap, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
-          >
-            <View style={styles.labelCard}>
-              <Text style={styles.labelSub}>Gradi sam</Text>
-              <Text style={styles.labelTitle}>KAPSULA</Text>
-              <View style={styles.labelLine} />
-              <Text style={styles.labelDesc}>Složi outfit komad po komad</Text>
-              <Text style={styles.labelCta}>Uđi</Text>
-            </View>
-          </Animated.View>
-        </ImageBackground>
+        <Feather name="arrow-left" size={24} color={TEXT_DARK} />
       </TouchableOpacity>
 
-      {/* Desna polovina: ORMAR – tekst u sredini, primamljiv */}
-      <TouchableOpacity
-        style={styles.half}
-        activeOpacity={0.88}
-        onPress={() => router.push('/(tabs)/capsule/closet' as any)}
+      {/* Levo – hint za izbor */}
+      <Animated.View
+        entering={FadeIn.duration(400)}
+        style={[styles.textBox, { top: boxTop, left: BOX_LEFT }]}
       >
-        <ImageBackground source={CLOSET_IMG} style={styles.halfBg} resizeMode="cover">
-          <View style={[styles.halfOverlay, { backgroundColor: 'rgba(10,10,8,0.52)' }]} />
-          <Animated.View
-            entering={FadeIn.delay(320).duration(500)}
-            style={[styles.labelWrap, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
-          >
-            <View style={styles.labelCard}>
-              <Text style={styles.labelSub}>Gotovi outfiti</Text>
-              <Text style={styles.labelTitle}>ORMAR</Text>
-              <View style={styles.labelLine} />
-              <Text style={styles.labelDesc}>Izaberi outfit iz svog ormara</Text>
-              <Text style={styles.labelCta}>Uđi</Text>
-            </View>
-          </Animated.View>
-        </ImageBackground>
-      </TouchableOpacity>
+        <Text style={styles.textBoxHint}>{t('wardrobe_choice.choice_hint')}</Text>
+      </Animated.View>
 
-      {/* Tanka elegantna linija u sredini */}
-      <View style={styles.dividerContainer} pointerEvents="none">
-        <View style={styles.dividerLine} />
+      {/* Elegantne linije – zlatna nijansa, tanke, glatke krive */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width={W} height={H} style={styles.svgOverlay}>
+          <Path d={pathIntoBox} stroke={LINE_COLOR} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={pathToTop} stroke={LINE_COLOR} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={pathToBottom} stroke={LINE_COLOR} strokeWidth={1.2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </Svg>
       </View>
+
+      {/* Gore desno: samo "Kapsula" u sredini, veći font */}
+      <Animated.View
+        entering={FadeInDown.delay(180).duration(450)}
+        style={[styles.cardRight, { top: cardTopY }]}
+      >
+        <TouchableOpacity
+          style={styles.cardInner}
+          activeOpacity={0.82}
+          onPress={() => router.push('/(tabs)/capsule/table-builder' as any)}
+        >
+          <Animated.Text style={[styles.cardTitle, { color: COLORS.primary }, titleAnimatedStyle]}>
+            {t('wardrobe_choice.capsule_title')}
+          </Animated.Text>
+        </TouchableOpacity>
+      </Animated.View>
+
+      {/* Dole desno: samo "Ormar outfita" u sredini, veći font */}
+      <Animated.View
+        entering={FadeInDown.delay(260).duration(450)}
+        style={[styles.cardRight, { top: cardBottomY }]}
+      >
+        <TouchableOpacity
+          style={styles.cardInner}
+          activeOpacity={0.82}
+          onPress={() => router.push('/(tabs)/capsule/closet' as any)}
+        >
+          <Animated.Text style={[styles.cardTitle, { color: COLORS.primary }, titleAnimatedStyle]} numberOfLines={2}>
+            {t('wardrobe_choice.ormar_title')}
+          </Animated.Text>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -92,110 +146,72 @@ export default function CapsuleChoiceScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    flexDirection: 'row',
-    backgroundColor: DARK,
+    backgroundColor: CREAM,
   },
-
-  half: {
-    flex: 1,
-    height: H,
+  svgOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
-
-  halfBg: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-
-  halfOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,8,6,0.48)',
-  },
-
-  labelWrap: {
-    flex: 1,
+  backBtn: {
+    position: 'absolute',
+    left: 16,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-
-  labelCard: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    borderRadius: 18,
     borderWidth: 1,
-    borderColor: 'rgba(207,143,90,0.4)',
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    minWidth: 120,
+    borderColor: 'rgba(196,167,125,0.4)',
   },
-
-  labelSub: {
-    fontFamily: FONTS.primary.light,
-    fontSize: 9,
-    color: GOLD,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    marginBottom: 6,
+  textBox: {
+    position: 'absolute',
+    width: BOX_WIDTH,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER_BROWN,
+    backgroundColor: CREAM_BOX,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
   },
-
-  labelTitle: {
+  textBoxHint: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: 12,
+    color: TEXT_SECONDARY,
+    lineHeight: 17,
+    letterSpacing: 0.2,
+  },
+  cardRight: {
+    position: 'absolute',
+    right: CARD_RIGHT,
+    width: CARD_WIDTH,
+  },
+  cardInner: {
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER_BROWN,
+    backgroundColor: CREAM_BOX,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  cardTitle: {
     fontFamily: FONTS.heading.semibold,
     fontSize: 20,
-    color: CREAM,
-    letterSpacing: 3,
-    textTransform: 'uppercase',
-  },
-
-  labelLine: {
-    width: 24,
-    height: 1.5,
-    backgroundColor: GOLD,
-    marginTop: 8,
-    marginBottom: 10,
-    opacity: 0.9,
-  },
-
-  labelDesc: {
-    fontFamily: FONTS.primary.light,
-    fontSize: 11,
-    color: 'rgba(248,244,239,0.85)',
-    letterSpacing: 0.3,
+    letterSpacing: 0.6,
     textAlign: 'center',
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-
-  labelCta: {
-    fontFamily: FONTS.heading.semibold,
-    fontSize: 11,
-    color: GOLD,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: GOLD,
-    overflow: 'hidden',
-  },
-
-  /* ===== Divider – tanka elegantna linija ===== */
-  dividerContainer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: W / 2 - 0.5,
-    width: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  dividerLine: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: 'rgba(207,143,90,0.5)',
   },
 });

@@ -23,7 +23,7 @@ import Svg, { Path } from 'react-native-svg';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname } from 'expo-router';
-import { FONTS } from '@/constants/theme';
+import { FONTS, COLORS } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NAV_WIDTH = SCREEN_WIDTH * 0.88;
@@ -117,7 +117,7 @@ function HangerTabItem({
     onPressOut();
   };
 
-  const labelColor = isActive ? DARK : MUTED;
+  const labelColor = isActive ? COLORS.primary : MUTED;
   const iconOpacity = isActive ? 1 : 0.75;
   const isCapsule = name === 'capsule';
 
@@ -155,12 +155,20 @@ function HangerTabItem({
       >
         {TAB_LABELS[name]}
       </Text>
-      <Animated.View style={[styles.activeDot, { backgroundColor: GOLD }, dotAnimStyle]} />
+      <Animated.View style={[styles.activeDot, { backgroundColor: COLORS.primary }, dotAnimStyle]} />
     </TouchableOpacity>
   );
 }
 
-export function WardrobeRailTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+const GUEST_PROTECTED_TABS: TabName[] = ['capsule', 'videos', 'ai-advice', 'profile'];
+
+export function WardrobeRailTabBar({
+  state,
+  descriptors,
+  navigation,
+  isGuest,
+  onGuestBlock,
+}: BottomTabBarProps & { isGuest?: boolean; onGuestBlock?: () => void }) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
@@ -170,8 +178,7 @@ export function WardrobeRailTabBar({ state, descriptors, navigation }: BottomTab
     pathname.includes('closet') ||
     pathname.includes('video-generate') ||
     pathname.includes('video-result') ||
-    pathname.includes('try-on/upload') ||
-    pathname.includes('try-on/result') ||
+    pathname.includes('try-on') ||
     pathname.includes('ai-advice')
   ) {
     return null;
@@ -207,6 +214,14 @@ export function WardrobeRailTabBar({ state, descriptors, navigation }: BottomTab
             const tabIndex = TAB_NAMES.indexOf(route.name as TabName);
             if (tabIndex < 0) return null;
             const isActive = state.index === tabIndex;
+            const isProtected = GUEST_PROTECTED_TABS.includes(route.name as TabName);
+            const handlePress = () => {
+              if (isGuest && isProtected && onGuestBlock) {
+                onGuestBlock();
+                return;
+              }
+              navigation.navigate(route.name);
+            };
 
             return (
               <HangerTabItem
@@ -215,7 +230,7 @@ export function WardrobeRailTabBar({ state, descriptors, navigation }: BottomTab
                 isActive={isActive}
                 tabIndex={tabIndex}
                 title={descriptors[route.key]?.options?.title ?? route.name}
-                onPress={() => navigation.navigate(route.name)}
+                onPress={handlePress}
                 onPressIn={() => {}}
                 onPressOut={() => {}}
               />

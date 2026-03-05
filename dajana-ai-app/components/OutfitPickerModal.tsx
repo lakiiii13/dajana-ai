@@ -30,9 +30,11 @@ interface OutfitPickerModalProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (outfit: OutfitWithSaved) => void;
+  /** Kategorija prema zoni iz table-buildera (npr. cipele → obuca); kad se otvori modal, prikaže se ta opcija. */
+  initialCategoryId?: CategoryId;
 }
 
-export function OutfitPickerModal({ visible, onClose, onSelect }: OutfitPickerModalProps) {
+export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryId }: OutfitPickerModalProps) {
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuthStore();
   
@@ -64,7 +66,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect }: OutfitPickerMo
       setOutfits(data);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
-      else setError('Greška pri učitavanju');
+      else setError(t('errors.load_failed'));
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -73,9 +75,12 @@ export function OutfitPickerModal({ visible, onClose, onSelect }: OutfitPickerMo
 
   useEffect(() => {
     if (visible) {
+      if (initialCategoryId && initialCategoryId !== 'all') {
+        setActiveCategory(initialCategoryId);
+      }
       loadOutfits();
     }
-  }, [visible, loadOutfits]);
+  }, [visible, initialCategoryId, loadOutfits]);
 
   const handleRefresh = () => {
     loadOutfits(true);

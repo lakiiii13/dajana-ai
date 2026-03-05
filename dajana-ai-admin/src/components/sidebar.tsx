@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -31,6 +32,7 @@ const navItems = [
 export function Sidebar({ admin }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [logoError, setLogoError] = useState(false);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -39,16 +41,19 @@ export function Sidebar({ admin }: SidebarProps) {
   };
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-      {/* Logo */}
-      <div className="p-6 border-b border-gray-200">
-        <div className="flex items-baseline gap-1">
-          <span className="text-xl font-bold text-[#0D4326] tracking-wider">
-            DAJANA
-          </span>
-          <span className="text-lg font-light text-[#CF8F5A]">AI</span>
+    <div className="w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col max-h-screen overflow-y-auto">
+      {/* Logo – box iznad Dashboarda, u levom uglu */}
+      <div className="p-5 border-b border-gray-200">
+        <div className="relative w-full h-12 flex items-center justify-start">
+          {!logoError ? (
+            <img
+              src="/OSB%20logo%20horizontalni%20pozitiv.jpg"
+              alt="OSB Logo"
+              className="h-full w-auto max-w-full object-contain object-left"
+              onError={() => setLogoError(true)}
+            />
+          ) : null}
         </div>
-        <p className="text-xs text-gray-500 mt-1">Admin Panel</p>
       </div>
 
       {/* Navigation */}

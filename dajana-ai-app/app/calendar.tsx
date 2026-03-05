@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
+import { t, getLanguage } from '@/lib/i18n';
 import { AppLogo } from '@/components/AppLogo';
 import { getSavedOutfits, deleteOutfitComposition, SavedOutfit } from '@/lib/tryOnService';
 
@@ -36,8 +37,14 @@ const CALENDAR_PALETTE = {
   selfieTab: '#2C2C2C',
 };
 
-const MONTH_NAMES = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_KEYS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'] as const;
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+function getMonthNames(): string[] {
+  return MONTH_KEYS.map((k) => t(`calendar.${k}`));
+}
+function getDayNames(): string[] {
+  return DAY_KEYS.map((k) => t(`calendar.${k}`));
+}
 
 function getDaysGrid(year: number, month: number) {
   const first = new Date(year, month, 1);
@@ -123,7 +130,8 @@ export default function CalendarScreen() {
     [current.year, current.month]
   );
 
-  const monthLabel = `${MONTH_NAMES[current.month]} ${current.year}`;
+  const monthNames = getMonthNames();
+  const monthLabel = `${monthNames[current.month]} ${current.year}`;
 
   const goPrev = () => {
     if (current.month === 0) setCurrent({ year: current.year - 1, month: 11 });
@@ -153,10 +161,10 @@ export default function CalendarScreen() {
   };
 
   const handleDeleteOutfit = (outfit: SavedOutfit) => {
-    Alert.alert('Obriši outfit', 'Da li ste sigurni?', [
-      { text: 'Otkaži', style: 'cancel' },
+    Alert.alert(t('calendar.delete_title'), t('calendar.delete_question'), [
+      { text: t('cancel'), style: 'cancel' },
       {
-        text: 'Obriši',
+        text: t('delete'),
         style: 'destructive',
         onPress: async () => {
           await deleteOutfitComposition(outfit.id);
@@ -208,16 +216,8 @@ export default function CalendarScreen() {
         <View style={styles.headerRight} />
       </View>
 
-      {/* SELFIE tab */}
-      <View style={[styles.selfieBar, { backgroundColor: CALENDAR_PALETTE.cream }]}>
-        <View style={[styles.selfieTabActive, { backgroundColor: CALENDAR_PALETTE.selfieTab }]}>
-          <Text style={[styles.selfieTabTextActive, { color: CALENDAR_PALETTE.surface }]}>SELFIE</Text>
-          <View style={[styles.selfieDot, { backgroundColor: CALENDAR_PALETTE.surface }]} />
-        </View>
-      </View>
-
       <Text style={[styles.calendarIntro, { color: CALENDAR_PALETTE.gray }]}>
-        Ovde su svi vaši outfiti po datumima
+        {t('calendar.subtitle')}
       </Text>
 
       {/* Month nav */}
@@ -233,7 +233,7 @@ export default function CalendarScreen() {
 
       {/* Day names */}
       <View style={[styles.dayNamesRow, { width: gridWidth }]}>
-        {DAY_NAMES.map((day) => (
+        {getDayNames().map((day) => (
           <Text key={day} style={[styles.dayName, { color: CALENDAR_PALETTE.black }]}>{day}</Text>
         ))}
       </View>
@@ -348,7 +348,7 @@ export default function CalendarScreen() {
           </View>
 
           <Text style={styles.modalSubtitle}>
-            {selectedDayOutfits.length} {selectedDayOutfits.length === 1 ? 'outfit' : 'outfita'}
+            {selectedDayOutfits.length} {selectedDayOutfits.length === 1 ? t('calendar.outfit_one') : t('calendar.outfit_many')}
           </Text>
 
           {/* Outfit list */}
@@ -405,7 +405,7 @@ export default function CalendarScreen() {
             }}
           >
             <Feather name="plus" size={18} color={CALENDAR_PALETTE.surface} />
-            <Text style={styles.modalAddBtnText}>Dodaj novi outfit</Text>
+            <Text style={styles.modalAddBtnText}>{t('calendar.add_new')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -447,31 +447,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     letterSpacing: 1,
   },
-  selfieBar: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    padding: 5,
-    marginBottom: SPACING.xl,
-  },
-  selfieTabActive: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 8,
-    gap: 8,
-  },
-  selfieTabTextActive: {
-    fontFamily: FONTS.primary.semibold,
-    fontSize: FONT_SIZES.sm,
-    letterSpacing: 0.5,
-  },
-  selfieDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
   calendarNav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -493,7 +468,8 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     textAlign: 'center',
     letterSpacing: 0.5,
-    marginBottom: SPACING.md,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.lg,
     lineHeight: 22,
   },
   dayNamesRow: {
