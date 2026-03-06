@@ -52,6 +52,9 @@ export default function HomeScreen() {
   const isGuest = useAuthStore((s) => s.isGuest);
   const setGuestShowModal = useAuthStore((s) => s.setGuestShowModal);
   const [activeSegment, setActiveSegment] = useState<HomeSegment>('outfit');
+  /** Za OUTFIT tab: 'kapsula' = ručno složeni, 'ormar' = generisane cele slike od Dajane */
+  const [outfitSource, setOutfitSource] = useState<'kapsula' | 'ormar'>('kapsula');
+  const [outfitDropdownOpen, setOutfitDropdownOpen] = useState(false);
 
   const guestOrNavigate = useCallback(
     (navigate: () => void) => {
@@ -144,7 +147,7 @@ export default function HomeScreen() {
       ? allCredits.image.remaining + allCredits.video.remaining + allCredits.analysis.remaining
       : null;
 
-  const outfitCount = savedOutfits.length;
+  const outfitCount = savedOutfits.length + generatedImages.length;
   const videoCount = savedVideos.length;
   const slikaCount = generatedImages.length;
 
@@ -153,6 +156,11 @@ export default function HomeScreen() {
     video: videoCount,
     slika: slikaCount,
   };
+
+  const handleSegmentChange = useCallback((seg: HomeSegment) => {
+    setActiveSegment(seg);
+    if (seg !== 'outfit') setOutfitDropdownOpen(false);
+  }, []);
 
   const isEmpty = segmentCounts[activeSegment] === 0;
 
@@ -311,7 +319,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               key={seg}
               style={[styles.indyxTab, isActive && styles.indyxTabActive]}
-              onPress={() => setActiveSegment(seg)}
+              onPress={() => handleSegmentChange(seg)}
               activeOpacity={0.85}
             >
               <Text style={[styles.indyxTabLabel, isActive && styles.indyxTabLabelActive]}>
@@ -329,32 +337,92 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={true}
         {...(isEmpty ? panResponder.panHandlers : {})}
       >
-      {/* Linija + „Kolekcija” — malo vazduha između tabova i sadržaja */}
-      <View style={styles.collectionLabelRow}>
-        <View style={[styles.collectionLabelLine, { backgroundColor: colors.gray[300] }]} />
-        <Text style={[styles.collectionLabelText, { color: colors.textSecondary }]}>{t('video.collection')}</Text>
-        <View style={[styles.collectionLabelLine, { backgroundColor: colors.gray[300] }]} />
-      </View>
+      {/* Linija + „Kolekcija” — samo za VIDEO/SLIKA; OUTFIT koristi dropdown */}
+      {activeSegment !== 'outfit' && (
+        <View style={styles.collectionLabelRow}>
+          <View style={[styles.collectionLabelLine, { backgroundColor: colors.gray[300] }]} />
+          <Text style={[styles.collectionLabelText, { color: colors.textSecondary }]}>{t('video.collection')}</Text>
+          <View style={[styles.collectionLabelLine, { backgroundColor: colors.gray[300] }]} />
+        </View>
+      )}
       <View style={[styles.stageArea, { backgroundColor: HOME_CREAM }]}>
-        {activeSegment === 'outfit' && savedOutfits.length > 0 && (
-          <FlatList
-            data={savedOutfits}
-            renderItem={({ item }) => (
-              <OutfitCompositionCard
-                outfit={item}
-                colors={colors}
-                onDelete={() => handleDeleteOutfit(item)}
-                onPress={() => { setOutfitCarouselIndex(0); setSelectedOutfit(item); }}
+        {activeSegment === 'outfit' && (
+          <>
+            {/* Dropdown: Kapsula ili Ormar */}
+            <View style={styles.outfitDropdownWrap}>
+              <Text style={[styles.outfitDropdownLabel, { color: colors.textSecondary }]}>{t('home.outfit_choice_title')}</Text>
+              <TouchableOpacity
+                style={[styles.outfitDropdownBtn, { backgroundColor: colors.surface, borderColor: colors.gray[200] }]}
+                onPress={() => setOutfitDropdownOpen((o) => !o)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.outfitDropdownBtnText, { color: colors.text }]}>
+                  {outfitSource === 'kapsula' ? t('home.outfit_from_capsule') : t('home.outfit_from_ormar')}
+                </Text>
+                <Feather name={outfitDropdownOpen ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {outfitDropdownOpen && (
+                <View style={[styles.outfitDropdownMenu, { backgroundColor: colors.surface, borderColor: colors.gray[200] }]}>
+                  <TouchableOpacity
+                    style={[styles.outfitDropdownItem, { borderBottomColor: colors.gray[100] }]}
+                    onPress={() => { setOutfitSource('kapsula'); setOutfitDropdownOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.outfitDropdownItemText, { color: colors.text }]}>{t('home.outfit_from_capsule')}</Text>
+                    <Text style={[styles.outfitDropdownItemDesc, { color: colors.textSecondary }]}>{t('home.outfit_from_capsule_desc')}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.outfitDropdownItem}
+                    onPress={() => { setOutfitSource('ormar'); setOutfitDropdownOpen(false); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.outfitDropdownItemText, { color: colors.text }]}>{t('home.outfit_from_ormar')}</Text>
+                    <Text style={[styles.outfitDropdownItemDesc, { color: colors.textSecondary }]}>{t('home.outfit_from_ormar_desc')}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+            {outfitSource === 'kapsula' && savedOutfits.length > 0 && (
+              <FlatList
+                data={savedOutfits}
+                renderItem={({ item }) => (
+                  <OutfitCompositionCard
+                    outfit={item}
+                    colors={colors}
+                    onDelete={() => handleDeleteOutfit(item)}
+                    onPress={() => { setOutfitCarouselIndex(0); setSelectedOutfit(item); }}
+                  />
+                )}
+                keyExtractor={(item) => item.id}
+                numColumns={IMAGE_GRID_COLS}
+                columnWrapperStyle={styles.imageGridRow}
+                scrollEnabled={false}
+                contentContainerStyle={[styles.imageGridContainer, styles.gridListPadding]}
               />
             )}
-            keyExtractor={(item) => item.id}
-            numColumns={IMAGE_GRID_COLS}
-            columnWrapperStyle={styles.imageGridRow}
-            scrollEnabled={false}
-            contentContainerStyle={[styles.imageGridContainer, styles.gridListPadding]}
-          />
+            {outfitSource === 'kapsula' && savedOutfits.length === 0 && (
+              <View style={styles.emptyStageMinimal}>
+                <Text style={[styles.emptyStageLabel, { color: colors.textSecondary }]}>{t('capsule.outfit.no_saved')}</Text>
+              </View>
+            )}
+            {outfitSource === 'ormar' && generatedImages.length > 0 && (
+              <FlatList
+                data={generatedImages}
+                renderItem={renderImageItem}
+                keyExtractor={(item) => item.uri}
+                numColumns={IMAGE_GRID_COLS}
+                columnWrapperStyle={styles.imageGridRow}
+                scrollEnabled={false}
+                contentContainerStyle={[styles.imageGridContainer, styles.gridListPadding]}
+              />
+            )}
+            {outfitSource === 'ormar' && generatedImages.length === 0 && (
+              <View style={styles.emptyStageMinimal}>
+                <Text style={[styles.emptyStageLabel, { color: colors.textSecondary }]}>{t('home.outfit_ormar_empty')}</Text>
+              </View>
+            )}
+          </>
         )}
-
         {activeSegment === 'video' && savedVideos.length > 0 && (
           <FlatList
             data={savedVideos}
@@ -442,8 +510,10 @@ export default function HomeScreen() {
             {selectedOutfit && (
               <>
                 {selectedOutfit.items.length === 0 ? null : selectedOutfit.items.length === 1 ? (
-                  <View style={styles.outfitCarouselFullscreen}>
-                    <Image source={{ uri: selectedOutfit.items[0].imageUrl }} style={styles.outfitCarouselSlideImage} resizeMode="contain" />
+                  <View style={[styles.outfitCarouselFullscreen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
+                    <View style={styles.outfitFrameBox}>
+                      <Image source={{ uri: selectedOutfit.items[0].imageUrl }} style={styles.outfitFrameImage} resizeMode="contain" />
+                    </View>
                     <TouchableOpacity
                       style={[styles.outfitModalCloseBtn, { top: insets.top + SPACING.sm }]}
                       onPress={() => setSelectedOutfit(null)}
@@ -453,7 +523,7 @@ export default function HomeScreen() {
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <View style={styles.outfitCarouselFullscreen}>
+                  <View style={[styles.outfitCarouselFullscreen, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 8 }]}>
                     <FlatList
                       style={styles.outfitCarouselList}
                       contentContainerStyle={styles.outfitCarouselListContent}
@@ -469,7 +539,9 @@ export default function HomeScreen() {
                       }}
                       renderItem={({ item }) => (
                         <View style={styles.outfitCarouselSlide}>
-                          <Image source={{ uri: item.imageUrl }} style={styles.outfitCarouselSlideImage} resizeMode="contain" pointerEvents="none" />
+                          <View style={styles.outfitFrameBox}>
+                            <Image source={{ uri: item.imageUrl }} style={styles.outfitFrameImage} resizeMode="contain" pointerEvents="none" />
+                          </View>
                           {item.title ? (
                             <View style={styles.outfitCarouselSlideTitleWrap} pointerEvents="none">
                               <Text style={styles.outfitCarouselSlideTitle} numberOfLines={1}>{item.title}</Text>
@@ -674,8 +746,109 @@ const styles = StyleSheet.create({
   },
   emptyStageLabel: {
     fontFamily: FONTS.primary.light,
-    fontSize: FONT_SIZES.xs,
+    fontSize: 17,
     letterSpacing: 1.1,
+  },
+
+  // ===== Outfit choice (Kapsula / Ormar) =====
+  outfitChoiceHeading: {
+    fontFamily: FONTS.heading.semibold,
+    fontSize: FONT_SIZES.lg,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+  },
+  outfitChoiceRow: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  outfitChoiceCard: {
+    flex: 1,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    padding: SPACING.lg,
+    alignItems: 'center',
+    minHeight: 160,
+  },
+  outfitChoiceIconWrap: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACING.sm,
+  },
+  outfitChoiceTitle: {
+    fontFamily: FONTS.heading.semibold,
+    fontSize: FONT_SIZES.md,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  outfitChoiceDesc: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: FONT_SIZES.xs,
+    textAlign: 'center',
+    marginBottom: SPACING.xs,
+  },
+  outfitChoiceCount: {
+    fontFamily: FONTS.primary.bold,
+    fontSize: FONT_SIZES.sm,
+  },
+  outfitBackChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginBottom: SPACING.sm,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  outfitBackChipText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.secondary,
+  },
+  outfitDropdownWrap: {
+    marginBottom: SPACING.md,
+    zIndex: 10,
+  },
+  outfitDropdownLabel: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.xs,
+    marginBottom: 6,
+  },
+  outfitDropdownBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  outfitDropdownBtnText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.md,
+  },
+  outfitDropdownMenu: {
+    marginTop: 6,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  outfitDropdownItem: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    borderBottomWidth: 1,
+  },
+  outfitDropdownItemText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.md,
+  },
+  outfitDropdownItemDesc: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: FONT_SIZES.xs,
+    marginTop: 2,
   },
 
   // ===== Image Grid =====
@@ -847,6 +1020,26 @@ const styles = StyleSheet.create({
     height: SCREEN_HEIGHT,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: SPACING.lg,
+  },
+  outfitFrameBox: {
+    flex: 1,
+    width: '100%',
+    maxHeight: SCREEN_HEIGHT * 0.78,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(207,143,90,0.5)',
+    backgroundColor: '#FFFCF9',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  outfitFrameImage: {
+    width: '100%',
+    height: '100%',
   },
   outfitCarouselSlideImage: {
     width: SCREEN_WIDTH,

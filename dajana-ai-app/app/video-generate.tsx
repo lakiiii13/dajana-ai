@@ -319,7 +319,7 @@ export default function VideoGenerateScreen() {
               />
             </View>
             <View style={styles.promptHints}>
-              {[t('video.hint_turn_left'), t('video.hint_turn_right'), t('video.hint_stand_still')].map((h) => (
+              {[t('video.hint_turn_left'), t('video.hint_turn_right'), t('video.hint_zoom')].map((h) => (
                 <TouchableOpacity
                   key={h}
                   style={[styles.hintChip, prompt.includes(h) && styles.hintChipActive]}

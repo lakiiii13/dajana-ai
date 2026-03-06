@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
-import { getNotificationInbox, markNotificationRead, type InboxNotificationRow } from '@/lib/notificationService';
+import { getNotificationInbox, markNotificationRead, clearAllNotifications, type InboxNotificationRow } from '@/lib/notificationService';
 import { t, getLanguage } from '@/lib/i18n';
 
 export type NotificationItem = {
@@ -81,6 +81,7 @@ export default function NotificationsScreen() {
   const { colors } = useTheme();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadInbox = useCallback(async () => {
     const rows = await getNotificationInbox();
@@ -108,6 +109,19 @@ export default function NotificationsScreen() {
     markNotificationRead(id);
   }, []);
 
+  const handleClearAll = useCallback(async () => {
+    if (notifications.length === 0) return;
+    setClearing(true);
+    try {
+      await clearAllNotifications();
+      setNotifications([]);
+    } catch (e) {
+      console.warn('[Notifications] Clear failed', e);
+    } finally {
+      setClearing(false);
+    }
+  }, [notifications.length]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
@@ -125,7 +139,21 @@ export default function NotificationsScreen() {
             <Text style={styles.headerBadge}>{unreadCount} {t('notifications.new_count')}</Text>
           )}
         </View>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {notifications.length > 0 && (
+            <TouchableOpacity
+              style={[styles.clearBtn, { backgroundColor: colors.gray[100] }]}
+              onPress={handleClearAll}
+              disabled={clearing}
+              activeOpacity={0.7}
+            >
+              <Feather name="trash-2" size={18} color={colors.text} />
+              <Text style={[styles.clearBtnText, { color: colors.text }]}>
+                {t('notifications.clear')}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView
@@ -220,7 +248,22 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerRight: {
-    width: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    minWidth: 44,
+  },
+  clearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  clearBtnText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 13,
   },
   scroll: {
     flex: 1,

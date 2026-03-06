@@ -14,8 +14,8 @@ import {
   Dimensions,
   Alert,
   StatusBar,
-  PanResponder,
   ScrollView,
+  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,9 +30,6 @@ const { width: W, height: H } = Dimensions.get('window');
 const CREAM = '#F8F4EF';
 const GOLD = '#CF8F5A';
 const DARK = '#2C2A28';
-
-// Full-screen comparison: ceo ekran, linija od 0 do 100%
-const COMPARISON_HEIGHT = H;
 
 export default function TryOnResultScreen() {
   const router = useRouter();
@@ -51,8 +48,6 @@ export default function TryOnResultScreen() {
   const uiOpacity = useRef(new Animated.Value(0)).current;
   const uiTranslateY = useRef(new Animated.Value(20)).current;
   const [isSaved, setIsSaved] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
-  const [topSectionHeight, setTopSectionHeight] = useState(H * 0.4);
   const hasMultipleOutfitItems = outfitItems.length > 1;
 
   const hasResult = !!generatedImageBase64;
@@ -60,39 +55,13 @@ export default function TryOnResultScreen() {
     ? `data:image/png;base64,${generatedImageBase64}`
     : null;
 
-  const splitRatio = useRef(new Animated.Value(0.4)).current; // 40% outfit gore, 60% generisana dole
-  const oneVal = useRef(new Animated.Value(1)).current;
-  const MIN_RATIO = 0.02;
-  const MAX_RATIO = 0.98;
-  const DIVIDER_HIT = 32;
-  const linePulse = useRef(new Animated.Value(1)).current;
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, g) => {
-        const r = Math.max(MIN_RATIO, Math.min(MAX_RATIO, g.moveY / COMPARISON_HEIGHT));
-        splitRatio.setValue(r);
-      },
-    })
-  ).current;
-
   useEffect(() => {
     if (!hasResult) return;
-    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start(() => {
-      setShowComparison(true);
-      Animated.parallel([
-        Animated.timing(uiOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(uiTranslateY, { toValue: 0, duration: 350, useNativeDriver: true }),
-      ]).start();
-    });
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(linePulse, { toValue: 0.65, duration: 700, useNativeDriver: true }),
-        Animated.timing(linePulse, { toValue: 1, duration: 700, useNativeDriver: true }),
-      ])
-    ).start();
+    Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    Animated.parallel([
+      Animated.timing(uiOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
+      Animated.timing(uiTranslateY, { toValue: 0, duration: 350, useNativeDriver: true }),
+    ]).start();
   }, [hasResult]);
 
   const handleDone = useCallback(() => {
@@ -179,91 +148,82 @@ export default function TryOnResultScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
 
-      {/* Top bar */}
+      {/* Top bar – close levo, logo u desni ugao */}
       <Animated.View style={[styles.topBar, { paddingTop: insets.top + 8, opacity: fadeIn }]}>
         <TouchableOpacity style={styles.closeBtn} onPress={handleDone} activeOpacity={0.7}>
           <Ionicons name="close" size={22} color={DARK} />
         </TouchableOpacity>
-        <View style={styles.brandWrap}>
+        <View style={styles.brandWrapRight}>
           <AppLogo height={28} maxWidth={140} />
         </View>
       </Animated.View>
 
-      {/* Full-screen: prvo samo generisana slika, zatim swipe 0–100% outfit / generisana */}
+      {/* Vertikalni swipe: prva strana = rezultat, druga = outfit koji je izabrao */}
       <View style={[styles.imageWrap, styles.imageWrapFullScreen]}>
-        {!showComparison ? (
-          imageUri ? (
-            <Image source={{ uri: imageUri }} style={styles.fullImage} resizeMode="cover" />
-          ) : (
-            <View style={styles.placeholder}>
-              <Ionicons name="image-outline" size={64} color={COLORS.gray[200]} />
-            </View>
-          )
+        {!imageUri ? (
+          <View style={styles.placeholder}>
+            <Ionicons name="image-outline" size={64} color={COLORS.gray[200]} />
+          </View>
         ) : (
-          <View style={styles.comparisonWrap}>
-            <Animated.View
-              style={[
-                styles.comparisonTop,
-                { height: Animated.multiply(splitRatio, COMPARISON_HEIGHT) },
-              ]}
-              onLayout={(e) => setTopSectionHeight(e.nativeEvent.layout.height)}
-            >
+          <ScrollView
+            style={styles.verticalPager}
+            contentContainerStyle={styles.verticalPagerContent}
+            pagingEnabled
+            snapToInterval={H}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Strana 1: puna slika try-on rezultata */}
+            <View style={[styles.pagerPage, { height: H }]}>
+              <Image source={{ uri: imageUri }} style={styles.fullImage} resizeMode="cover" />
+              <View style={styles.swipeUpHint} pointerEvents="none">
+                <Ionicons name="chevron-up" size={20} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.swipeUpHintText}>Swipe ka gore da vidiš outfit koji si izabrala</Text>
+              </View>
+            </View>
+            {/* Strana 2: outfit slika(e) */}
+            <View style={[styles.pagerPage, { height: H }]}>
               {hasMultipleOutfitItems ? (
                 <>
-                  <ScrollView
+                  <FlatList
+                    data={outfitItems}
+                    keyExtractor={(item) => item.id}
                     horizontal
                     pagingEnabled
                     showsHorizontalScrollIndicator={true}
-                    style={[styles.comparisonTopScroll, { height: topSectionHeight }]}
-                    contentContainerStyle={{ width: W * outfitItems.length }}
-                  >
-                    {outfitItems.map((item) => (
-                      <View key={item.id} style={[styles.comparisonTopSlide, { width: W, height: topSectionHeight }]}>
-                        <Image source={{ uri: item.imageUrl }} style={styles.comparisonImage} resizeMode="cover" />
+                    style={styles.outfitPagerList}
+                    contentContainerStyle={[styles.outfitPagerContent, { width: W * outfitItems.length }]}
+                    renderItem={({ item }) => (
+                      <View style={[styles.outfitPagerSlide, { width: W, height: H }]}>
+                        <Image source={{ uri: item.imageUrl }} style={styles.fullImage} resizeMode="contain" />
+                        {item.title ? (
+                          <View style={styles.outfitPagerLabel}>
+                            <Text style={styles.outfitPagerLabelText} numberOfLines={1}>{item.title}</Text>
+                          </View>
+                        ) : null}
                       </View>
-                    ))}
-                  </ScrollView>
-                  <View style={styles.comparisonTopHint}>
-                    <Text style={styles.comparisonTopHintText}>Swipe da vidiš sve komade koje si izabrala</Text>
+                    )}
+                  />
+                  <View style={styles.outfitPageHint}>
+                    <Text style={styles.outfitPageHintText}>Outfit koji si izabrala</Text>
                   </View>
                 </>
               ) : outfitImageUrl ? (
-                <Image source={{ uri: outfitImageUrl }} style={styles.comparisonImage} resizeMode="cover" />
+                <>
+                  <Image source={{ uri: outfitImageUrl }} style={styles.fullImage} resizeMode="contain" />
+                  <View style={styles.outfitPageHint}>
+                    <Text style={styles.outfitPageHintText}>Outfit koji si izabrala</Text>
+                  </View>
+                </>
               ) : (
-                <View style={styles.comparisonPlaceholder}>
-                  <Ionicons name="shirt-outline" size={40} color={GOLD} />
+                <View style={styles.placeholder}>
+                  <Ionicons name="shirt-outline" size={48} color={GOLD} />
                   <Text style={styles.comparisonPlaceholderText}>Outfit</Text>
                 </View>
               )}
-            </Animated.View>
-            <Animated.View
-              style={[
-                styles.comparisonDividerWrap,
-                {
-                  top: Animated.add(Animated.multiply(splitRatio, COMPARISON_HEIGHT), -DIVIDER_HIT / 2),
-                  height: DIVIDER_HIT,
-                },
-              ]}
-              {...panResponder.panHandlers}
-            >
-              <Animated.View style={[styles.comparisonDividerLine, { opacity: linePulse }]} />
-            </Animated.View>
-            <Animated.View
-              style={[
-                styles.comparisonBottom,
-                {
-                  top: Animated.multiply(splitRatio, COMPARISON_HEIGHT),
-                  height: Animated.multiply(Animated.subtract(oneVal, splitRatio), COMPARISON_HEIGHT),
-                },
-              ]}
-            >
-              {imageUri ? (
-                <Image source={{ uri: imageUri }} style={styles.comparisonImage} resizeMode="cover" />
-              ) : (
-                <View style={styles.placeholder}><Ionicons name="image-outline" size={48} color={COLORS.gray[300]} /></View>
-              )}
-            </Animated.View>
-          </View>
+            </View>
+          </ScrollView>
         )}
       </View>
 
@@ -352,6 +312,7 @@ const styles = StyleSheet.create({
     right: 0,
     flexDirection: 'row',
     alignItems: 'center',
+    minHeight: 54,
     paddingHorizontal: 16,
     zIndex: 20,
   },
@@ -370,6 +331,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 38,
   },
+  brandWrapRight: {
+    position: 'absolute',
+    right: 16,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
   imageWrap: {
     position: 'absolute',
     backgroundColor: COLORS.gray[100],
@@ -381,49 +350,76 @@ const styles = StyleSheet.create({
     height: H,
     overflow: 'hidden',
   },
-  comparisonWrap: {
+  verticalPager: {
     flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  comparisonTop: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    overflow: 'hidden',
-  },
-  comparisonTopScroll: {
     width: W,
+    height: H,
   },
-  comparisonTopSlide: {
+  verticalPagerContent: {
+    height: H * 2,
+  },
+  pagerPage: {
+    width: W,
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  comparisonTopHint: {
+  swipeUpHint: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 4,
   },
-  comparisonTopHintText: {
+  swipeUpHintText: {
     fontFamily: FONTS.primary.medium,
-    fontSize: 12,
+    fontSize: 13,
     color: 'rgba(255,255,255,0.95)',
   },
-  comparisonBottom: {
+  outfitPagerList: {
+    flex: 1,
+    width: W,
+  },
+  outfitPagerContent: {
+    height: H,
+  },
+  outfitPagerSlide: {
+    overflow: 'hidden',
+  },
+  outfitPagerLabel: {
     position: 'absolute',
     left: 0,
     right: 0,
-    overflow: 'hidden',
+    bottom: 0,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  comparisonImage: {
-    width: '100%',
-    height: '100%',
+  outfitPagerLabelText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 14,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  outfitPageHint: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  outfitPageHintText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.95)',
   },
   comparisonPlaceholder: {
     flex: 1,
@@ -436,24 +432,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: GOLD,
     marginTop: 8,
-  },
-  comparisonDividerWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  comparisonDividerLine: {
-    width: '100%',
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.98)',
-    borderRadius: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
   },
   fullImage: {
     width: '100%',

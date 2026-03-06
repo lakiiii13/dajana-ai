@@ -348,7 +348,7 @@ export default function ClosetScreen() {
                   </View>
 
                   <IsprobajButtonAnimated
-                    containerStyle={[styles.modalIsprobajBtn, { bottom: insets.bottom + 24 }]}
+                    containerStyle={[styles.modalIsprobajBtn, { bottom: insets.bottom + 12 }]}
                     textStyle={styles.modalIsprobajBtnText}
                     onPress={() => handleTryOn(selectedOutfit)}
                   >

@@ -41,7 +41,8 @@ export async function getAllCredits(userId: string): Promise<AllCredits> {
       .single();
 
     if (error && error.code === 'PGRST116') {
-      // Row doesn't exist - create default
+      // Red ne postoji (npr. trigger nije pokrenut) – kreiraj sa podrazumevanim kreditima
+      const now = new Date().toISOString();
       const { data: newCredits, error: insertError } = await supabase
         .from('user_credits')
         .insert({
@@ -55,13 +56,13 @@ export async function getAllCredits(userId: string): Promise<AllCredits> {
           bonus_image_credits: 0,
           bonus_video_credits: 0,
           bonus_analysis_credits: 0,
-          last_reset_date: new Date().toISOString(),
+          last_reset_date: now,
         })
         .select()
         .single();
 
       if (insertError) {
-        console.error('Error creating credits:', insertError);
+        console.error('[Credits] Creating row failed (RLS?):', insertError.code, insertError.message);
         return defaults;
       }
 

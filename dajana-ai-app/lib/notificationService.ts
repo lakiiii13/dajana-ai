@@ -232,3 +232,22 @@ export async function markNotificationRead(id: string): Promise<void> {
     .eq('id', id)
     .eq('user_id', user.id);
 }
+
+/**
+ * Clear all notifications for the current user (inbox empty).
+ * Requires DELETE policy on user_notifications for auth.uid() = user_id.
+ */
+export async function clearAllNotifications(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { error } = await supabase
+    .from('user_notifications')
+    .delete()
+    .eq('user_id', user.id);
+
+  if (error) {
+    console.warn('[Notifications] Clear all error:', error.message);
+    throw new Error(error.message);
+  }
+}

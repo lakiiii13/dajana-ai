@@ -180,18 +180,20 @@ function buildTryOnPrompt(items: TryOnOutfitItem[]): string {
     return `You are a professional fashion virtual try-on assistant. 
 
 I'm sending you two images:
-1. FIRST IMAGE: A photo of a person (face/body photo)
+1. FIRST IMAGE: A photo of a person (face and/or body)
 2. SECOND IMAGE: A fashion outfit${outfitDesc}
 
 Your task: Generate a new, high-quality, photorealistic image of the SAME person from the first photo wearing the outfit from the second photo. 
 
-Requirements:
-- Keep the person's face, hair, and body proportions exactly the same
+CRITICAL – preserve identity and likeness:
+- Keep the person's face identical: same facial features, skin tone, expression, eyes, nose, mouth, and bone structure
+- The result must be unmistakably the same person as in the first photo
+- Preserve hair color, style, and all personal details
+- Keep body proportions exactly the same
 - The outfit should fit naturally on the person's body
 - Maintain natural lighting and realistic shadows
-- The background should be clean and elegant (soft neutral/fashion studio style)
-- The generated image should look like a professional fashion photo
-- Full body shot showing the complete outfit
+- Clean, elegant background (soft neutral/fashion studio style)
+- Full body shot showing the complete outfit; professional fashion photo quality
 
 Generate the image now.`;
   }
@@ -207,19 +209,21 @@ Generate the image now.`;
   return `You are a professional fashion virtual try-on assistant.
 
 I'm sending you ${items.length + 1} images:
-1. FIRST IMAGE: A photo of a person (face/body photo)
+1. FIRST IMAGE: A photo of a person (face and/or body)
 ${itemDescriptions}
 
 Your task: Generate a new, high-quality, photorealistic image of the SAME person from the first photo wearing ALL the clothing items from the other images COMBINED as a single outfit.
 
-Requirements:
-- Keep the person's face, hair, and body proportions exactly the same
+CRITICAL – preserve identity and likeness:
+- Keep the person's face identical: same facial features, skin tone, expression, eyes, nose, mouth, and bone structure
+- The result must be unmistakably the same person as in the first photo
+- Preserve hair color, style, and all personal details
+- Keep body proportions exactly the same
 - Combine all the clothing items into one cohesive outfit on the person
 - Each clothing piece should fit naturally on the appropriate body part
 - Maintain natural lighting and realistic shadows
-- The background should be clean and elegant (soft neutral/fashion studio style)
-- The generated image should look like a professional fashion photo
-- Full body shot showing the complete combined outfit
+- Clean, elegant background (soft neutral/fashion studio style)
+- Full body shot showing the complete combined outfit; professional fashion photo quality
 
 Generate the image now.`;
 }

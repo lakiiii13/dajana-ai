@@ -138,7 +138,10 @@ export async function startVideoGeneration(
   }
 
   const edgeUrl = `${SUPABASE_URL}/functions/v1/video-start`;
-  const body = JSON.stringify({ image: publicUrl, prompt, time: duration });
+  // Zadrži lice i identitet osobe: naglasak na očuvanju detalja lica i sličnosti
+  const preserveFacePrompt =
+    `Preserve the person's face and identity exactly. Keep all facial features, skin tone, expression, and likeness identical to the source photo. The result must look like the same person. Scene or motion: ${prompt.trim()}`.trim();
+  const body = JSON.stringify({ image: publicUrl, prompt: preserveFacePrompt, time: duration });
   let lastErrMsg = '';
 
   for (let attempt = 1; attempt <= VIDEO_START_RETRIES; attempt++) {

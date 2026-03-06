@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   headerTitle: {
-    fontFamily: FONTS.logo,
+    fontFamily: FONTS.heading.bold,
     fontSize: 22,
     letterSpacing: 1.2,
   },
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   subtitle: {
-    fontFamily: FONTS.primary.regular,
+    fontFamily: FONTS.primary.semibold,
     fontSize: FONT_SIZES.sm,
     marginBottom: SPACING.lg,
     lineHeight: 22,

@@ -3,7 +3,7 @@
 // Flat-lay style display of outfit items
 // ===========================================
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -30,9 +31,13 @@ interface Props {
 
 export function OutfitCompositionCard({ outfit, onPress, onDelete, colors }: Props) {
   const items = outfit.items;
-  const isSingle = items.length === 1;
+  const [thumbIndex, setThumbIndex] = useState(0);
   const date = new Date(outfit.timestamp);
   const dateStr = `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`;
+
+  const itemCount = items.length;
+  const canSwipe = itemCount > 1;
+  const listKey = useMemo(() => `outfit-thumb-${outfit.id}-${itemCount}`, [outfit.id, itemCount]);
 
   return (
     <TouchableOpacity
@@ -40,31 +45,36 @@ export function OutfitCompositionCard({ outfit, onPress, onDelete, colors }: Pro
       onPress={onPress}
       activeOpacity={0.85}
     >
-      {/* Item images — flat-lay layout */}
+      {/* Thumbnail — swipe kroz cele slike (kaput, duks...) bez seckanja */}
       <View style={styles.imageArea}>
-        {isSingle ? (
-          /* Single item — full card */
-          <Image source={{ uri: items[0].imageUrl }} style={styles.singleImage} resizeMode="cover" />
-        ) : items.length === 2 ? (
-          /* Two items — side by side */
-          <View style={styles.twoItemLayout}>
-            <Image source={{ uri: items[0].imageUrl }} style={styles.halfImage} resizeMode="cover" />
-            <Image source={{ uri: items[1].imageUrl }} style={styles.halfImage} resizeMode="cover" />
-          </View>
-        ) : (
-          /* 3+ items — one big + small grid */
-          <View style={styles.multiLayout}>
-            <Image source={{ uri: items[0].imageUrl }} style={styles.mainImage} resizeMode="cover" />
-            <View style={styles.sideImages}>
-              {items.slice(1, 4).map((item, idx) => (
-                <Image key={item.id || idx} source={{ uri: item.imageUrl }} style={styles.smallImage} resizeMode="cover" />
-              ))}
-              {items.length > 4 && (
-                <View style={[styles.smallImage, styles.moreOverlay]}>
-                  <Text style={styles.moreText}>+{items.length - 3}</Text>
-                </View>
-              )}
+        <FlatList
+          key={listKey}
+          data={items}
+          keyExtractor={(it, idx) => it.id || `${outfit.id}-${idx}`}
+          horizontal
+          pagingEnabled={canSwipe}
+          scrollEnabled={canSwipe}
+          showsHorizontalScrollIndicator={false}
+          decelerationRate="fast"
+          snapToInterval={CARD_WIDTH}
+          snapToAlignment="start"
+          onMomentumScrollEnd={(e) => {
+            const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
+            setThumbIndex(Math.min(Math.max(idx, 0), itemCount - 1));
+          }}
+          renderItem={({ item }) => (
+            <View style={styles.thumbSlide}>
+              <Image source={{ uri: item.imageUrl }} style={styles.thumbImage} resizeMode="contain" />
             </View>
+          )}
+          getItemLayout={(_, index) => ({ length: CARD_WIDTH, offset: CARD_WIDTH * index, index })}
+        />
+
+        {canSwipe && (
+          <View style={styles.thumbPager} pointerEvents="none">
+            <Text style={styles.thumbPagerText}>
+              {thumbIndex + 1} / {itemCount}
+            </Text>
           </View>
         )}
       </View>
@@ -74,7 +84,7 @@ export function OutfitCompositionCard({ outfit, onPress, onDelete, colors }: Pro
         <View style={styles.footerLeft}>
           <View style={[styles.itemCountBadge, { backgroundColor: `${COLORS.secondary}12` }]}>
             <Ionicons name="shirt-outline" size={11} color={COLORS.secondary} />
-            <Text style={[styles.itemCountText, { color: COLORS.secondary }]}>{items.length}</Text>
+            <Text style={[styles.itemCountText, { color: COLORS.secondary }]}>{itemCount}</Text>
           </View>
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>{dateStr}</Text>
         </View>
@@ -113,44 +123,28 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT - 40,
     backgroundColor: '#F8F6F3',
   },
-  singleImage: {
-    width: '100%',
+  thumbSlide: {
+    width: CARD_WIDTH,
     height: '100%',
-  },
-  twoItemLayout: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 2,
-  },
-  halfImage: {
-    flex: 1,
-    height: '100%',
-  },
-  multiLayout: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 2,
-  },
-  mainImage: {
-    flex: 2,
-    height: '100%',
-  },
-  sideImages: {
-    flex: 1,
-    gap: 2,
-  },
-  smallImage: {
-    flex: 1,
-    width: '100%',
-  },
-  moreOverlay: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  moreText: {
-    fontFamily: FONTS.primary.bold,
-    fontSize: 14,
+  thumbImage: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbPager: {
+    position: 'absolute',
+    right: 8,
+    bottom: 8,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  thumbPagerText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 11,
     color: COLORS.white,
   },
 

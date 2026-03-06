@@ -33,6 +33,13 @@ import { getStyleAdvice, continueConversation, AdvisorMessage } from '@/lib/aiAd
 import { hasAnalysisCredits, deductAnalysisCredit } from '@/lib/creditService';
 import { getSavedTryOnImages, SavedTryOnImage } from '@/lib/tryOnService';
 import { t, getLanguage } from '@/lib/i18n';
+import {
+  loadAdviceChats,
+  saveAdviceChat,
+  buildSavedChat,
+  titleFromMessages,
+  type SavedAdviceChat,
+} from '@/lib/adviceChatStorage';
 
 const CHAT_LOGO = require('@/assets/images/OSB znak POZITIV.png');
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -69,6 +76,11 @@ export default function AIAdviceScreen() {
   const [conversationHistory, setConversationHistory] = useState<AdvisorMessage[]>([]);
   const [currentImageBase64, setCurrentImageBase64] = useState<string | null>(null);
 
+  const [savedChats, setSavedChats] = useState<SavedAdviceChat[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [currentChatTitle, setCurrentChatTitle] = useState<string>('');
+  const [showChatListModal, setShowChatListModal] = useState(false);
+
   const isFirstVisit = false;
   // Image picker
   const [savedImages, setSavedImages] = useState<SavedTryOnImage[]>([]);
@@ -95,12 +107,20 @@ export default function AIAdviceScreen() {
     transform: [{ translateY: chatContentTranslateY.value }],
   }));
 
-  // Load saved images when screen focuses
+  // Load saved images and saved chats when screen focuses
   useFocusEffect(
     useCallback(() => {
       loadSavedImages();
+      loadAdviceChats().then(setSavedChats);
     }, [])
   );
+
+  // Naslov ćaska: iz prvog user poruke ili sačuvan
+  useEffect(() => {
+    if (messages.length > 0 && !currentChatTitle) {
+      setCurrentChatTitle(titleFromMessages(messages));
+    }
+  }, [messages, currentChatTitle]);
 
   // Typing dots animation
   useEffect(() => {
@@ -160,7 +180,10 @@ content: t('ai_advice.no_credits_message'),
         imageUri: imagePath,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, userMsg]);
+      setMessages((prev) => {
+        if (!currentChatId) setCurrentChatId(`chat-${Date.now()}`);
+        return [...prev, userMsg];
+      });
 
       // Prvo skini kredit, pa onda pozovi API
       await deductAnalysisCredit(userId);
@@ -235,7 +258,11 @@ content: t('ai_advice.no_credits_message'),
       content: text,
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages((prev) => {
+      const next = [...prev, userMsg];
+      if (!currentChatId) setCurrentChatId(`chat-${Date.now()}`);
+      return next;
+    });
     setIsLoading(true);
 
     try {
@@ -276,9 +303,39 @@ content: t('ai_advice.no_credits_message'),
     }
   };
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
+    if (messages.length > 0) {
+      const id = currentChatId || `chat-${Date.now()}`;
+      const title = currentChatTitle || titleFromMessages(messages);
+      const chat = buildSavedChat(id, messages, conversationHistory);
+      const toSave: SavedAdviceChat = { ...chat, id, title };
+      await saveAdviceChat(toSave);
+      setSavedChats((prev) => [toSave, ...prev.filter((c) => c.id !== id)].slice(0, 50));
+    }
     setMessages([]);
     setConversationHistory([]);
+    setCurrentImageBase64(null);
+    setSelectedImage(null);
+    setCurrentChatId(null);
+    setCurrentChatTitle('');
+  };
+
+  const handleOpenChat = (chat: SavedAdviceChat) => {
+    setShowChatListModal(false);
+    setCurrentChatId(chat.id);
+    setCurrentChatTitle(chat.title);
+    setMessages(
+      chat.messages.map((m) => ({
+        id: `${m.role}-${m.timestamp}-${Math.random()}`,
+        role: m.role,
+        content: m.content,
+        imageUri: m.imageUri,
+        timestamp: new Date(m.timestamp),
+      }))
+    );
+    setConversationHistory(
+      chat.conversationHistoryText.map((m) => ({ role: m.role, content: m.content }))
+    );
     setCurrentImageBase64(null);
     setSelectedImage(null);
   };
@@ -479,9 +536,19 @@ content: t('ai_advice.no_credits_message'),
               <View style={[styles.headerAvatar, { backgroundColor: 'transparent', borderColor: CHAT_BORDER }]}>
                 <Image source={CHAT_LOGO} style={styles.headerLogoImg} resizeMode="contain" />
               </View>
-              <Text style={[styles.headerName, { color: CHAT_DARK }]}>Dajana</Text>
+              <Text style={[styles.headerName, { color: CHAT_DARK }]} numberOfLines={1} ellipsizeMode="tail">
+                {currentChatTitle || 'Novi razgovor'}
+              </Text>
             </View>
             <View style={styles.headerRight}>
+              {savedChats.length > 0 && (
+                <TouchableOpacity
+                  style={[styles.headerBtn, { backgroundColor: CHAT_INPUT_BG, borderWidth: 1, borderColor: CHAT_BORDER }]}
+                  onPress={() => setShowChatListModal(true)}
+                >
+                  <Feather name="list" size={18} color={CHAT_DARK} />
+                </TouchableOpacity>
+              )}
               {messages.length > 0 && (
                 <>
                   <TouchableOpacity
@@ -565,6 +632,39 @@ content: t('ai_advice.no_credits_message'),
       </SafeAreaView>
 
       {renderImagePickerModal()}
+
+      {/* Lista sačuvanih razgovora */}
+      <Modal visible={showChatListModal} animationType="slide" transparent onRequestClose={() => setShowChatListModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.chatListModal, { backgroundColor: CHAT_BG }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: CHAT_BORDER }]}>
+              <Text style={[styles.modalTitle, { color: CHAT_DARK }]}>{t('ai_advice.chat_list_title')}</Text>
+              <TouchableOpacity onPress={() => setShowChatListModal(false)} style={[styles.modalCloseBtn, { backgroundColor: CHAT_CARD, borderWidth: 1, borderColor: CHAT_BORDER }]}>
+                <Ionicons name="close" size={20} color={CHAT_DARK} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.chatListScroll} showsVerticalScrollIndicator={true}>
+              {savedChats.length === 0 ? (
+                <Text style={[styles.chatListEmpty, { color: '#6B6560' }]}>{t('ai_advice.chat_list_empty')}</Text>
+              ) : (
+                savedChats.map((chat) => (
+                  <TouchableOpacity
+                    key={chat.id}
+                    style={[styles.chatListItem, { backgroundColor: CHAT_CARD, borderColor: CHAT_BORDER }]}
+                    onPress={() => handleOpenChat(chat)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.chatListItemTitle, { color: CHAT_DARK }]} numberOfLines={1}>{chat.title}</Text>
+                    <Text style={[styles.chatListItemDate, { color: '#9B9590' }]}>
+                      {new Date(chat.createdAt).toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'sr-RS', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -884,6 +984,38 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  chatListModal: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingBottom: 24,
+  },
+  chatListScroll: {
+    paddingHorizontal: SPACING.lg,
+    paddingTop: SPACING.md,
+    maxHeight: 400,
+  },
+  chatListEmpty: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: FONT_SIZES.sm,
+    textAlign: 'center',
+    paddingVertical: SPACING.xl,
+  },
+  chatListItem: {
+    padding: SPACING.md,
+    borderRadius: BORDER_RADIUS.lg,
+    borderWidth: 1,
+    marginBottom: SPACING.sm,
+  },
+  chatListItemTitle: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.md,
+    marginBottom: 4,
+  },
+  chatListItemDate: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: 12,
   },
   modalSubtitle: {
     fontFamily: FONTS.primary.regular,

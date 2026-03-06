@@ -61,7 +61,7 @@ const genDefaults = {
   status: 'idle' as VideoStatus,
   jobId: null as string | null,
   sourceImageUrl: null as string | null,
-  prompt: 'fashion model walking on runway',
+  prompt: '',
   duration: '5' as '5' | '10',
   pollAttempt: 0,
   resultVideoUrl: null as string | null,

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -16,7 +16,6 @@ const DARK = '#2C2A28';
 import { SEASONS } from '@/constants/seasons';
 import { t } from '@/lib/i18n';
 import { useTheme } from '@/contexts/ThemeContext';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { CreditDisplay } from '@/components/CreditDisplay';
 import { deleteMyAccount } from '@/lib/deleteAccount';
 
@@ -31,7 +30,11 @@ export default function ProfileScreen() {
   const { profile, allCredits, fetchCredits, fetchSubscription, language, setLanguage, signOut } = useAuth();
 
   const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  const HELP_EMAIL = 'dzgonjanin@otkrijsvojeboje.com';
   const creditsSectionY = useRef(0);
 
   // Osveži kredite kad uđeš na Profil (da se vidi ažurirano posle skidanja)
@@ -230,15 +233,7 @@ export default function ProfileScreen() {
       {/* Actions */}
       <View style={styles.section}>
         <View style={[styles.menuCard, { backgroundColor: surface, borderColor: borderGold }]}>
-          <View style={[styles.menuItem, styles.menuItemFirst, { borderBottomColor: border }]}>
-            <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
-              <Feather name="sun" size={18} color={GOLD} />
-            </View>
-            <Text style={[styles.menuItemText, { color: text }]}>{t('profile.theme')}</Text>
-            <ThemeToggle />
-          </View>
-
-          <TouchableOpacity style={[styles.menuItem, { borderBottomColor: border }]} onPress={() => setShowLanguageModal(true)} activeOpacity={0.8}>
+          <TouchableOpacity style={[styles.menuItem, styles.menuItemFirst, { borderBottomColor: border }]} onPress={() => setShowLanguageModal(true)} activeOpacity={0.8}>
             <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
               <Feather name="globe" size={18} color={GOLD} />
             </View>
@@ -255,7 +250,7 @@ export default function ProfileScreen() {
             <Feather name="chevron-right" size={20} color={mode === 'dark' ? 'rgba(255,255,255,0.35)' : COLORS.gray[400]} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.menuItem, { borderBottomColor: border }]} activeOpacity={0.8}>
+          <TouchableOpacity style={[styles.menuItem, { borderBottomColor: border }]} onPress={() => setShowHelpModal(true)} activeOpacity={0.8}>
             <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
               <Feather name="help-circle" size={18} color={GOLD} />
             </View>
@@ -263,7 +258,7 @@ export default function ProfileScreen() {
             <Feather name="chevron-right" size={20} color={mode === 'dark' ? 'rgba(255,255,255,0.35)' : COLORS.gray[400]} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} activeOpacity={0.8}>
+          <TouchableOpacity style={[styles.menuItem, styles.menuItemLast]} onPress={() => setShowPrivacyModal(true)} activeOpacity={0.8}>
             <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
               <Feather name="file-text" size={18} color={GOLD} />
             </View>
@@ -328,6 +323,49 @@ export default function ProfileScreen() {
               )}
             </TouchableOpacity>
           </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Pomoć – popup sa emailom */}
+      <Modal visible={showHelpModal} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowHelpModal(false)}>
+          <TouchableOpacity style={[styles.modalContent, { backgroundColor: surface, borderColor: borderGold }]} activeOpacity={1} onPress={() => {}}>
+            <Text style={[styles.modalTitle, { color: text }]}>{t('profile.help')}</Text>
+            <Text style={[styles.helpModalText, { color: textMuted }]}>
+              Za pomoć nam pišite na email:
+            </Text>
+            <TouchableOpacity onPress={() => Linking.openURL(`mailto:${HELP_EMAIL}`)} activeOpacity={0.8}>
+              <Text style={[styles.helpEmail, { color: GOLD }]}>{HELP_EMAIL}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.modalCloseBtn, { borderColor: borderGold }]} onPress={() => setShowHelpModal(false)} activeOpacity={0.85}>
+              <Text style={[styles.modalCloseBtnText, { color: text }]}>OK</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Politika privatnosti – tekst */}
+      <Modal visible={showPrivacyModal} transparent animationType="fade">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPrivacyModal(false)}>
+          <TouchableOpacity style={[styles.privacyModalContent, { backgroundColor: surface, borderColor: borderGold }]} activeOpacity={1} onPress={() => {}}>
+            <ScrollView style={styles.privacyScroll} showsVerticalScrollIndicator={true}>
+              <Text style={[styles.privacyTitle, { color: text }]}>Politika privatnosti</Text>
+              <Text style={[styles.privacyBody, { color: textMuted }]}>
+                Aplikacija DAJANA AI poštuje vašu privatnost. Prikupljamo samo podatke neophodne za pružanje usluge: email, ime i mere koje unesete u profil, kao i podatke o korišćenju kredita (slike, videi, analize). Vaši podaci se ne dele sa trećim stranama u marketinške svrhe.{'\n\n'}
+                Slike koje otpremite za virtual try-on i generisanje videa obrađuju se putem pouzdanih servisa u svrhu generisanja sadržaja i ne čuvaju se duže od potrebnog.{'\n\n'}
+                Možete u bilo kom trenutku zatražiti pristup, ispravku ili brisanje svojih podataka. Za sva pitanja u vezi sa privatnošću i za zahteve obavestite nas putem emaila:{'\n\n'}
+              </Text>
+              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${HELP_EMAIL}`)} activeOpacity={0.8}>
+                <Text style={[styles.helpEmail, { color: GOLD }]}>{HELP_EMAIL}</Text>
+              </TouchableOpacity>
+              <Text style={[styles.privacyBody, { color: textMuted }]}>
+                {'\n\n'}Poslednja izmena: 2025.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={[styles.modalCloseBtn, { borderColor: borderGold }]} onPress={() => setShowPrivacyModal(false)} activeOpacity={0.85}>
+              <Text style={[styles.modalCloseBtnText, { color: text }]}>Zatvori</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </ScrollView>
@@ -665,5 +703,55 @@ const styles = StyleSheet.create({
   languageTextActive: {
     color: GOLD,
     fontFamily: FONTS.primary.semibold,
+  },
+  helpModalText: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: FONT_SIZES.sm,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+  },
+  helpEmail: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.md,
+    textAlign: 'center',
+    marginBottom: SPACING.lg,
+    textDecorationLine: 'underline',
+  },
+  modalCloseBtn: {
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  modalCloseBtnText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.md,
+  },
+  privacyModalContent: {
+    backgroundColor: CARD_BG,
+    borderRadius: 16,
+    padding: SPACING.xl,
+    width: '90%',
+    maxWidth: 360,
+    maxHeight: '80%',
+    borderWidth: 0.5,
+    borderColor: 'rgba(207,143,90,0.15)',
+  },
+  privacyScroll: {
+    maxHeight: 320,
+    marginBottom: SPACING.md,
+  },
+  privacyTitle: {
+    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.heading.semibold,
+    marginBottom: SPACING.md,
+    letterSpacing: 0.5,
+  },
+  privacyBody: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: FONT_SIZES.sm,
+    lineHeight: 22,
+    marginBottom: SPACING.sm,
   },
 });

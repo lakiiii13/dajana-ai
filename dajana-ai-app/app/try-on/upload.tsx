@@ -217,8 +217,8 @@ export default function TryOnUploadScreen() {
                 <View style={styles.iconCircle}>
                   <Ionicons name="person-outline" size={44} color={GOLD} />
                 </View>
-                <Text style={styles.placeholderTitle}>Dodaj svoju sliku</Text>
-                <Text style={styles.placeholderSubtitle}>Fotografiši se ili izaberi iz galerije</Text>
+                <Text style={styles.placeholderTitle}>Dodaj sliku tela</Text>
+                <Text style={styles.placeholderSubtitle}>Većinski deo tela (gornji deo) ili iz galerije</Text>
               </View>
             )}
             <View style={styles.frameCornerTL} />
@@ -236,7 +236,7 @@ export default function TryOnUploadScreen() {
               <View style={styles.actionIconWrap}>
                 <Ionicons name="camera-outline" size={26} color={GOLD} />
               </View>
-              <Text style={styles.actionLabel}>Fotografiši se</Text>
+              <Text style={styles.actionLabel}>Fotografiši deo tela</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton} onPress={handlePickFromGallery} activeOpacity={0.85}>
               <View style={styles.actionIconWrap}>
@@ -263,7 +263,7 @@ export default function TryOnUploadScreen() {
 
         <Animated.View entering={FadeIn.delay(360).duration(400)} style={styles.infoSection}>
           <Ionicons name="information-circle-outline" size={16} color={COLORS.gray[500]} />
-          <Text style={styles.infoText}>Jasna slika lica daje najbolji rezultat.</Text>
+          <Text style={styles.infoText}>Snimaj većinski deo tela (gornji deo) za najbolji rezultat.</Text>
         </Animated.View>
       </ScrollView>
     </View>
@@ -565,7 +565,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.sm,
+    paddingTop: SPACING.xl + SPACING.md,
     paddingBottom: SPACING.sm,
   },
   generateButton: {

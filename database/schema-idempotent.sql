@@ -195,6 +195,8 @@ CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.
 DO $$ BEGIN ALTER TABLE user_credits ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can view own credits" ON user_credits;
 CREATE POLICY "Users can view own credits" ON user_credits FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own credits" ON user_credits;
+CREATE POLICY "Users can insert own credits" ON user_credits FOR INSERT WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Users can update own credits" ON user_credits;
 CREATE POLICY "Users can update own credits" ON user_credits FOR UPDATE USING (auth.uid() = user_id);
 
@@ -231,6 +233,8 @@ DROP POLICY IF EXISTS "Users can update own notifications" ON user_notifications
 CREATE POLICY "Users can update own notifications" ON user_notifications FOR UPDATE USING (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Users can insert own notifications" ON user_notifications;
 CREATE POLICY "Users can insert own notifications" ON user_notifications FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own notifications" ON user_notifications;
+CREATE POLICY "Users can delete own notifications" ON user_notifications FOR DELETE USING (auth.uid() = user_id);
 
 -- =========================================
 -- 6. FUNCTIONS (CREATE OR REPLACE = idempotent)
