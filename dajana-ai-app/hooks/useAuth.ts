@@ -3,7 +3,7 @@
 // ===========================================
 
 import { useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { hasSupabaseConfig, supabase, supabaseConfigError } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 
 export function useAuth() {
@@ -33,6 +33,11 @@ export function useAuth() {
   useEffect(() => {
     if (!isInitialized) {
       initialize();
+    }
+
+    if (!hasSupabaseConfig) {
+      console.warn('[Auth] Listener skipped:', supabaseConfigError);
+      return;
     }
 
     // Listen for auth changes
@@ -79,6 +84,7 @@ export function useAuth() {
 // ===========================================
 
 export async function signInWithEmail(email: string, password: string) {
+  if (!hasSupabaseConfig) throw new Error(supabaseConfigError);
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
@@ -89,6 +95,7 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function signUpWithEmail(email: string, password: string, fullName?: string) {
+  if (!hasSupabaseConfig) throw new Error(supabaseConfigError);
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -104,6 +111,7 @@ export async function signUpWithEmail(email: string, password: string, fullName?
 }
 
 export async function resetPassword(email: string) {
+  if (!hasSupabaseConfig) throw new Error(supabaseConfigError);
   const { data, error } = await supabase.auth.resetPasswordForEmail(email);
   
   if (error) throw error;
@@ -111,6 +119,7 @@ export async function resetPassword(email: string) {
 }
 
 export async function updatePassword(newPassword: string) {
+  if (!hasSupabaseConfig) throw new Error(supabaseConfigError);
   const { data, error } = await supabase.auth.updateUser({
     password: newPassword,
   });

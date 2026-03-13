@@ -1,16 +1,14 @@
 import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 import { Database } from '@/types/database';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim();
+const supabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Supabase nije podešen. Otvori dajana-ai-app/.env i dodaj EXPO_PUBLIC_SUPABASE_ANON_KEY (kopiraj iz Supabase Dashboard → Project Settings → API → anon public).'
-  );
-}
+export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
+export const supabaseConfigError =
+  'Supabase nije podešen. Dodaj EXPO_PUBLIC_SUPABASE_URL i EXPO_PUBLIC_SUPABASE_ANON_KEY u EAS environment variables za production build.';
 
 // Custom storage adapter that handles SSR and different platforms
 const customStorage = {
@@ -47,11 +45,29 @@ const customStorage = {
   },
 };
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: customStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
+const supabaseClient = hasSupabaseConfig
+  ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: customStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
+    })
+  : null;
+
+function getSupabaseClient(): SupabaseClient<Database> {
+  if (!supabaseClient) {
+    throw new Error(supabaseConfigError);
+  }
+
+  return supabaseClient;
+}
+
+export const supabase = new Proxy({} as SupabaseClient<Database>, {
+  get(_target, prop, receiver) {
+    const client = getSupabaseClient();
+    const value = Reflect.get(client as object, prop, receiver);
+    return typeof value === 'function' ? value.bind(client) : value;
   },
 });

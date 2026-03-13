@@ -17,12 +17,15 @@ async function getAnalytics() {
     supabase.from("generations").select("id, created_at").eq("type", "video").order("created_at", { ascending: false }).limit(100),
   ]);
 
-  const imagesByMonth = (imageGens ?? []).reduce<Record<string, number>>((acc, g) => {
+  type GenRow = { id: string; created_at: string };
+  const imageRows = (imageGens ?? []) as GenRow[];
+  const videoRows = (videoGens ?? []) as GenRow[];
+  const imagesByMonth = imageRows.reduce<Record<string, number>>((acc, g) => {
     const key = g.created_at?.slice(0, 7) ?? "?";
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
   }, {});
-  const videosByMonth = (videoGens ?? []).reduce<Record<string, number>>((acc, g) => {
+  const videosByMonth = videoRows.reduce<Record<string, number>>((acc, g) => {
     const key = g.created_at?.slice(0, 7) ?? "?";
     acc[key] = (acc[key] ?? 0) + 1;
     return acc;
@@ -37,8 +40,8 @@ async function getAnalytics() {
   return {
     users: usersCount ?? 0,
     outfits: outfitsCount ?? 0,
-    imageCount: imageGens?.length ?? 0,
-    videoCount: videoGens?.length ?? 0,
+    imageCount: imageRows.length,
+    videoCount: videoRows.length,
     imagesByMonth: Object.entries(imagesByMonth).sort(([a], [b]) => a.localeCompare(b)),
     videosByMonth: Object.entries(videosByMonth).sort(([a], [b]) => a.localeCompare(b)),
     maxCount,

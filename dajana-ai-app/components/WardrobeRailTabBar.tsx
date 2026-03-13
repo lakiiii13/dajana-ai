@@ -172,6 +172,8 @@ export function WardrobeRailTabBar({
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
 
+  if (!pathname || !state?.routes) return null;
+
   // Hide tab bar on full-screen pages (including Dajana chat – luxury full-screen)
   if (
     pathname.includes('table-builder') ||
@@ -184,7 +186,7 @@ export function WardrobeRailTabBar({
     return null;
   }
 
-  const visibleRoutes = state.routes.filter(
+  const visibleRoutes = (state.routes ?? []).filter(
     (r) => TAB_NAMES.includes(r.name as TabName)
   );
 
@@ -308,6 +310,7 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 10,
+    fontFamily: FONTS.primary.regular,
     letterSpacing: 0.4,
     marginTop: 2,
     textAlign: 'center',

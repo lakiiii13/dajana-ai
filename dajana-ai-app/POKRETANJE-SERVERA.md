@@ -82,7 +82,7 @@ npm run dev
 
 ```bash
 cd dajana-ai-main/dajana-ai-admin
-npm run dev
+
 ```
 
 Admin se otvara u browseru (obično **http://localhost:3000**). Za produkciju: `npm run build` pa `npm start`.
@@ -163,3 +163,6 @@ npx supabase functions deploy delete-account
 ```
 
 Ako i posle deploy-a ne radi: u Supabase Dashboard → **Edge Functions** → **delete-account** → **Logs** proveri greške; u **Authentication** → **Users** proveri da li korisnik zaista nestane posle brisanja.
+
+cd "c:\Users\kompl\OneDrive\Desktop\dajana aplikacija\dajana-ai-main\dajana-ai-app"
+npx expo start

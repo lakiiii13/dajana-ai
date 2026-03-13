@@ -15,7 +15,6 @@ import {
   Alert,
   StatusBar,
   ScrollView,
-  FlatList,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -47,12 +46,19 @@ export default function TryOnResultScreen() {
   const fadeIn = useRef(new Animated.Value(0)).current;
   const uiOpacity = useRef(new Animated.Value(0)).current;
   const uiTranslateY = useRef(new Animated.Value(20)).current;
+  const arrowHintX = useRef(new Animated.Value(0)).current;
   const [isSaved, setIsSaved] = useState(false);
-  const hasMultipleOutfitItems = outfitItems.length > 1;
+  const hasBuilderOutfitItems = outfitItems.length > 1;
 
   const hasResult = !!generatedImageBase64;
   const imageUri = generatedImageBase64
     ? `data:image/png;base64,${generatedImageBase64}`
+    : null;
+
+  const outfitImageSource = outfitImageUrl
+    ? typeof outfitImageUrl === 'number'
+      ? outfitImageUrl
+      : { uri: String(outfitImageUrl) }
     : null;
 
   useEffect(() => {
@@ -64,9 +70,27 @@ export default function TryOnResultScreen() {
     ]).start();
   }, [hasResult]);
 
+  useEffect(() => {
+    if (!hasBuilderOutfitItems) return;
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(arrowHintX, { toValue: 6, duration: 650, useNativeDriver: true }),
+        Animated.timing(arrowHintX, { toValue: 0, duration: 650, useNativeDriver: true }),
+      ])
+    );
+
+    loop.start();
+    return () => {
+      loop.stop();
+      arrowHintX.setValue(0);
+    };
+  }, [hasBuilderOutfitItems, arrowHintX]);
+
   const handleDone = useCallback(() => {
     reset();
     router.dismissAll();
+    setTimeout(() => router.replace('/(tabs)/capsule'), 200);
   }, [reset, router]);
 
   const handleGoHome = useCallback(() => {
@@ -108,7 +132,7 @@ export default function TryOnResultScreen() {
       useVideoStore.getState().setSource(imageUri);
     }
     router.dismissAll();
-    setTimeout(() => router.push('/video-generate' as any), 200);
+    setTimeout(() => router.push('/video-generate/source' as any), 200);
   }, [router, imageUri]);
 
   const handleAskDajana = useCallback(() => {
@@ -182,46 +206,53 @@ export default function TryOnResultScreen() {
                 <Text style={styles.swipeUpHintText}>Swipe ka gore da vidiš outfit koji si izabrala</Text>
               </View>
             </View>
-            {/* Strana 2: outfit slika(e) */}
-            <View style={[styles.pagerPage, { height: H }]}>
-              {hasMultipleOutfitItems ? (
-                <>
-                  <FlatList
-                    data={outfitItems}
-                    keyExtractor={(item) => item.id}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={true}
-                    style={styles.outfitPagerList}
-                    contentContainerStyle={[styles.outfitPagerContent, { width: W * outfitItems.length }]}
-                    renderItem={({ item }) => (
-                      <View style={[styles.outfitPagerSlide, { width: W, height: H }]}>
-                        <Image source={{ uri: item.imageUrl }} style={styles.fullImage} resizeMode="contain" />
-                        {item.title ? (
-                          <View style={styles.outfitPagerLabel}>
-                            <Text style={styles.outfitPagerLabelText} numberOfLines={1}>{item.title}</Text>
+            {/* Strana 2: outfit slika(e) — slika iznad, hint uvek ispod (bez preklapanja) */}
+            <View style={[styles.pagerPage, styles.pagerPageColumn, { height: H }]}>
+              <View style={styles.outfitContentWrap}>
+                {hasBuilderOutfitItems ? (
+                  <View style={styles.builderOutfitWrap}>
+                    <ScrollView
+                      horizontal
+                      pagingEnabled
+                      showsHorizontalScrollIndicator={false}
+                      decelerationRate="fast"
+                      snapToInterval={W}
+                      snapToAlignment="start"
+                      contentContainerStyle={styles.builderCarouselContent}
+                    >
+                      {(outfitItems ?? []).map((item) => {
+                        const src =
+                          typeof item.imageUrl === 'number'
+                            ? item.imageUrl
+                            : { uri: String(item.imageUrl) };
+                        return (
+                          <View key={item.id} style={styles.builderCarouselSlide}>
+                            <View style={styles.builderOutfitCardSingle}>
+                              <Image source={src} style={styles.builderOutfitImageSingle} resizeMode="contain" />
+                            </View>
+                            <Animated.View
+                              style={[
+                                styles.builderCarouselArrowWrap,
+                                { transform: [{ translateX: arrowHintX }] },
+                              ]}
+                              pointerEvents="none"
+                            >
+                              <Ionicons name="chevron-forward" size={20} color={GOLD} />
+                            </Animated.View>
                           </View>
-                        ) : null}
-                      </View>
-                    )}
-                  />
-                  <View style={styles.outfitPageHint}>
-                    <Text style={styles.outfitPageHintText}>Outfit koji si izabrala</Text>
+                        );
+                      })}
+                    </ScrollView>
                   </View>
-                </>
-              ) : outfitImageUrl ? (
-                <>
-                  <Image source={{ uri: outfitImageUrl }} style={styles.fullImage} resizeMode="contain" />
-                  <View style={styles.outfitPageHint}>
-                    <Text style={styles.outfitPageHintText}>Outfit koji si izabrala</Text>
+                ) : outfitImageSource ? (
+                  <Image source={outfitImageSource} style={styles.fullImage} resizeMode="contain" />
+                ) : (
+                  <View style={styles.placeholder}>
+                    <Ionicons name="shirt-outline" size={48} color={GOLD} />
+                    <Text style={styles.comparisonPlaceholderText}>Outfit</Text>
                   </View>
-                </>
-              ) : (
-                <View style={styles.placeholder}>
-                  <Ionicons name="shirt-outline" size={48} color={GOLD} />
-                  <Text style={styles.comparisonPlaceholderText}>Outfit</Text>
-                </View>
-              )}
+                )}
+              </View>
             </View>
           </ScrollView>
         )}
@@ -363,6 +394,67 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  pagerPageColumn: {
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+  },
+  outfitContentWrap: {
+    flex: 1,
+    width: W,
+    overflow: 'hidden',
+  },
+  builderOutfitWrap: {
+    flex: 1,
+    width: W,
+    paddingTop: 92,
+    paddingBottom: 120,
+    backgroundColor: CREAM,
+  },
+  builderCarouselContent: {
+    alignItems: 'stretch',
+  },
+  builderCarouselSlide: {
+    width: W,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+  },
+  builderOutfitCardSingle: {
+    width: '100%',
+    height: H * 0.58,
+    borderRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: '#FFFCF9',
+    borderWidth: 1,
+    borderColor: `${GOLD}36`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.05,
+    shadowRadius: 16,
+    elevation: 3,
+  },
+  builderOutfitImageSingle: {
+    width: '100%',
+    height: '100%',
+  },
+  builderCarouselArrowWrap: {
+    position: 'absolute',
+    right: 24,
+    top: '50%',
+    marginTop: -16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,252,249,0.94)',
+    borderWidth: 1,
+    borderColor: `${GOLD}32`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   swipeUpHint: {
     position: 'absolute',
     left: 0,
@@ -378,47 +470,6 @@ const styles = StyleSheet.create({
   swipeUpHintText: {
     fontFamily: FONTS.primary.medium,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.95)',
-  },
-  outfitPagerList: {
-    flex: 1,
-    width: W,
-  },
-  outfitPagerContent: {
-    height: H,
-  },
-  outfitPagerSlide: {
-    overflow: 'hidden',
-  },
-  outfitPagerLabel: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  outfitPagerLabelText: {
-    fontFamily: FONTS.primary.medium,
-    fontSize: 14,
-    color: '#fff',
-    textAlign: 'center',
-  },
-  outfitPageHint: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outfitPageHintText: {
-    fontFamily: FONTS.primary.medium,
-    fontSize: 14,
     color: 'rgba(255,255,255,0.95)',
   },
   comparisonPlaceholder: {

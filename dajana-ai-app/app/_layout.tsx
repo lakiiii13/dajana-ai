@@ -5,23 +5,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import 'react-native-reanimated';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Google Fonts
-import {
-  JosefinSans_100Thin,
-  JosefinSans_300Light,
-  JosefinSans_400Regular,
-  JosefinSans_500Medium,
-  JosefinSans_600SemiBold,
-  JosefinSans_700Bold,
-} from '@expo-google-fonts/josefin-sans';
-import {
-  PlayfairDisplay_400Regular,
-  PlayfairDisplay_500Medium,
-  PlayfairDisplay_600SemiBold,
-  PlayfairDisplay_700Bold,
-  PlayfairDisplay_400Regular_Italic,
-} from '@expo-google-fonts/playfair-display';
-import { Allura_400Regular } from '@expo-google-fonts/allura';
+// Lokalni fontovi – svi fajlovi su u assets/fonts/
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, AppState } from 'react-native';
@@ -31,6 +15,7 @@ import { SplashContent } from '@/components/SplashContent';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useVideoStore } from '@/stores/videoStore';
 import { useAuthStore } from '@/stores/authStore';
+import { hasSupabaseConfig } from '@/lib/supabase';
 import { registerForPushNotifications, notifyVideoReady, notifyVideoFailed, addNotificationResponseListener, getLastNotificationResponse } from '@/lib/notificationService';
 import { FONTS, COLORS } from '@/constants/theme';
 import { t } from '@/lib/i18n';
@@ -68,21 +53,27 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   const splashHidden = useRef(false);
   const [fontsLoaded, fontError] = useFonts({
-    // Arquitecta (primarni) – dok klijent ne dostavi .ttf, alias na Josefin Sans
-    ArquitectaThin: JosefinSans_100Thin,
-    ArquitectaLight: JosefinSans_300Light,
-    ArquitectaRegular: JosefinSans_400Regular,
-    ArquitectaMedium: JosefinSans_500Medium,
-    ArquitectaSemibold: JosefinSans_600SemiBold,
-    ArquitectaBold: JosefinSans_700Bold,
-    // Canela (naslovi) – dok klijent ne dostavi .ttf, alias na Playfair Display
-    CanelaRegular: PlayfairDisplay_400Regular,
-    CanelaMedium: PlayfairDisplay_500Medium,
-    CanelaSemibold: PlayfairDisplay_600SemiBold,
-    CanelaBold: PlayfairDisplay_700Bold,
-    CanelaItalic: PlayfairDisplay_400Regular_Italic,
-    Allura_400Regular,
-    'TGValtica': require('@/assets/fonts/TG Valtica.ttf'),
+    // ── Arquitecta – primarni font (UI tekst, dugmad, labele) ──
+    ArquitectaThin:     require('@/assets/fonts/ArquitectaThin.otf'),
+    ArquitectaLight:    require('@/assets/fonts/ArquitectaLight.otf'),
+    ArquitectaRegular:  require('@/assets/fonts/ArquitectaBook.otf'),
+    ArquitectaMedium:   require('@/assets/fonts/ArquitectaMedium.otf'),
+    ArquitectaSemibold: require('@/assets/fonts/ArquitectaBold.otf'),
+    ArquitectaBold:     require('@/assets/fonts/ArquitectaHeavy.otf'),
+    // ── Canela – sekundarni font (naslovi, hero tekst) ──
+    CanelaRegular:  require('@/assets/fonts/Canela-Regular-Trial.otf'),
+    CanelaMedium:   require('@/assets/fonts/Canela-Medium-Trial.otf'),
+    CanelaSemibold: require('@/assets/fonts/Canela-Bold-Trial.otf'),
+    CanelaBold:     require('@/assets/fonts/Canela-Black-Trial.otf'),
+    CanelaItalic:   require('@/assets/fonts/Canela-RegularItalic-Trial.otf'),
+    CanelaThin:     require('@/assets/fonts/Canela-Thin-Trial.otf'),
+    CanelaLight:    require('@/assets/fonts/Canela-Light-Trial.otf'),
+    // ── Pomoćni fontovi (dekorativni akcenti) ──
+    LicoriceRegular:  require('@/assets/fonts/Licorice-Regular.ttf'),
+    RetroSignature:   require('@/assets/fonts/RetroSignature.otf'),
+    Allura_400Regular: require('@/assets/fonts/Allura-Regular.ttf'),
+    // ── Logo font ──
+    TGValtica: require('@/assets/fonts/TG Valtica.ttf'),
   });
 
   useEffect(() => {
@@ -124,6 +115,10 @@ function RootLayoutNav() {
   const router = useRouter();
   const [splashDone, setSplashDone] = useState(splashEverCompleted);
   const { colors, mode } = useTheme();
+
+  if (!hasSupabaseConfig) {
+    return <MissingConfigScreen />;
+  }
 
   useEffect(() => {
     if (splashEverCompleted) return;
@@ -189,7 +184,9 @@ function RootLayoutNav() {
           <Stack.Screen name="(onboarding)" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="calendar" />
+          <Stack.Screen name="calendar-day" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="saved" />
           <Stack.Screen name="edit-profile" options={{ presentation: 'modal' }} />
           <Stack.Screen name="outfit/[id]" options={{ presentation: 'modal' }} />
           <Stack.Screen name="try-on" options={{ presentation: 'fullScreenModal', gestureEnabled: false }} />
@@ -377,6 +374,21 @@ function VideoBackgroundPoller() {
   return <FloatingVideoIndicator attempt={bgPollAttempt} duration={backgroundJob.duration} />;
 }
 
+function MissingConfigScreen() {
+  return (
+    <View style={missingConfigStyles.container}>
+      <Text style={missingConfigStyles.title}>Aplikacija nije podešena</Text>
+      <Text style={missingConfigStyles.body}>
+        Ovaj build nema production environment varijable. Dodaj `EXPO_PUBLIC_SUPABASE_URL` i
+        `EXPO_PUBLIC_SUPABASE_ANON_KEY` u EAS pa napravi novi iOS build.
+      </Text>
+      <Text style={missingConfigStyles.caption}>
+        Posle toga ce prijava, podaci i push notifikacije raditi bez crash-a.
+      </Text>
+    </View>
+  );
+}
+
 /* ==========================================
    Floating mini-indicator pill
    ========================================== */
@@ -443,5 +455,37 @@ const indicatorStyles = StyleSheet.create({
     fontSize: 12,
     color: DARK,
     letterSpacing: 0.3,
+  },
+});
+
+const missingConfigStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    backgroundColor: '#fffaf5',
+  },
+  title: {
+    fontFamily: FONTS.heading.semibold,
+    fontSize: 26,
+    color: '#2C2A28',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  body: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: 15,
+    lineHeight: 24,
+    color: '#4F4A45',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  caption: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 13,
+    lineHeight: 21,
+    color: '#8B6A4A',
+    textAlign: 'center',
   },
 });

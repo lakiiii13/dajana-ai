@@ -9,6 +9,17 @@
 
 ## 1. Prvi put (ili posle kloniranja / novog pull-a)
 
+
+
+
+cd "c:\Users\kompl\OneDrive\Desktop\dajana aplikacija\dajana-ai-main\dajana-ai-app"
+npx expo start
+
+
+
+
+
+
 U terminalu (PowerShell ili CMD):
 
 ```powershell

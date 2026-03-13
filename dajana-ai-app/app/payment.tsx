@@ -23,6 +23,7 @@ import { COLORS, FONTS, FONT_SIZES, SPACING, ELEGANT_CTA } from '@/constants/the
 import { t } from '@/lib/i18n';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { CREDIT_LIMITS } from '@/constants/credits';
 
 const CREAM = '#F8F4EF';
 const GOLD = '#CF8F5A';
@@ -53,6 +54,65 @@ export default function PaymentScreen() {
   const border = mode === 'dark' ? 'rgba(232,226,218,0.16)' : 'rgba(13,67,38,0.12)';
   const borderGold = mode === 'dark' ? 'rgba(207,143,90,0.22)' : HAIRLINE_GOLD;
 
+  const applyTopupCredits = async (userId: string) => {
+    await supabase.rpc('add_bonus_credits', { p_user_id: userId });
+  };
+
+  const applySubscriptionPurchase = async (userId: string, planType: 'monthly' | 'yearly') => {
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setDate(periodEnd.getDate() + (planType === 'yearly' ? 365 : 31));
+
+    await supabase
+      .from('user_credits')
+      .upsert(
+        {
+          user_id: userId,
+          image_credits_used: 0,
+          image_credits_limit: CREDIT_LIMITS.monthly.images,
+          video_credits_used: 0,
+          video_credits_limit: CREDIT_LIMITS.monthly.videos,
+          analysis_credits_used: 0,
+          analysis_credits_limit: CREDIT_LIMITS.monthly.analyses,
+          bonus_image_credits: 0,
+          bonus_video_credits: 0,
+          bonus_analysis_credits: 0,
+          last_reset_date: now.toISOString(),
+          updated_at: now.toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+    const { data: existingSubscription } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingSubscription?.id) {
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: 'active',
+          plan_type: planType,
+          current_period_start: now.toISOString(),
+          current_period_end: periodEnd.toISOString(),
+          canceled_at: null,
+        })
+        .eq('id', existingSubscription.id);
+    } else {
+      await supabase.from('subscriptions').insert({
+        user_id: userId,
+        status: 'active',
+        plan_type: planType,
+        current_period_start: now.toISOString(),
+        current_period_end: periodEnd.toISOString(),
+      });
+    }
+  };
+
   const handlePay = async () => {
     setProcessing(true);
     // Simulacija obrade plaćanja (Stripe bi ovde pozvao Payment Sheet ili Confirm Payment)
@@ -61,10 +121,15 @@ export default function PaymentScreen() {
     const userId = useAuthStore.getState().user?.id;
     if (userId) {
       try {
-        await supabase.rpc('add_bonus_credits', { p_user_id: userId });
+        if (params.itemId === 'topup') {
+          await applyTopupCredits(userId);
+        } else if (params.itemId === 'monthly' || params.itemId === 'yearly') {
+          await applySubscriptionPurchase(userId, params.itemId);
+        }
         await useAuthStore.getState().fetchCredits();
+        await useAuthStore.getState().fetchSubscription();
       } catch (e) {
-        console.warn('[Payment] add_bonus_credits failed (simulation still succeeds):', e);
+        console.warn('[Payment] credit/subscription update failed (simulation still succeeds):', e);
       }
     }
 
@@ -225,9 +290,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   headerTitle: {
-    fontFamily: FONTS.logo,
+    fontFamily: FONTS.heading.semibold,
     fontSize: 22,
-    letterSpacing: 1.2,
+    letterSpacing: 0.5,
   },
   headerRight: { width: 44 },
   keyboard: { flex: 1 },

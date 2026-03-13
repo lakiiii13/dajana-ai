@@ -57,28 +57,48 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
     return f;
   }, [activeCategory, useMyBodyType, useMySeason, profile?.body_type, profile?.season]);
 
-  const loadOutfits = useCallback(async (showRefreshing = false) => {
-    if (showRefreshing) setIsRefreshing(true);
-    else setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchOutfits(filters, user?.id);
-      setOutfits(data);
-    } catch (err) {
-      if (err instanceof ApiError) setError(err.message);
-      else setError(t('errors.load_failed'));
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [filters, user?.id]);
+  /** Build filters for a given category (used so initial load uses initialCategoryId before state updates). */
+  const getFiltersForCategory = useCallback(
+    (categoryId: CategoryId | undefined): OutfitFilters => {
+      const f: OutfitFilters = {};
+      const tag = categoryId ? getCategoryTag(categoryId) : undefined;
+      if (tag) f.tags = [tag];
+      if (useMyBodyType && profile?.body_type) f.bodyType = profile.body_type;
+      if (useMySeason && profile?.season) f.season = profile.season;
+      return f;
+    },
+    [useMyBodyType, useMySeason, profile?.body_type, profile?.season]
+  );
+
+  const loadOutfits = useCallback(
+    async (showRefreshing = false, categoryOverride?: CategoryId) => {
+      if (showRefreshing) setIsRefreshing(true);
+      else setIsLoading(true);
+      setError(null);
+      const effectiveFilters = categoryOverride !== undefined ? getFiltersForCategory(categoryOverride) : filters;
+      try {
+        const data = await fetchOutfits(effectiveFilters, user?.id);
+        setOutfits(data);
+      } catch (err) {
+        if (err instanceof ApiError) setError(err.message);
+        else setError(t('errors.load_failed'));
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [filters, getFiltersForCategory, user?.id]
+  );
 
   useEffect(() => {
     if (visible) {
       if (initialCategoryId && initialCategoryId !== 'all') {
         setActiveCategory(initialCategoryId);
+        loadOutfits(false, initialCategoryId);
+      } else {
+        setActiveCategory('all');
+        loadOutfits(false);
       }
-      loadOutfits();
     }
   }, [visible, initialCategoryId, loadOutfits]);
 
@@ -207,6 +227,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
                   onPress={() => {
                     setActiveCategory(item.id);
                     setShowCategoryModal(false);
+                    loadOutfits(false, item.id);
                   }}
                 >
                   <Ionicons name={item.icon as any} size={20} color={activeCategory === item.id ? CAPSULE_GOLD : CAPSULE_TEXT} />

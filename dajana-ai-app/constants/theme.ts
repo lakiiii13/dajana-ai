@@ -83,29 +83,39 @@ export function getColors(mode: 'light' | 'dark'): ColorSet {
   return mode === 'dark' ? darkColors : lightColors;
 }
 
-// Font families – klijent: Arquitecta (primarni), Canela (naslovi)
-// Dok klijent ne dostavi .ttf, učitavamo alias (Josefin ≈ Arquitecta, Playfair ≈ Canela).
-// Kad stave Arquitecta*.ttf i Canela*.ttf u assets/fonts, zameni u _layout require i koristi iste ključeve ispod.
+// ─────────────────────────────────────────────────────────────────────────────
+// FONTOVI
+//  Primarni:  Arquitecta  → sav UI tekst, labele, dugmad, opisi, forme
+//  Sekundarni: Canela     → naslovi ekrana, section headeri, hero display tekst
+//  Pomoćni:   Licorice    → dekorativni akcenti, kategorije, sezonski naslovi
+//             RetroSignature → brand/potpis stil, logo elementi
+//             Allura      → skript/kursiv akcenti
+// ─────────────────────────────────────────────────────────────────────────────
 export const FONTS = {
-  // Primarni (Arquitecta) – body tekst
+  // Primarni (Arquitecta) – sav funkcionalni tekst
   primary: {
-    thin: 'ArquitectaThin',
-    light: 'ArquitectaLight',
-    regular: 'ArquitectaRegular',
-    medium: 'ArquitectaMedium',
+    thin:     'ArquitectaThin',
+    light:    'ArquitectaLight',
+    regular:  'ArquitectaRegular',
+    medium:   'ArquitectaMedium',
     semibold: 'ArquitectaSemibold',
-    bold: 'ArquitectaBold',
+    bold:     'ArquitectaBold',
   },
-  // Naslovi (Canela)
+  // Sekundarni (Canela) – naslovi i display tekst
   heading: {
-    regular: 'CanelaRegular',
-    medium: 'CanelaMedium',
+    thin:     'CanelaThin',
+    light:    'CanelaLight',
+    regular:  'CanelaRegular',
+    medium:   'CanelaMedium',
     semibold: 'CanelaSemibold',
-    bold: 'CanelaBold',
-    italic: 'CanelaItalic',
+    bold:     'CanelaBold',
+    italic:   'CanelaItalic',
   },
+  // Pomoćni – dekorativni i branding
   script: {
     regular: 'Allura_400Regular',
+    retro:   'RetroSignature',
+    licorice: 'LicoriceRegular',
   },
   logo: 'TGValtica',
 };

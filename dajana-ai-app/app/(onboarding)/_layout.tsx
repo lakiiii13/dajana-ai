@@ -20,6 +20,7 @@ export default function OnboardingLayout() {
       <Stack.Screen name="analysis-question" />
       <Stack.Screen name="season" />
       <Stack.Screen name="complete" />
+      <Stack.Screen name="permissions" />
     </Stack>
   );
 }

@@ -4,7 +4,7 @@
 
 import { create } from 'zustand';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { hasSupabaseConfig, supabase, supabaseConfigError } from '@/lib/supabase';
 import { Database } from '@/types/database';
 import { setLanguage as setI18nLanguage, getLanguage } from '@/lib/i18n';
 import { getAllCredits, type AllCredits } from '@/lib/creditService';
@@ -68,6 +68,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialize: async () => {
     try {
       set({ isLoading: true });
+
+      if (!hasSupabaseConfig) {
+        console.warn('[Auth] Initialization skipped:', supabaseConfigError);
+        set({ isInitialized: true, isLoading: false });
+        return;
+      }
 
       // Get current session
       const { data: { session } } = await supabase.auth.getSession();

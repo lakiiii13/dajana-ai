@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Linking, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -32,7 +32,24 @@ export default function ProfileScreen() {
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [privacyScrollEnabled, setPrivacyScrollEnabled] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+  const privacyScrollRef = useRef<ScrollView>(null);
+
+  const handlePrivacyTap = useCallback(() => {
+    setPrivacyScrollEnabled(true);
+    requestAnimationFrame(() => {
+      privacyScrollRef.current?.scrollToEnd({ animated: true });
+      setTimeout(() => setPrivacyScrollEnabled(false), 500);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (showPrivacyModal) {
+      setPrivacyScrollEnabled(false);
+      setTimeout(() => privacyScrollRef.current?.scrollTo({ y: 0, animated: false }), 0);
+    }
+  }, [showPrivacyModal]);
 
   const HELP_EMAIL = 'dzgonjanin@otkrijsvojeboje.com';
   const creditsSectionY = useRef(0);
@@ -55,6 +72,18 @@ export default function ProfileScreen() {
   const handleEditProfile = () => {
     router.push('/edit-profile');
   };
+
+  const handleOpenNotificationSettings = useCallback(async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      try {
+        await Linking.openURL('app-settings:');
+      } catch {
+        Alert.alert(t('error'), 'Nije moguće otvoriti podešavanja aplikacije.');
+      }
+    }
+  }, []);
 
   const handleSignOut = () => {
     Alert.alert(
@@ -230,6 +259,19 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Sačuvano – outfiti, slike, videi */}
+      <View style={styles.section}>
+        <TouchableOpacity style={[styles.secondaryCta, { backgroundColor: surface, borderColor: borderGold }]} onPress={() => router.push('/saved')} activeOpacity={0.9}>
+          <View style={styles.secondaryCtaLeft}>
+            <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
+              <Feather name="heart" size={18} color={GOLD} />
+            </View>
+            <Text style={[styles.secondaryCtaText, { color: text }]}>{t('profile.saved_menu')}</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={GOLD} style={{ opacity: 0.7 }} />
+        </TouchableOpacity>
+      </View>
+
       {/* Actions */}
       <View style={styles.section}>
         <View style={[styles.menuCard, { backgroundColor: surface, borderColor: borderGold }]}>
@@ -242,7 +284,7 @@ export default function ProfileScreen() {
             <Feather name="chevron-right" size={20} color={mode === 'dark' ? 'rgba(255,255,255,0.35)' : COLORS.gray[400]} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.menuItem, { borderBottomColor: border }]} activeOpacity={0.8} onPress={() => router.push('/notifications')}>
+          <TouchableOpacity style={[styles.menuItem, { borderBottomColor: border }]} activeOpacity={0.8} onPress={handleOpenNotificationSettings}>
             <View style={[styles.iconPill, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.06)' : CREAM, borderColor: border }]}>
               <Feather name="bell" size={18} color={GOLD} />
             </View>
@@ -344,11 +386,21 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </Modal>
 
-      {/* Politika privatnosti – tekst */}
+      {/* Politika privatnosti – tap spušta do kraja teksta, nema swipe */}
       <Modal visible={showPrivacyModal} transparent animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowPrivacyModal(false)}>
-          <TouchableOpacity style={[styles.privacyModalContent, { backgroundColor: surface, borderColor: borderGold }]} activeOpacity={1} onPress={() => {}}>
-            <ScrollView style={styles.privacyScroll} showsVerticalScrollIndicator={true}>
+          <TouchableOpacity
+            style={[styles.privacyModalContent, { backgroundColor: surface, borderColor: borderGold }]}
+            activeOpacity={1}
+            onPress={handlePrivacyTap}
+          >
+            <ScrollView
+              ref={privacyScrollRef}
+              style={[styles.privacyScroll, { maxHeight: Dimensions.get('window').height * 0.5 }]}
+              contentContainerStyle={styles.privacyScrollContent}
+              scrollEnabled={privacyScrollEnabled}
+              showsVerticalScrollIndicator={false}
+            >
               <Text style={[styles.privacyTitle, { color: text }]}>Politika privatnosti</Text>
               <Text style={[styles.privacyBody, { color: textMuted }]}>
                 Aplikacija DAJANA AI poštuje vašu privatnost. Prikupljamo samo podatke neophodne za pružanje usluge: email, ime i mere koje unesete u profil, kao i podatke o korišćenju kredita (slike, videi, analize). Vaši podaci se ne dele sa trećim stranama u marketinške svrhe.{'\n\n'}
@@ -734,13 +786,18 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
     width: '90%',
     maxWidth: 360,
-    maxHeight: '80%',
+    maxHeight: '85%',
+    minHeight: 280,
     borderWidth: 0.5,
     borderColor: 'rgba(207,143,90,0.15)',
+    flexDirection: 'column',
   },
   privacyScroll: {
-    maxHeight: 320,
     marginBottom: SPACING.md,
+  },
+  privacyScrollContent: {
+    paddingRight: 4,
+    paddingBottom: SPACING.lg,
   },
   privacyTitle: {
     fontSize: FONT_SIZES.lg,

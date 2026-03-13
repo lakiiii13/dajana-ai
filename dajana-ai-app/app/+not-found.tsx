@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 
 import { Text, View } from '@/components/Themed';
 import { t } from '@/lib/i18n';
+import { FONTS } from '@/constants/theme';
 
 export default function NotFoundScreen() {
   return (
@@ -28,7 +29,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: FONTS.heading.semibold,
   },
   link: {
     marginTop: 15,
@@ -36,6 +37,7 @@ const styles = StyleSheet.create({
   },
   linkText: {
     fontSize: 14,
+    fontFamily: FONTS.primary.medium,
     color: '#2e78b7',
   },
 });

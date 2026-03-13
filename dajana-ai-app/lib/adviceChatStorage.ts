@@ -26,8 +26,8 @@ export interface SavedAdviceChat {
 }
 
 /** Iz prvog korisničkog teksta napravi naslov (max ~28 znakova). */
-export function titleFromMessages(messages: { role: string; content: string }[]): string {
-  const firstUser = messages.find((m) => m.role === 'user');
+export function titleFromMessages(messages?: { role: string; content: string }[] | null): string {
+  const firstUser = (messages ?? []).find((m) => m.role === 'user');
   if (!firstUser || !firstUser.content?.trim()) return 'Novi razgovor';
   const text = firstUser.content.trim();
   if (text.length <= 28) return text;
@@ -35,8 +35,8 @@ export function titleFromMessages(messages: { role: string; content: string }[])
 }
 
 /** AdvisorMessage[] u samo tekst za čuvanje (bez base64). */
-function historyToTextOnly(history: AdvisorMessage[]): { role: 'user' | 'assistant'; content: string }[] {
-  return history
+function historyToTextOnly(history?: AdvisorMessage[] | null): { role: 'user' | 'assistant'; content: string }[] {
+  return (history ?? [])
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => {
       const content = typeof m.content === 'string' ? m.content : (m.content as any)?.find((p: any) => p.type === 'text')?.text ?? '';

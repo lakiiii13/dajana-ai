@@ -7,7 +7,7 @@
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import { supabase } from './supabase';
+import { hasSupabaseConfig, supabase } from './supabase';
 import { useAuthStore } from '@/stores/authStore';
 
 // Configure how notifications appear when the app is in the foreground
@@ -27,6 +27,11 @@ Notifications.setNotificationHandler({
  */
 export async function registerForPushNotifications(): Promise<string | null> {
   try {
+    if (!hasSupabaseConfig) {
+      console.warn('[Notifications] Preskacem registraciju: Supabase nije podešen.');
+      return null;
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -59,9 +64,18 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     // projectId iz EAS / app.config – inače "cannot be inferred from manifest"
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    const projectId =
+      Constants.easConfig?.projectId ??
+      Constants.expoConfig?.extra?.eas?.projectId ??
+      null;
+
+    if (!projectId) {
+      console.warn('[Notifications] Push token nije dostupan: nedostaje EAS projectId.');
+      return null;
+    }
+
     const tokenData = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined
+      { projectId }
     );
     const token = tokenData.data;
     console.log('[Notifications] Push token:', token);
@@ -74,6 +88,8 @@ export async function registerForPushNotifications(): Promise<string | null> {
     const msg = error?.message ?? String(error);
     if (msg.includes('projectId') || msg.includes('manifest')) {
       console.warn('[Notifications] Push token nije dostupan (nedostaje projectId u app.json / EAS). Dodaj extra.eas.projectId u app.json ako koristiš push.');
+    } else if (msg.includes('503') || msg.includes('SERVICE_UNAVAILABLE') || msg.includes('temporarily unavailable')) {
+      console.warn('[Notifications] Expo server privremeno nedostupan (503). Notifikacije će raditi kad se server oporavi — probaj ponovo za nekoliko minuta.');
     } else {
       console.error('[Notifications] Registration error:', error);
     }

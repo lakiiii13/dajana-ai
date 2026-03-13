@@ -3,7 +3,7 @@
 // Flat-lay style display of outfit items
 // ===========================================
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
-  FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
@@ -20,61 +19,68 @@ import { SavedOutfit } from '@/lib/tryOnService';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 10;
 const CARD_WIDTH = (SCREEN_WIDTH - SPACING.lg * 2 - GRID_GAP) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.42;
+const CARD_HEIGHT = CARD_WIDTH * 1.62;
 
 interface Props {
   outfit: SavedOutfit;
   onPress?: () => void;
   onDelete?: () => void;
   colors: any;
+  /** Kad se prosledi, kartica koristi ovu širinu (npr. u Sačuvano da prva stane u prikaz) */
+  cardWidth?: number;
 }
 
-export function OutfitCompositionCard({ outfit, onPress, onDelete, colors }: Props) {
-  const items = outfit.items;
-  const [thumbIndex, setThumbIndex] = useState(0);
+export function OutfitCompositionCard({ outfit, onPress, onDelete, colors, cardWidth: customWidth }: Props) {
+  const items = outfit.items ?? [];
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
   const date = new Date(outfit.timestamp);
   const dateStr = `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`;
 
-  const itemCount = items.length;
-  const canSwipe = itemCount > 1;
-  const listKey = useMemo(() => `outfit-thumb-${outfit.id}-${itemCount}`, [outfit.id, itemCount]);
+  const thumbnailItem = useMemo(() => {
+    const topOrOuter = items.find(
+      (it) => (it as { zoneId?: string }).zoneId === 'top' || (it as { zoneId?: string }).zoneId === 'outerwear'
+    );
+    return topOrOuter ?? items[0] ?? null;
+  }, [items]);
+
+  const thumbnailUri = useMemo(() => {
+    if (!thumbnailItem) return null;
+    const url =
+      (thumbnailItem as { imageUrl?: string; image_url?: string }).imageUrl ??
+      (thumbnailItem as { image_url?: string }).image_url;
+    return typeof url === 'string' && url.trim() ? url : null;
+  }, [thumbnailItem]);
+
+  const thumbnailLabel = thumbnailItem?.title?.trim() || 'Outfit';
+
+  useEffect(() => setImageLoadFailed(false), [outfit.id, thumbnailUri]);
+  const showPlaceholder = !thumbnailUri || imageLoadFailed;
+
+  const w = customWidth ?? CARD_WIDTH;
+  const h = customWidth ? customWidth * (CARD_HEIGHT / CARD_WIDTH) : CARD_HEIGHT;
 
   return (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.gray[200] }]}
+      style={[styles.card, { width: w, backgroundColor: colors.surface, borderColor: colors.gray[200] }]}
       onPress={onPress}
       activeOpacity={0.85}
     >
-      {/* Thumbnail — swipe kroz cele slike (kaput, duks...) bez seckanja */}
-      <View style={styles.imageArea}>
-        <FlatList
-          key={listKey}
-          data={items}
-          keyExtractor={(it, idx) => it.id || `${outfit.id}-${idx}`}
-          horizontal
-          pagingEnabled={canSwipe}
-          scrollEnabled={canSwipe}
-          showsHorizontalScrollIndicator={false}
-          decelerationRate="fast"
-          snapToInterval={CARD_WIDTH}
-          snapToAlignment="start"
-          onMomentumScrollEnd={(e) => {
-            const idx = Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH);
-            setThumbIndex(Math.min(Math.max(idx, 0), itemCount - 1));
-          }}
-          renderItem={({ item }) => (
-            <View style={styles.thumbSlide}>
-              <Image source={{ uri: item.imageUrl }} style={styles.thumbImage} resizeMode="contain" />
-            </View>
-          )}
-          getItemLayout={(_, index) => ({ length: CARD_WIDTH, offset: CARD_WIDTH * index, index })}
-        />
-
-        {canSwipe && (
-          <View style={styles.thumbPager} pointerEvents="none">
-            <Text style={styles.thumbPagerText}>
-              {thumbIndex + 1} / {itemCount}
+      {/* Thumbnail — uvek prikazujemo stvar koju je korisnik izabrao, prioritetno gornji deo */}
+      <View style={[styles.imageArea, { height: h - 40 }]}>
+        {showPlaceholder ? (
+          <View style={[styles.placeholderWrap, { width: w, minHeight: h - 40 }]}>
+            <Text style={[styles.placeholderLabel, { color: colors.textSecondary }]} numberOfLines={3}>
+              {thumbnailLabel}
             </Text>
+          </View>
+        ) : (
+          <View style={[styles.thumbSlide, { width: w }]}>
+            <Image
+              source={{ uri: thumbnailUri }}
+              style={styles.thumbImage}
+              resizeMode="contain"
+              onError={() => setImageLoadFailed(true)}
+            />
           </View>
         )}
       </View>
@@ -83,8 +89,7 @@ export function OutfitCompositionCard({ outfit, onPress, onDelete, colors }: Pro
       <View style={styles.footer}>
         <View style={styles.footerLeft}>
           <View style={[styles.itemCountBadge, { backgroundColor: `${COLORS.secondary}12` }]}>
-            <Ionicons name="shirt-outline" size={11} color={COLORS.secondary} />
-            <Text style={[styles.itemCountText, { color: COLORS.secondary }]}>{itemCount}</Text>
+            <Text style={[styles.itemCountText, { color: COLORS.secondary }]}>{items.length}</Text>
           </View>
           <Text style={[styles.dateText, { color: colors.textSecondary }]}>{dateStr}</Text>
         </View>
@@ -123,6 +128,19 @@ const styles = StyleSheet.create({
     height: CARD_HEIGHT - 40,
     backgroundColor: '#F8F6F3',
   },
+  placeholderWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.md,
+  },
+  placeholderLabel: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: FONT_SIZES.xs,
+    textAlign: 'center',
+    opacity: 0.9,
+  },
   thumbSlide: {
     width: CARD_WIDTH,
     height: '100%',
@@ -132,20 +150,6 @@ const styles = StyleSheet.create({
   thumbImage: {
     width: '100%',
     height: '100%',
-  },
-  thumbPager: {
-    position: 'absolute',
-    right: 8,
-    bottom: 8,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  thumbPagerText: {
-    fontFamily: FONTS.primary.medium,
-    fontSize: 11,
-    color: COLORS.white,
   },
 
   // Footer

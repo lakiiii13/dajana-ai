@@ -245,3 +245,30 @@ export async function continueConversation(
 
   return chatViaEdge(messages, { max_tokens: 600, temperature: 0.8 });
 }
+
+/**
+ * Generiše kratak naslov razgovora po temi (OpenAI). Koristi se odmah nakon prvog odgovora.
+ * Ne skida kredite — minimalan zahtev.
+ */
+export async function generateChatTitle(userMessage: string, assistantReply: string): Promise<string> {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return '';
+  const truncatedUser = userMessage.trim().slice(0, 200);
+  const truncatedAssistant = assistantReply.trim().slice(0, 300);
+  const messages: AdvisorMessage[] = [
+    {
+      role: 'system',
+      content:
+        'Odgovori SAMO kratkim naslovom razgovora (maksimalno 5–6 reči), u istom jeziku kao razgovor. Bez navodnika, bez tačke na kraju. Primer: Savet za outfit u sivoj bluzi.',
+    },
+    {
+      role: 'user',
+      content: `Korisnik: ${truncatedUser}\n\nAsistent: ${truncatedAssistant}`,
+    },
+  ];
+  try {
+    const title = await chatViaEdge(messages, { max_tokens: 30, temperature: 0.3 });
+    return (title || '').trim().slice(0, 50) || '';
+  } catch {
+    return '';
+  }
+}

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAdminSession } from "@/lib/auth";
+import type { Database } from "@/types/database";
+
+type OutfitUpdate = Database["public"]["Tables"]["outfits"]["Update"];
 
 export async function GET(
   request: NextRequest,
@@ -55,18 +58,20 @@ export async function PUT(
 
     const supabase = createAdminClient();
 
+    const payload: OutfitUpdate = {
+      title: title || null,
+      description: description || null,
+      image_url,
+      body_types,
+      seasons,
+      tags: tags || [],
+      display_order: display_order ?? 0,
+      is_active: is_active ?? true,
+    };
     const { data, error } = await supabase
       .from("outfits")
-      .update({
-        title: title || null,
-        description: description || null,
-        image_url,
-        body_types,
-        seasons,
-        tags: tags || [],
-        display_order: display_order ?? 0,
-        is_active: is_active ?? true,
-      })
+      // @ts-ignore - Supabase client infers never for update; payload matches OutfitUpdate
+      .update(payload)
       .eq("id", id)
       .select()
       .single();

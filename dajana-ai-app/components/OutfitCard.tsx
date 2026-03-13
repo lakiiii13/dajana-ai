@@ -32,7 +32,7 @@ interface OutfitCardProps {
 const { width } = Dimensions.get('window');
 const GAP = 14;
 const CARD_WIDTH = (width - SPACING.lg * 2 - GAP) / 2;
-const CARD_HEIGHT = CARD_WIDTH * 1.32;
+const CARD_HEIGHT = CARD_WIDTH * 1.62;
 const CARD_RADIUS = 20;
 
 const loadedImages = new Set<string>();
@@ -101,7 +101,7 @@ export default function OutfitCard({
               <Image
                 source={{ uri: outfit.image_url }}
                 style={styles.image}
-                resizeMode="cover"
+                resizeMode="contain"
                 onLoad={handleImageLoad}
                 onError={() => setImageError(true)}
               />

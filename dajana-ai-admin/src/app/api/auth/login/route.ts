@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
 import bcrypt from "bcryptjs";
+
+type AdminRow = Database["public"]["Tables"]["admin_users"]["Row"];
 
 export async function POST(request: NextRequest) {
   try {
@@ -39,10 +42,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const adminRow = admin as AdminRow;
     // Verify password (bcrypt accepts both $2a$ and $2b$)
-    const isValidPassword = await bcrypt.compare(password, admin.password_hash);
+    const isValidPassword = await bcrypt.compare(password, adminRow.password_hash);
     if (!isValidPassword) {
-      console.log("[Login] Password mismatch for:", admin.email);
+      console.log("[Login] Password mismatch for:", adminRow.email);
       return NextResponse.json(
         { error: "Pogrešan email ili lozinka" },
         { status: 401 }
@@ -52,9 +56,9 @@ export async function POST(request: NextRequest) {
     // Create session token (simple implementation)
     const sessionToken = Buffer.from(
       JSON.stringify({
-        id: admin.id,
-        email: admin.email,
-        role: admin.role,
+        id: adminRow.id,
+        email: adminRow.email,
+        role: adminRow.role,
         exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
       })
     ).toString("base64");
@@ -72,10 +76,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       admin: {
-        id: admin.id,
-        email: admin.email,
-        name: admin.name,
-        role: admin.role,
+        id: adminRow.id,
+        email: adminRow.email,
+        name: adminRow.name,
+        role: adminRow.role,
       },
     });
   } catch (error) {

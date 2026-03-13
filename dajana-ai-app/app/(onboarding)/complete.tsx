@@ -32,8 +32,7 @@ export default function CompleteScreen() {
   };
 
   const handleFinish = () => {
-    // Navigate to main app
-    router.replace('/(tabs)');
+    router.push('/(onboarding)/permissions');
   };
 
   const handleBookAnalysis = () => {

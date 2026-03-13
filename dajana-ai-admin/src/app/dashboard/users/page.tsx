@@ -2,7 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createAdminClient } from "@/lib/supabase/server";
 import { User } from "lucide-react";
 
-async function getUsers() {
+type ProfileRow = { id: string; email: string | null; full_name: string | null; language: string | null; created_at: string };
+
+async function getUsers(): Promise<ProfileRow[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -10,7 +12,7 @@ async function getUsers() {
     .order("created_at", { ascending: false });
 
   if (error) return [];
-  return data ?? [];
+  return (data ?? []) as ProfileRow[];
 }
 
 function formatDate(iso: string) {

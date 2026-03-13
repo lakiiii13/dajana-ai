@@ -67,7 +67,7 @@ function IsprobajButtonAnimated({
   );
 }
 
-const PANEL_TOP_RATIO = 0.35; // panel malo niže
+const PANEL_TOP_RATIO = 0.33; // panel još malo niže
 
 function ConnectorLineSmooth({ currentCardIndex, insets }: { currentCardIndex: number; insets: { top: number } }) {
   const ofingerTop = 92;
@@ -194,8 +194,8 @@ export default function ClosetScreen() {
     router.push('/try-on' as any);
   }, [setOutfit]);
 
-  const panelWidth = W * 0.86;
-  const panelHeight = H * 0.48;
+  const panelWidth = W * 0.8;
+  const panelHeight = H * 0.49;
   const titleBarH = 56;
   const cardWidth = panelWidth;
   const cardHeight = panelHeight;
@@ -222,7 +222,7 @@ export default function ClosetScreen() {
         activeOpacity={0.9}
         onPress={() => setSelectedOutfit(item)}
       >
-        <Image source={item.image} style={styles.vcCardImage} resizeMode="cover" />
+        <Image source={item.image} style={styles.vcCardImage} resizeMode="contain" />
       </TouchableOpacity>
     ),
     [cardWidth, cardHeight, cardGap]
@@ -297,7 +297,7 @@ export default function ClosetScreen() {
 
           {/* Swipe hint ispod celog boxa – van panela */}
           {showVirtualClosetPanel && (
-            <View style={[styles.vcSwipeHintBelow, { top: H * PANEL_TOP_RATIO + panelHeight + 12 }]}>
+            <View style={[styles.vcSwipeHintBelow, { top: H * PANEL_TOP_RATIO + panelHeight + 8 }]}>
               <Text style={styles.vcSwipeHintSmall}>{t('ormar.swipe_hint')}</Text>
             </View>
           )}
@@ -313,8 +313,8 @@ export default function ClosetScreen() {
       >
         <View style={styles.modalOuter}>
           {selectedOutfit && (() => {
-            const frameW = W * 0.5;
-            const frameH = H * 0.32;
+            const frameW = W * 0.62;
+            const frameH = H * 0.46;
             const frameTop = insets.top + 56;
             const frameLeft = 24;
             const lineStartX = frameLeft + frameW / 2;
@@ -337,7 +337,7 @@ export default function ClosetScreen() {
 
                   <View style={[styles.modalFrameWrap, { top: frameTop, left: frameLeft }]}>
                     <View style={[styles.modalFrame, { width: frameW, height: frameH }]}>
-                      <Image source={selectedOutfit.image} style={styles.modalFrameImage} resizeMode="cover" />
+                      <Image source={selectedOutfit.image} style={styles.modalFrameImage} resizeMode="contain" />
                     </View>
                   </View>
 
@@ -643,7 +643,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   vcCardImage: {
     width: '100%',
@@ -683,7 +683,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: 'rgba(207, 143, 90, 0.5)',
-    backgroundColor: '#fff',
+    backgroundColor: '#F8F6F3',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,

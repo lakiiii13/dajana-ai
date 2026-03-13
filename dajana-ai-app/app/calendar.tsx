@@ -11,19 +11,15 @@ import {
   TouchableOpacity,
   ScrollView,
   useWindowDimensions,
-  Image,
-  Modal,
-  FlatList,
-  Alert,
 } from 'react-native';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
-import { t, getLanguage } from '@/lib/i18n';
+import { t } from '@/lib/i18n';
 import { AppLogo } from '@/components/AppLogo';
-import { getSavedOutfits, deleteOutfitComposition, SavedOutfit } from '@/lib/tryOnService';
+import { getSavedOutfits, SavedOutfit } from '@/lib/tryOnService';
 
 const CALENDAR_PALETTE = {
   background: '#FDF8F3',
@@ -91,8 +87,6 @@ export default function CalendarScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const [current, setCurrent] = useState(() => ({ year: new Date().getFullYear(), month: new Date().getMonth() }));
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
 
   const horizontalPadding = SPACING.lg * 2;
   const gridWidth = screenWidth - horizontalPadding;
@@ -152,42 +146,11 @@ export default function CalendarScreen() {
     const key = dateKey(cell.date);
     const dayOutfits = outfitsByDate[key];
     if (dayOutfits && dayOutfits.length > 0) {
-      setSelectedDay(key);
-      setModalVisible(true);
+      router.push({ pathname: '/calendar-day', params: { date: key } } as any);
     } else {
-      // No outfits — go to capsule to create one
       router.push('/(tabs)/capsule');
     }
   };
-
-  const handleDeleteOutfit = (outfit: SavedOutfit) => {
-    Alert.alert(t('calendar.delete_title'), t('calendar.delete_question'), [
-      { text: t('cancel'), style: 'cancel' },
-      {
-        text: t('delete'),
-        style: 'destructive',
-        onPress: async () => {
-          await deleteOutfitComposition(outfit.id);
-          await loadOutfits();
-          // Close modal if no more outfits for that day
-          if (selectedDay) {
-            const remaining = (outfitsByDate[selectedDay] || []).filter((o) => o.id !== outfit.id);
-            if (remaining.length === 0) setModalVisible(false);
-          }
-        },
-      },
-    ]);
-  };
-
-  const selectedDayOutfits = selectedDay ? outfitsByDate[selectedDay] || [] : [];
-
-  // Format selected day for display
-  const selectedDayLabel = selectedDay
-    ? (() => {
-        const parts = selectedDay.split('-');
-        return `${parts[2]}.${parts[1]}.${parts[0]}`;
-      })()
-    : '';
 
   return (
     <View style={[styles.container, { backgroundColor: CALENDAR_PALETTE.background }]}>
@@ -248,16 +211,7 @@ export default function CalendarScreen() {
               const key = dateKey(cell.date);
               const dayOutfits = outfitsByDate[key] || [];
               const hasOutfit = dayOutfits.length > 0;
-              // Collect ALL unique item images from ALL outfits for this day
-              const allItemImages: string[] = [];
-              for (const outfit of dayOutfits) {
-                for (const item of outfit.items) {
-                  if (item.imageUrl && !allItemImages.includes(item.imageUrl)) {
-                    allItemImages.push(item.imageUrl);
-                  }
-                }
-              }
-              const showImages = allItemImages.slice(0, 3);
+              const outfitCountLabel = dayOutfits.length > 9 ? '9+' : String(dayOutfits.length);
 
               return (
                 <TouchableOpacity
@@ -283,34 +237,21 @@ export default function CalendarScreen() {
                     {cell.day}
                   </Text>
 
-                  {hasOutfit && showImages.length > 0 ? (
-                    /* Outfit thumbnails — show all items */
-                    <View style={styles.cellThumbRow}>
-                      {showImages.length === 1 ? (
-                        <Image source={{ uri: showImages[0] }} style={styles.cellThumbSingle} resizeMode="cover" />
-                      ) : (
-                        showImages.map((url, idx) => (
-                          <Image
-                            key={idx}
-                            source={{ uri: url }}
-                            style={[
-                              styles.cellThumbMulti,
-                              idx > 0 && { marginLeft: -6 },
-                            ]}
-                            resizeMode="cover"
-                          />
-                        ))
-                      )}
-                      {allItemImages.length > 3 && (
-                        <View style={[styles.cellThumbMore, { marginLeft: -6 }]}>
-                          <Text style={styles.cellThumbMoreText}>+{allItemImages.length - 3}</Text>
-                        </View>
-                      )}
-                      {dayOutfits.length > 1 && (
-                        <View style={styles.cellOutfitBadge}>
-                          <Text style={styles.cellOutfitBadgeText}>{dayOutfits.length}</Text>
-                        </View>
-                      )}
+                  {hasOutfit ? (
+                    <View style={styles.countWrap}>
+                      <View
+                        style={[
+                          styles.countBadge,
+                          today && styles.countBadgeToday,
+                        ]}
+                      >
+                        <Text style={[styles.countBadgeText, today && styles.countBadgeTextToday]}>
+                          {outfitCountLabel}
+                        </Text>
+                      </View>
+                      <Text style={styles.countLabel} numberOfLines={1}>
+                        {dayOutfits.length === 1 ? t('calendar.outfit_one') : t('calendar.outfit_many')}
+                      </Text>
                     </View>
                   ) : (
                     <View
@@ -333,83 +274,6 @@ export default function CalendarScreen() {
         ))}
       </View>
     </ScrollView>
-
-    {/* Day Detail Modal — shows outfits for selected day */}
-    <Modal visible={modalVisible} transparent animationType="slide" onRequestClose={() => setModalVisible(false)}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 20 }]}>
-          {/* Modal header */}
-          <View style={styles.modalHandle} />
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Outfiti za {selectedDayLabel}</Text>
-            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
-              <Ionicons name="close" size={24} color={CALENDAR_PALETTE.black} />
-            </TouchableOpacity>
-          </View>
-
-          <Text style={styles.modalSubtitle}>
-            {selectedDayOutfits.length} {selectedDayOutfits.length === 1 ? t('calendar.outfit_one') : t('calendar.outfit_many')}
-          </Text>
-
-          {/* Outfit list */}
-          <FlatList
-            data={selectedDayOutfits}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.modalList}
-            renderItem={({ item: outfit }) => (
-              <View style={styles.modalOutfitCard}>
-                {/* Item images in a row */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalItemImages}>
-                  {outfit.items.map((outfitItem) => (
-                    <Image
-                      key={outfitItem.id}
-                      source={{ uri: outfitItem.imageUrl }}
-                      style={styles.modalItemImage}
-                      resizeMode="cover"
-                    />
-                  ))}
-                </ScrollView>
-
-                {/* Info row */}
-                <View style={styles.modalOutfitInfo}>
-                  <View style={styles.modalOutfitMeta}>
-                    <View style={styles.modalItemBadge}>
-                      <Ionicons name="shirt-outline" size={12} color={CALENDAR_PALETTE.gold} />
-                      <Text style={styles.modalItemBadgeText}>
-                        {outfit.items.length} {outfit.items.length === 1 ? 'komad' : 'komada'}
-                      </Text>
-                    </View>
-                    {outfit.items.map((i) => i.title).filter(Boolean).length > 0 && (
-                      <Text style={styles.modalItemTitles} numberOfLines={1}>
-                        {outfit.items.map((i) => i.title).filter(Boolean).join(' + ')}
-                      </Text>
-                    )}
-                  </View>
-                  <TouchableOpacity
-                    style={styles.modalDeleteBtn}
-                    onPress={() => handleDeleteOutfit(outfit)}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#D44" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          />
-
-          {/* Add more button */}
-          <TouchableOpacity
-            style={styles.modalAddBtn}
-            onPress={() => {
-              setModalVisible(false);
-              router.push('/(tabs)/capsule');
-            }}
-          >
-            <Feather name="plus" size={18} color={CALENDAR_PALETTE.surface} />
-            <Text style={styles.modalAddBtnText}>{t('calendar.add_new')}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
     </View>
   );
 }
@@ -509,58 +373,38 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     marginLeft: 2,
   },
-  cellThumbRow: {
-    flexDirection: 'row',
+  countWrap: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
-  cellThumbSingle: {
-    width: 36,
-    height: 40,
-    borderRadius: 6,
-    backgroundColor: CALENDAR_PALETTE.cream,
-  },
-  cellThumbMulti: {
-    width: 22,
-    height: 30,
-    borderRadius: 5,
-    backgroundColor: CALENDAR_PALETTE.cream,
-    borderWidth: 1.5,
-    borderColor: '#FFF',
-  },
-  cellThumbMore: {
-    width: 22,
-    height: 30,
-    borderRadius: 5,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+  countBadge: {
+    minWidth: 34,
+    height: 34,
+    paddingHorizontal: 8,
+    borderRadius: 17,
+    backgroundColor: CALENDAR_PALETTE.goldLight,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
   },
-  cellThumbMoreText: {
-    fontFamily: FONTS.primary.bold,
-    fontSize: 9,
-    color: '#FFF',
-  },
-  cellOutfitBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -6,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+  countBadgeToday: {
     backgroundColor: CALENDAR_PALETTE.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
   },
-  cellOutfitBadgeText: {
+  countBadgeText: {
     fontFamily: FONTS.primary.bold,
-    fontSize: 8,
-    color: '#FFF',
+    fontSize: 14,
+    color: CALENDAR_PALETTE.black,
+  },
+  countBadgeTextToday: {
+    color: CALENDAR_PALETTE.surface,
+  },
+  countLabel: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 9,
+    color: CALENDAR_PALETTE.gray,
+    marginTop: 4,
+    alignItems: 'center',
+    textAlign: 'center',
   },
   plusWrap: {
     width: 28,
@@ -570,125 +414,5 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'center',
     backgroundColor: CALENDAR_PALETTE.goldLight,
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: CALENDAR_PALETTE.surface,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingTop: 12,
-    maxHeight: '75%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: CALENDAR_PALETTE.border,
-    alignSelf: 'center',
-    marginBottom: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-  },
-  modalTitle: {
-    fontFamily: FONTS.heading.bold,
-    fontSize: FONT_SIZES.lg,
-    color: CALENDAR_PALETTE.black,
-  },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: CALENDAR_PALETTE.cream,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalSubtitle: {
-    fontFamily: FONTS.primary.regular,
-    fontSize: FONT_SIZES.sm,
-    color: CALENDAR_PALETTE.gray,
-    paddingHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  modalList: {
-    paddingHorizontal: 20,
-    gap: 14,
-  },
-  modalOutfitCard: {
-    backgroundColor: CALENDAR_PALETTE.cream,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  modalItemImages: {
-    flexDirection: 'row',
-    gap: 3,
-    paddingHorizontal: 4,
-    paddingTop: 4,
-  },
-  modalItemImage: {
-    width: 130,
-    height: 160,
-    borderRadius: 10,
-    backgroundColor: CALENDAR_PALETTE.border,
-  },
-  modalOutfitInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  modalOutfitMeta: {
-    flex: 1,
-    gap: 3,
-  },
-  modalItemBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  modalItemBadgeText: {
-    fontFamily: FONTS.primary.semibold,
-    fontSize: 12,
-    color: CALENDAR_PALETTE.gold,
-  },
-  modalItemTitles: {
-    fontFamily: FONTS.primary.regular,
-    fontSize: 12,
-    color: CALENDAR_PALETTE.gray,
-  },
-  modalDeleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: CALENDAR_PALETTE.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalAddBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 20,
-    marginTop: 16,
-    paddingVertical: 14,
-    backgroundColor: CALENDAR_PALETTE.selfieTab,
-    borderRadius: 14,
-    gap: 8,
-  },
-  modalAddBtnText: {
-    fontFamily: FONTS.primary.semibold,
-    fontSize: FONT_SIZES.sm,
-    color: CALENDAR_PALETTE.surface,
   },
 });

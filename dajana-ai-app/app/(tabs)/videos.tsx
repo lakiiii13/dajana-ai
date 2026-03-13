@@ -107,7 +107,8 @@ export default function VideosScreen() {
   };
 
   const handleNewVideo = () => {
-    router.push('/video-generate' as any);
+    useVideoStore.getState().resetGeneration();
+    router.push('/video-generate/source' as any);
   };
 
   const handleOpenVideo = (vid: SavedVideo) => {
@@ -134,8 +135,9 @@ export default function VideosScreen() {
   const videoCount = savedVideos.length;
 
   const handleImagePress = (img: SavedTryOnImage) => {
+    useVideoStore.getState().resetGeneration();
     useVideoStore.getState().setSource(img.uri);
-    router.push('/video-generate' as any);
+    router.push('/video-generate/source' as any);
   };
 
   const BTN_HEIGHT_APPROX = 38;
@@ -161,7 +163,7 @@ export default function VideosScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesBoxScroll}>
                 {images.slice(0, 8).map((img, idx) => (
                   <TouchableOpacity key={img.uri + idx} activeOpacity={0.9} onPress={() => handleImagePress(img)} style={styles.imagesBoxThumb}>
-                    <Image source={{ uri: img.uri }} style={styles.imagesBoxThumbImg} resizeMode="cover" />
+                    <Image source={{ uri: img.uri }} style={styles.imagesBoxThumbImg} resizeMode="contain" />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -303,7 +305,7 @@ const styles = StyleSheet.create({
   curveLineWrap: { position: 'absolute' },
   imagesBox: { borderRadius: 16, overflow: 'hidden', borderWidth: 1.5, borderColor: LINE_COLOR, backgroundColor: PASSEPARTOUT },
   imagesBoxScroll: { padding: 10, gap: 10, flexDirection: 'row', alignItems: 'center', flexGrow: 1 },
-  imagesBoxThumb: { width: 72, height: 72, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.gray[100] },
+  imagesBoxThumb: { width: 72, height: 96, borderRadius: 10, overflow: 'hidden', backgroundColor: PASSEPARTOUT },
   imagesBoxThumbImg: { width: '100%', height: '100%' },
   imagesBoxPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.lg },
   imagesBoxPlaceholderText: { fontFamily: FONTS.heading.semibold, fontSize: FONT_SIZES.sm, color: DARK, letterSpacing: 0.3, marginTop: SPACING.sm },

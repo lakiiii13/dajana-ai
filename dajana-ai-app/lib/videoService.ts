@@ -138,9 +138,14 @@ export async function startVideoGeneration(
   }
 
   const edgeUrl = `${SUPABASE_URL}/functions/v1/video-start`;
-  // Zadrži lice i identitet osobe: naglasak na očuvanju detalja lica i sličnosti
+  // Zoom ka licu: kad korisnik izabere Zoom, šaljemo jasnu instrukciju za zoom na lice
+  const rawPrompt = prompt.trim();
+  const sceneMotion =
+    /^\s*zoom\s*$/i.test(rawPrompt) || /zoom\s*(ka\s*)?licu|zoom\s+to\s+face/i.test(rawPrompt)
+      ? 'Subject stands still while the camera performs a smooth, moderately slow zoom in toward the face'
+      : rawPrompt;
   const preserveFacePrompt =
-    `Preserve the person's face and identity exactly. Keep all facial features, skin tone, expression, and likeness identical to the source photo. The result must look like the same person. Scene or motion: ${prompt.trim()}`.trim();
+    `Preserve the person's face and identity exactly. Keep all facial features, skin tone, expression, and likeness identical to the source photo. The result must look like the same person. Scene or motion: ${sceneMotion}`.trim();
   const body = JSON.stringify({ image: publicUrl, prompt: preserveFacePrompt, time: duration });
   let lastErrMsg = '';
 
@@ -307,7 +312,8 @@ export async function saveVideo(
   let list: SavedVideo[] = [];
   try {
     const raw = await FileSystem.readAsStringAsync(metaPath);
-    list = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    list = Array.isArray(parsed) ? parsed : [];
   } catch {}
   list.unshift(saved);
   await FileSystem.writeAsStringAsync(metaPath, JSON.stringify(list));
@@ -325,7 +331,8 @@ export async function getSavedVideos(): Promise<SavedVideo[]> {
       return [];
     }
     const raw = await FileSystem.readAsStringAsync(metaPath);
-    const list = JSON.parse(raw) as SavedVideo[];
+    const parsed = JSON.parse(raw);
+    const list = Array.isArray(parsed) ? parsed as SavedVideo[] : [];
     console.log('[Video] Loaded', list.length, 'saved videos');
     return list;
   } catch (e) {
@@ -339,7 +346,8 @@ export async function deleteSavedVideo(id: string): Promise<void> {
   let list: SavedVideo[] = [];
   try {
     const raw = await FileSystem.readAsStringAsync(metaPath);
-    list = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    list = Array.isArray(parsed) ? parsed : [];
   } catch {}
   const vid = list.find((v) => v.id === id);
   if (vid) {
@@ -357,7 +365,8 @@ export async function clearAllLocalVideos(): Promise<void> {
   let list: SavedVideo[] = [];
   try {
     const raw = await FileSystem.readAsStringAsync(metaPath);
-    list = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    list = Array.isArray(parsed) ? parsed : [];
   } catch {}
   for (const v of list) {
     try {

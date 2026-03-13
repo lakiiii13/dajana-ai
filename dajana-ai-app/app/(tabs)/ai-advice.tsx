@@ -20,6 +20,7 @@ import {
   Dimensions,
   ScrollView,
   Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AnimatedReanimated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
@@ -29,7 +30,7 @@ import * as FileSystem from '@/lib/safeFileSystem';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
-import { getStyleAdvice, continueConversation, AdvisorMessage } from '@/lib/aiAdvisorService';
+import { getStyleAdvice, continueConversation, generateChatTitle, AdvisorMessage } from '@/lib/aiAdvisorService';
 import { hasAnalysisCredits, deductAnalysisCredit } from '@/lib/creditService';
 import { getSavedTryOnImages, SavedTryOnImage } from '@/lib/tryOnService';
 import { t, getLanguage } from '@/lib/i18n';
@@ -38,6 +39,7 @@ import {
   saveAdviceChat,
   buildSavedChat,
   titleFromMessages,
+  deleteAdviceChat,
   type SavedAdviceChat,
 } from '@/lib/adviceChatStorage';
 
@@ -205,6 +207,10 @@ content: t('ai_advice.no_credits_message'),
       };
       setMessages((prev) => [...prev, assistantMsg]);
 
+      generateChatTitle(userMsg.content, advice).then((title) => {
+        if (title) setCurrentChatTitle(title);
+      });
+
       // Store conversation history for follow-ups
       setConversationHistory([
         {
@@ -282,7 +288,16 @@ content: t('ai_advice.no_credits_message'),
         content: reply,
         timestamp: new Date(),
       };
-      setMessages((prev) => [...prev, assistantMsg]);
+      setMessages((prev) => {
+        const next = [...prev, assistantMsg];
+        const wasFirstExchange = prev.length === 1;
+        if (wasFirstExchange) {
+          generateChatTitle(prev[0].content, reply).then((title) => {
+            if (title) setCurrentChatTitle(title);
+          });
+        }
+        return next;
+      });
 
       // Update conversation history
       setConversationHistory((prev) => [
@@ -306,7 +321,7 @@ content: t('ai_advice.no_credits_message'),
   const handleNewChat = async () => {
     if (messages.length > 0) {
       const id = currentChatId || `chat-${Date.now()}`;
-      const title = currentChatTitle || titleFromMessages(messages);
+      const title = currentChatTitle || `Outfit ${savedChats.length + 1}`;
       const chat = buildSavedChat(id, messages, conversationHistory);
       const toSave: SavedAdviceChat = { ...chat, id, title };
       await saveAdviceChat(toSave);
@@ -320,12 +335,41 @@ content: t('ai_advice.no_credits_message'),
     setCurrentChatTitle('');
   };
 
+  const handleDeleteChat = useCallback(
+    (chat: SavedAdviceChat) => {
+      Alert.alert(
+        t('ai_advice.delete_chat_title'),
+        t('ai_advice.delete_chat_message'),
+        [
+          { text: t('cancel') || 'Otkaži', style: 'cancel' },
+          {
+            text: t('ai_advice.delete_chat_confirm') || 'Obriši',
+            style: 'destructive',
+            onPress: async () => {
+              await deleteAdviceChat(chat.id);
+              setSavedChats((prev) => prev.filter((c) => c.id !== chat.id));
+              if (currentChatId === chat.id) {
+                setMessages([]);
+                setConversationHistory([]);
+                setCurrentImageBase64(null);
+                setSelectedImage(null);
+                setCurrentChatId(null);
+                setCurrentChatTitle('');
+              }
+            },
+          },
+        ]
+      );
+    },
+    [currentChatId]
+  );
+
   const handleOpenChat = (chat: SavedAdviceChat) => {
     setShowChatListModal(false);
     setCurrentChatId(chat.id);
     setCurrentChatTitle(chat.title);
     setMessages(
-      chat.messages.map((m) => ({
+      (chat.messages ?? []).map((m) => ({
         id: `${m.role}-${m.timestamp}-${Math.random()}`,
         role: m.role,
         content: m.content,
@@ -334,7 +378,7 @@ content: t('ai_advice.no_credits_message'),
       }))
     );
     setConversationHistory(
-      chat.conversationHistoryText.map((m) => ({ role: m.role, content: m.content }))
+      (chat.conversationHistoryText ?? []).map((m) => ({ role: m.role, content: m.content }))
     );
     setCurrentImageBase64(null);
     setSelectedImage(null);
@@ -443,7 +487,7 @@ content: t('ai_advice.no_credits_message'),
         <View style={[styles.modalContent, { backgroundColor: CHAT_BG }]}>
           {/* Modal header */}
           <View style={[styles.modalHeader, { borderBottomColor: CHAT_BORDER }]}>
-            <Text style={[styles.modalTitle, { color: CHAT_DARK }]}>{t('ai_advice.modal_title')}</Text>
+            <Text style={[styles.modalTitle, { color: CHAT_DARK }]} numberOfLines={1} ellipsizeMode="tail">{t('ai_advice.modal_title')}</Text>
             <TouchableOpacity onPress={() => setShowImagePicker(false)} style={[styles.modalCloseBtn, { backgroundColor: CHAT_CARD, borderWidth: 1, borderColor: CHAT_BORDER }]}>
               <Ionicons name="close" size={20} color={CHAT_DARK} />
             </TouchableOpacity>
@@ -537,7 +581,7 @@ content: t('ai_advice.no_credits_message'),
                 <Image source={CHAT_LOGO} style={styles.headerLogoImg} resizeMode="contain" />
               </View>
               <Text style={[styles.headerName, { color: CHAT_DARK }]} numberOfLines={1} ellipsizeMode="tail">
-                {currentChatTitle || 'Novi razgovor'}
+                {currentChatTitle || 'Outfit 1'}
               </Text>
             </View>
             <View style={styles.headerRight}>
@@ -638,7 +682,7 @@ content: t('ai_advice.no_credits_message'),
         <View style={styles.modalOverlay}>
           <View style={[styles.chatListModal, { backgroundColor: CHAT_BG }]}>
             <View style={[styles.modalHeader, { borderBottomColor: CHAT_BORDER }]}>
-              <Text style={[styles.modalTitle, { color: CHAT_DARK }]}>{t('ai_advice.chat_list_title')}</Text>
+              <Text style={[styles.modalTitle, { color: CHAT_DARK }]} numberOfLines={1} ellipsizeMode="tail">{t('ai_advice.chat_list_title')}</Text>
               <TouchableOpacity onPress={() => setShowChatListModal(false)} style={[styles.modalCloseBtn, { backgroundColor: CHAT_CARD, borderWidth: 1, borderColor: CHAT_BORDER }]}>
                 <Ionicons name="close" size={20} color={CHAT_DARK} />
               </TouchableOpacity>
@@ -648,17 +692,21 @@ content: t('ai_advice.no_credits_message'),
                 <Text style={[styles.chatListEmpty, { color: '#6B6560' }]}>{t('ai_advice.chat_list_empty')}</Text>
               ) : (
                 savedChats.map((chat) => (
-                  <TouchableOpacity
-                    key={chat.id}
-                    style={[styles.chatListItem, { backgroundColor: CHAT_CARD, borderColor: CHAT_BORDER }]}
-                    onPress={() => handleOpenChat(chat)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.chatListItemTitle, { color: CHAT_DARK }]} numberOfLines={1}>{chat.title}</Text>
-                    <Text style={[styles.chatListItemDate, { color: '#9B9590' }]}>
-                      {new Date(chat.createdAt).toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'sr-RS', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </Text>
-                  </TouchableOpacity>
+                  <View key={chat.id} style={[styles.chatListItem, { backgroundColor: CHAT_CARD, borderColor: CHAT_BORDER }]}>
+                    <TouchableOpacity style={styles.chatListItemContent} onPress={() => handleOpenChat(chat)} activeOpacity={0.8}>
+                      <Text style={[styles.chatListItemTitle, { color: CHAT_DARK }]} numberOfLines={1}>{chat.title}</Text>
+                      <Text style={[styles.chatListItemDate, { color: '#9B9590' }]}>
+                        {new Date(chat.createdAt).toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'sr-RS', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.chatListItemDelete, { backgroundColor: `${COLORS.error}12` }]}
+                      onPress={() => handleDeleteChat(chat)}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="trash-outline" size={18} color={COLORS.error} />
+                    </TouchableOpacity>
+                  </View>
                 ))
               )}
             </ScrollView>
@@ -707,8 +755,9 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
+    minWidth: 0,
   },
   headerAvatar: {
     width: 40,
@@ -724,9 +773,11 @@ const styles = StyleSheet.create({
     height: 28,
   },
   headerName: {
-    fontFamily: FONTS.heading.bold,
-    fontSize: 20,
-    letterSpacing: 0.5,
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.sm,
+    letterSpacing: 0.3,
+    flex: 1,
+    minWidth: 0,
   },
   headerRight: {
     flexDirection: 'row',
@@ -972,11 +1023,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.md,
     borderBottomWidth: 1,
+    gap: SPACING.sm,
   },
   modalTitle: {
-    fontFamily: FONTS.heading.semibold,
-    fontSize: FONT_SIZES.lg,
+    fontFamily: FONTS.primary.semibold,
+    fontSize: FONT_SIZES.sm,
     letterSpacing: 0.3,
+    flex: 1,
+    minWidth: 0,
   },
   modalCloseBtn: {
     width: 32,
@@ -1003,14 +1057,26 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.xl,
   },
   chatListItem: {
-    padding: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: BORDER_RADIUS.lg,
     borderWidth: 1,
     marginBottom: SPACING.sm,
+    overflow: 'hidden',
+  },
+  chatListItemContent: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+  chatListItemDelete: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chatListItemTitle: {
     fontFamily: FONTS.primary.semibold,
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.sm,
     marginBottom: 4,
   },
   chatListItemDate: {

@@ -98,7 +98,7 @@ export default function CapsuleScreen() {
     setError(null);
     try {
       const data = await fetchOutfits(filters, user?.id);
-      setOutfits(data);
+      setOutfits(data ?? []);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError(t('capsule.error_load'));
@@ -115,7 +115,7 @@ export default function CapsuleScreen() {
     setError(null);
     try {
       const data = await fetchSavedOutfits(user.id);
-      setSavedOutfits(data);
+      setSavedOutfits(data ?? []);
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError(t('capsule.error_load'));
@@ -154,7 +154,7 @@ export default function CapsuleScreen() {
     setUseMySeason(false);
   };
   const hasActiveFilters = activeCategory !== 'all' || useMyBodyType || useMySeason;
-  const displayOutfits = activeTab === 'browse' ? outfits : savedOutfits.map((o) => ({ ...o, is_saved: true }));
+  const displayOutfits = activeTab === 'browse' ? (outfits ?? []) : (savedOutfits ?? []).map((o) => ({ ...o, is_saved: true }));
 
   const pillPosition = useSharedValue(activeTab === 'saved' ? 1 : 0);
   useEffect(() => {
@@ -344,6 +344,13 @@ export default function CapsuleScreen() {
           columnWrapperStyle={styles.row}
           contentContainerStyle={styles.gridContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            <View style={styles.gridHeader}>
+              <View style={styles.gridHeaderLine} />
+              <Text style={styles.gridHeaderText}>{t('capsule.outfits_for_you')}</Text>
+              <View style={styles.gridHeaderLine} />
+            </View>
+          }
           ListEmptyComponent={renderEmptyState}
           refreshControl={
             <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={CAPSULE_GOLD} />
@@ -479,6 +486,20 @@ const styles = StyleSheet.create({
   modalRowActive: { backgroundColor: CAPSULE_GOLD + '14' },
   modalRowText: { flex: 1, fontFamily: FONTS.primary.medium, fontSize: FONT_SIZES.md, color: CAPSULE_TEXT },
   modalRowTextActive: { color: CAPSULE_GOLD },
+  gridHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+  },
+  gridHeaderLine: { flex: 1, height: 1, backgroundColor: 'rgba(207,143,90,0.25)' },
+  gridHeaderText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.sm,
+    color: CAPSULE_TEXT,
+    marginHorizontal: SPACING.md,
+    textAlign: 'center',
+  },
   gridContent: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: 120 },
   row: { justifyContent: 'space-between', gap: GAP, marginBottom: 0 },
   scrollContent: { flexGrow: 1 },

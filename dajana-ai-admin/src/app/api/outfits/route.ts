@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await supabase
       .from("outfits")
+      // @ts-ignore - Supabase client infers never for insert
       .insert({
         title: title || null,
         description: description || null,

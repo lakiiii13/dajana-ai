@@ -286,7 +286,6 @@ const styles = StyleSheet.create({
   dajanaText: {
     fontSize: 56,
     fontFamily: FONTS.heading.bold,
-    fontWeight: '800',
     color: COLORS.white,
     letterSpacing: 6,
     textAlign: 'center',
@@ -296,8 +295,7 @@ const styles = StyleSheet.create({
   },
   aiText: {
     fontSize: 36,
-    fontFamily: FONTS.heading.bold,
-    fontWeight: '700',
+    fontFamily: FONTS.heading.semibold,
     color: COLORS.primary,
     letterSpacing: 4,
     marginLeft: SPACING.sm,

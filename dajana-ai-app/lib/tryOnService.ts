@@ -114,8 +114,11 @@ export async function generateTryOn(
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token ?? '';
       const edgeUrl = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/generate-try-on`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min za generisanje
       const edgeRes = await fetch(edgeUrl, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -128,6 +131,7 @@ export async function generateTryOn(
           items: items.map((i) => ({ title: i.title })),
         }),
       });
+      clearTimeout(timeoutId);
       const edgeJson = await edgeRes.json().catch(() => ({}));
       if (edgeRes.ok && edgeJson.imageBase64) {
         console.log('[TryOn] Image from Edge Function');
@@ -159,6 +163,16 @@ export async function generateTryOn(
         throw new Error(typeof edgeJson?.error === 'string' ? edgeJson.error : `Greška (${edgeRes.status}). Pokušajte ponovo.`);
       }
     } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      const isAbort = err?.name === 'AbortError';
+      if (isAbort) {
+        throw new Error('Zahtev je istekao. Generisanje traje dugo – pokušajte ponovo.');
+      }
+      if (msg === 'Network request failed' || (typeof msg === 'string' && msg.includes('Network request failed'))) {
+        throw new Error(
+          'Nema konekcije sa serverom. Proverite internet, .env (EXPO_PUBLIC_SUPABASE_URL) i da li je Edge Function generate-try-on deploy-ovan.'
+        );
+      }
       if (err?.message) throw err;
       throw new Error('Generisanje nije uspelo. Proverite konekciju i pokušajte ponovo.');
     }
@@ -185,15 +199,29 @@ I'm sending you two images:
 
 Your task: Generate a new, high-quality, photorealistic image of the SAME person from the first photo wearing the outfit from the second photo. 
 
-CRITICAL – preserve identity and likeness:
-- Keep the person's face identical: same facial features, skin tone, expression, eyes, nose, mouth, and bone structure
-- The result must be unmistakably the same person as in the first photo
-- Preserve hair color, style, and all personal details
+CRITICAL IDENTITY RULES:
+- The face must remain exactly the same person as in the source image
+- Do not change facial structure, face shape, eyes, eyelids, eyebrows, nose, lips, jawline, cheekbones, forehead, ears, or chin
+- Keep the exact same skin tone, undertone, facial proportions, eye spacing, nose width, lip shape, and bone structure
+- Preserve the exact same hair color, hairstyle, hairline, and all visible personal details
+- Do not beautify, retouch, glamorize, age up, age down, or make the person look like someone else
+- Do not change makeup style unless it already exists in the source image
+- The result must be unmistakably the same person on first glance
+
+BODY AND STYLING RULES:
 - Keep body proportions exactly the same
-- The outfit should fit naturally on the person's body
+- The outfit should fit naturally and realistically on the person's body
+- Preserve a realistic pose and natural garment drape
+- Keep the person fully inside the frame
+- Full body shot showing the complete outfit
+
+IMAGE QUALITY RULES:
 - Maintain natural lighting and realistic shadows
-- Clean, elegant background (soft neutral/fashion studio style)
-- Full body shot showing the complete outfit; professional fashion photo quality
+- Keep the composition clean, elegant, and photorealistic
+- Background should stay simple, neutral, and non-distracting
+- Do not add extra accessories, props, extra limbs, extra fingers, or distorted anatomy
+- Do not crop out the face or any important body part
+- The final result should look like a premium professional fashion photo
 
 Generate the image now.`;
   }
@@ -214,16 +242,29 @@ ${itemDescriptions}
 
 Your task: Generate a new, high-quality, photorealistic image of the SAME person from the first photo wearing ALL the clothing items from the other images COMBINED as a single outfit.
 
-CRITICAL – preserve identity and likeness:
-- Keep the person's face identical: same facial features, skin tone, expression, eyes, nose, mouth, and bone structure
-- The result must be unmistakably the same person as in the first photo
-- Preserve hair color, style, and all personal details
+CRITICAL IDENTITY RULES:
+- The face must remain exactly the same person as in the source image
+- Do not change facial structure, face shape, eyes, eyelids, eyebrows, nose, lips, jawline, cheekbones, forehead, ears, or chin
+- Keep the exact same skin tone, undertone, facial proportions, eye spacing, nose width, lip shape, and bone structure
+- Preserve the exact same hair color, hairstyle, hairline, and all visible personal details
+- Do not beautify, retouch, glamorize, age up, age down, or make the person look like someone else
+- Do not change makeup style unless it already exists in the source image
+- The result must be unmistakably the same person on first glance
+
+BODY AND STYLING RULES:
 - Keep body proportions exactly the same
 - Combine all the clothing items into one cohesive outfit on the person
 - Each clothing piece should fit naturally on the appropriate body part
+- Keep the person fully inside the frame
+- Full body shot showing the complete combined outfit
+
+IMAGE QUALITY RULES:
 - Maintain natural lighting and realistic shadows
-- Clean, elegant background (soft neutral/fashion studio style)
-- Full body shot showing the complete combined outfit; professional fashion photo quality
+- Keep the composition clean, elegant, and photorealistic
+- Background should stay simple, neutral, and non-distracting
+- Do not add extra accessories, props, extra limbs, extra fingers, or distorted anatomy
+- Do not crop out the face or any important body part
+- The final result should look like a premium professional fashion photo
 
 Generate the image now.`;
 }
@@ -340,6 +381,8 @@ export interface SavedOutfitItem {
   id: string;
   imageUrl: string;
   title: string | null;
+  /** Zona iz Kapsule (top, outerwear, …) – za thumbnail prikaz „gornji deo koji je izabrala” */
+  zoneId?: string;
 }
 
 export interface SavedOutfit {
@@ -394,8 +437,11 @@ export async function getSavedOutfits(): Promise<SavedOutfit[]> {
     const raw = await FileSystem.readAsStringAsync(OUTFITS_INDEX, {
       encoding: FileSystem.EncodingType.UTF8,
     });
-    const data = JSON.parse(raw) as SavedOutfit[];
-    return data.sort((a, b) => b.timestamp - a.timestamp);
+    const parsed = JSON.parse(raw);
+    const data = Array.isArray(parsed) ? parsed as SavedOutfit[] : [];
+    return data
+      .filter((o): o is SavedOutfit => o != null && Array.isArray(o.items))
+      .sort((a, b) => b.timestamp - a.timestamp);
   } catch (err) {
     console.error('[Outfits] Error loading:', err);
     return [];

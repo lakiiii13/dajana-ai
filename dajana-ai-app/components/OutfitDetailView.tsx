@@ -94,8 +94,8 @@ export default function OutfitDetailView({
     }
   };
 
-  const itemCount = useTryOnStore((s) => s.outfitItems.length);
-  const isInOutfit = useTryOnStore((s) => s.outfitItems.some((i) => i.id === outfitId));
+  const itemCount = useTryOnStore((s) => (s.outfitItems ?? []).length);
+  const isInOutfit = useTryOnStore((s) => (s.outfitItems ?? []).some((i) => i.id === outfitId));
 
   const handleAddToOutfit = () => {
     if (!outfit) return;

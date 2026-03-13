@@ -78,6 +78,7 @@ export default function VideoResultScreen() {
   };
 
   const handleTogglePlay = () => {
+    if (!player) return;
     if (isPlaying) {
       player.pause();
     } else {
@@ -126,12 +127,13 @@ export default function VideoResultScreen() {
 
   const handleNewVideo = () => {
     resetGeneration();
-    router.replace('/video-generate' as any);
+    router.replace('/video-generate/source' as any);
   };
 
   const handleGoHome = () => {
     resetGeneration();
-    router.replace('/(tabs)');
+    (router as any).dismissAll?.();
+    router.replace('/(tabs)' as any);
   };
 
   if (!resultVideoUrl) {
@@ -331,7 +333,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     gap: 18,
-    zIndex: 10,
+    zIndex: 8,
   },
   sideBtn: {
     alignItems: 'center',
@@ -369,7 +371,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
+    zIndex: 20,
   },
   bottomRowInner: {
     flexDirection: 'row',

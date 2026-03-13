@@ -43,13 +43,29 @@ I'm sending you two images:
 
 Your task: Generate a new, high-quality, photorealistic image of the SAME person from the first photo wearing the outfit from the second photo. 
 
-Requirements:
-- Keep the person's face, hair, and body proportions exactly the same
-- The outfit should fit naturally on the person's body
-- Maintain natural lighting and realistic shadows
-- The background should be clean and elegant (soft neutral/fashion studio style)
-- The generated image should look like a professional fashion photo
+CRITICAL IDENTITY RULES:
+- The face must remain exactly the same person as in the source image
+- Do not change facial structure, face shape, eyes, eyelids, eyebrows, nose, lips, jawline, cheekbones, forehead, ears, or chin
+- Keep the exact same skin tone, undertone, facial proportions, eye spacing, nose width, lip shape, and bone structure
+- Preserve the exact same hair color, hairstyle, hairline, and all visible personal details
+- Do not beautify, retouch, glamorize, age up, age down, or make the person look like someone else
+- Do not change makeup style unless it already exists in the source image
+- The result must be unmistakably the same person on first glance
+
+BODY AND STYLING RULES:
+- Keep body proportions exactly the same
+- The outfit should fit naturally and realistically on the person's body
+- Preserve a realistic pose and natural garment drape
+- Keep the person fully inside the frame
 - Full body shot showing the complete outfit
+
+IMAGE QUALITY RULES:
+- Maintain natural lighting and realistic shadows
+- Keep the composition clean, elegant, and photorealistic
+- Background should stay simple, neutral, and non-distracting
+- Do not add extra accessories, props, extra limbs, extra fingers, or distorted anatomy
+- Do not crop out the face or any important body part
+- The final result should look like a premium professional fashion photo
 
 Generate the image now.`;
   }
@@ -67,14 +83,29 @@ ${itemDescriptions}
 
 Your task: Generate a new, high-quality, photorealistic image of the SAME person from the first photo wearing ALL the clothing items from the other images COMBINED as a single outfit.
 
-Requirements:
-- Keep the person's face, hair, and body proportions exactly the same
+CRITICAL IDENTITY RULES:
+- The face must remain exactly the same person as in the source image
+- Do not change facial structure, face shape, eyes, eyelids, eyebrows, nose, lips, jawline, cheekbones, forehead, ears, or chin
+- Keep the exact same skin tone, undertone, facial proportions, eye spacing, nose width, lip shape, and bone structure
+- Preserve the exact same hair color, hairstyle, hairline, and all visible personal details
+- Do not beautify, retouch, glamorize, age up, age down, or make the person look like someone else
+- Do not change makeup style unless it already exists in the source image
+- The result must be unmistakably the same person on first glance
+
+BODY AND STYLING RULES:
+- Keep body proportions exactly the same
 - Combine all the clothing items into one cohesive outfit on the person
 - Each clothing piece should fit naturally on the appropriate body part
-- Maintain natural lighting and realistic shadows
-- The background should be clean and elegant (soft neutral/fashion studio style)
-- The generated image should look like a professional fashion photo
+- Keep the person fully inside the frame
 - Full body shot showing the complete combined outfit
+
+IMAGE QUALITY RULES:
+- Maintain natural lighting and realistic shadows
+- Keep the composition clean, elegant, and photorealistic
+- Background should stay simple, neutral, and non-distracting
+- Do not add extra accessories, props, extra limbs, extra fingers, or distorted anatomy
+- Do not crop out the face or any important body part
+- The final result should look like a premium professional fashion photo
 
 Generate the image now.`;
 }
@@ -132,8 +163,8 @@ Deno.serve(async (req: Request) => {
   const geminiBody = {
     contents: [{ parts: imageParts }],
     generationConfig: {
-      responseModalities: ["TEXT", "IMAGE"],
-      temperature: 1.0,
+      responseModalities: ["IMAGE"],
+      temperature: 0.4,
       imageConfig: { aspectRatio: "3:4", imageSize: "2K" },
     },
   };
@@ -202,6 +233,7 @@ Deno.serve(async (req: Request) => {
       }
 
       const parts = candidates[0].content?.parts ?? [];
+      const textParts = parts.map((part) => part.text).filter(Boolean).join(" ").trim();
       for (const part of parts) {
         if (part.inlineData?.data) {
           return new Response(
@@ -214,7 +246,11 @@ Deno.serve(async (req: Request) => {
         }
       }
       return new Response(
-        JSON.stringify({ error: "AI nije generisao sliku. Pokušajte ponovo." }),
+        JSON.stringify({
+          error: textParts
+            ? `AI nije generisao sliku. Odgovor modela: ${textParts.slice(0, 180)}`
+            : "AI nije generisao sliku. Pokušajte ponovo.",
+        }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (e: unknown) {

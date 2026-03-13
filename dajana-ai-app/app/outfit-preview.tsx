@@ -49,7 +49,7 @@ export default function OutfitPreviewScreen() {
       useVideoStore.getState().resetGeneration();
       useVideoStore.getState().setSource(outfitItems[0].imageUrl);
     }
-    router.push('/video-generate' as any);
+    router.push('/video-generate/source' as any);
   };
 
   if (outfitItems.length === 0) {

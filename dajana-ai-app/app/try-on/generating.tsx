@@ -82,12 +82,12 @@ export default function TryOnGeneratingScreen() {
     return () => p.stop();
   }, []);
 
-  // Stage cycling
+  // Stage cycling: samo 1 → 5, bez ponavljanja
   useEffect(() => {
     const interval = setInterval(() => {
       setStageIndex((prev) => {
-        const next = (prev + 1) % STAGES.length;
-        return next;
+        if (prev >= STAGES.length - 1) return prev;
+        return prev + 1;
       });
     }, STAGE_DURATION);
     return () => clearInterval(interval);
@@ -159,8 +159,9 @@ export default function TryOnGeneratingScreen() {
 
       await logImageGeneration(user.id, effectiveOutfitId ?? null, savedUri ?? null);
 
+      // Sačuvaj outfit sa tryOnImageUri → na Home ide u OUTFIT/Ormar sekciju (ne u Kapsula)
       const compositionItems = hasItems
-        ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title }))
+        ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title, zoneId: i.zoneId }))
         : [{ id: outfitId!, imageUrl: outfitImageUrl!, title: outfitTitle || null }];
       await saveOutfitComposition(compositionItems, savedUri).catch(() => {});
 

@@ -17,6 +17,7 @@ import {
   Dimensions,
   Animated,
   PanResponder,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
@@ -34,20 +35,20 @@ const TABLE_BG = require('@/assets/images/table-outfit3.jpg');
 type ZoneId = 'outerwear' | 'top' | 'accessory' | 'bottom' | 'bag' | 'shoes';
 
 const MIN_DIM = Math.min(SCREEN_W, SCREEN_H);
-// Kaput najveći – sve stane u njega; ostali komadi manji, u centru preko njega
-const OUTERWEAR_SIZE = Math.round(MIN_DIM * 0.78);
-const INNER_ITEM_SIZE = Math.round(MIN_DIM * 0.52);
-const BAG_SIZE = Math.round(MIN_DIM * 0.36);
-const ACCESSORY_SIZE = Math.round(MIN_DIM * 0.22);
+// Smanjene veličine da svi komadi stanu uredno na ekran bez preklapanja.
+const OUTERWEAR_SIZE = Math.round(MIN_DIM * 0.56);
+const INNER_ITEM_SIZE = Math.round(MIN_DIM * 0.38);
+const BAG_SIZE = Math.round(MIN_DIM * 0.21);
+const ACCESSORY_SIZE = Math.round(MIN_DIM * 0.14);
 
-// Jedna linija: kaput → gornji delovi → donji → obuća (sve centrirano, jedan ispod drugog)
+// Uredniji raspored: glavni komadi po sredini, aksesoari desno.
 const ZONE_POSITIONS: Record<ZoneId, { left: number; top: number }> = {
-  outerwear: { left: 0.5, top: 0.20 },   // kaput gore
-  top: { left: 0.5, top: 0.36 },        // gornji delovi (duks, majica)
-  accessory: { left: 0.87, top: 0.60 }, // sat naslonjen na ugao torbe
-  bottom: { left: 0.5, top: 0.52 },    // donji delovi (trenerka, suknja)
-  shoes: { left: 0.5, top: 0.68 },     // obuća dole
-  bag: { left: 0.82, top: 0.66 },      // tašna malo više udesno
+  outerwear: { left: 0.5, top: 0.16 },
+  top: { left: 0.5, top: 0.34 },
+  bottom: { left: 0.5, top: 0.54 },
+  shoes: { left: 0.5, top: 0.74 },
+  accessory: { left: 0.81, top: 0.46 },
+  bag: { left: 0.81, top: 0.67 },
 };
 
 function getItemSize(zoneId: ZoneId): number {
@@ -63,12 +64,11 @@ function getItemPosition(zoneId: ZoneId): { left: number; top: number } {
 
 function getZoneLabels(): { key: ZoneId; label: string }[] {
   return [
-    { key: 'outerwear', label: t('table_builder.zone_outerwear') },
-    { key: 'top', label: t('table_builder.zone_top') },
-    { key: 'bottom', label: t('table_builder.zone_bottom') },
-    { key: 'shoes', label: t('table_builder.zone_shoes') },
-    { key: 'accessory', label: t('table_builder.zone_accessory') },
-    { key: 'bag', label: t('table_builder.zone_bag') },
+    { key: 'outerwear', label: 'Kaput / Jakna' },
+    { key: 'top', label: 'Gornji delovi' },
+    { key: 'bottom', label: 'Donji deo' },
+    { key: 'shoes', label: 'Obuća' },
+    { key: 'accessory', label: 'Aksesoar' },
   ];
 }
 
@@ -88,50 +88,50 @@ let persistedTableItems: AddedEntry[] = [];
 let nextEntryId = 1;
 const TRASH_HIT_SLOP = 24;
 
-function getStackOffset(stackIndex: number): { x: number; y: number } {
-  if (stackIndex <= 0) return { x: 0, y: 0 };
-  const side = stackIndex % 2 === 0 ? -1 : 1;
-  const spread = Math.ceil(stackIndex / 2);
-  return {
-    x: side * spread * 56,
-    y: stackIndex * 52,
-  };
-}
+const ZONE_ORDER: ZoneId[] = ['outerwear', 'top', 'bottom', 'shoes', 'accessory', 'bag'];
+const TAP_THRESHOLD = 10;
 
-function DraggableItem({
-  entryId,
-  imageUrl,
+function ZoneStack({
   zoneId,
+  entries,
   left,
   top,
   size,
   isDragging,
   onDragStart,
   onDrop,
+  onPress,
 }: {
-  entryId: number;
-  imageUrl: string;
   zoneId: ZoneId;
+  entries: AddedEntry[];
   left: number;
   top: number;
   size: number;
   isDragging: boolean;
-  onDragStart: (id: number) => void;
-  onDrop: (id: number, moveX: number, moveY: number) => void;
+  onDragStart: (z: ZoneId) => void;
+  onDrop: (z: ZoneId, moveX: number, moveY: number) => void;
+  onPress: (z: ZoneId) => void;
 }) {
   const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const first = entries[0];
+  const count = entries.length;
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 2 || Math.abs(gesture.dy) > 2,
       onPanResponderGrant: () => {
-        onDragStart(entryId);
+        onDragStart(zoneId);
       },
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
         useNativeDriver: false,
       }),
       onPanResponderRelease: (_, gesture) => {
-        onDrop(entryId, gesture.moveX, gesture.moveY);
+        const isTap = Math.abs(gesture.dx) < TAP_THRESHOLD && Math.abs(gesture.dy) < TAP_THRESHOLD;
+        if (isTap) {
+          onPress(zoneId);
+        } else {
+          onDrop(zoneId, gesture.moveX, gesture.moveY);
+        }
         Animated.spring(pan, {
           toValue: { x: 0, y: 0 },
           useNativeDriver: true,
@@ -148,17 +148,41 @@ function DraggableItem({
     })
   ).current;
 
+  const zIndex = isDragging ? 99999 : 100 + ZONE_ORDER.indexOf(zoneId);
+  const transform = [
+    ...(zoneId === 'accessory' ? [{ rotate: '-14deg' as const }] : []),
+    ...pan.getTranslateTransform(),
+  ];
+
   return (
     <Animated.View
       {...panResponder.panHandlers}
       style={[
         styles.itemOnTable,
-        { left, top, width: size, height: size, zIndex: isDragging ? 99999 : entryId },
-        zoneId === 'accessory' && styles.accessoryTilt,
-        { transform: pan.getTranslateTransform() },
+        { left, top, width: size, height: size, zIndex, transform },
       ]}
     >
-      <Image source={{ uri: imageUrl }} style={styles.itemOnTableImage} resizeMode="contain" />
+      <Image source={{ uri: first.item.image_url }} style={styles.itemOnTableImage} resizeMode="contain" />
+      {count > 1 && (
+        <TouchableOpacity
+          style={[
+            styles.stackBadge,
+            (zoneId === 'accessory' || zoneId === 'bag') && styles.stackBadgeSmall,
+          ]}
+          onPress={() => onPress(zoneId)}
+          activeOpacity={0.85}
+          hitSlop={8}
+        >
+          <Text
+            style={[
+              styles.stackBadgeText,
+              (zoneId === 'accessory' || zoneId === 'bag') && styles.stackBadgeTextSmall,
+            ]}
+          >
+            {count}
+          </Text>
+        </TouchableOpacity>
+      )}
     </Animated.View>
   );
 }
@@ -171,7 +195,8 @@ export default function OutfitBuilderScreen() {
   const [activeSlot, setActiveSlot] = useState<ZoneId | null>(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
-  const [draggingEntryId, setDraggingEntryId] = useState<number | null>(null);
+  const [draggingZoneId, setDraggingZoneId] = useState<ZoneId | null>(null);
+  const [stackDetailZone, setStackDetailZone] = useState<ZoneId | null>(null);
   const [trashRect, setTrashRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const { setOutfitTitle, clearOutfitItems, addOutfitItem } = useTryOnStore();
 
@@ -184,6 +209,15 @@ export default function OutfitBuilderScreen() {
     const maxPersistedId = persistedTableItems.reduce((max, entry) => Math.max(max, entry.entryId), 0);
     nextEntryId = Math.max(nextEntryId, maxPersistedId + 1);
   }, []);
+
+  useEffect(() => {
+    if (!stackDetailZone) return;
+    const isEmpty =
+      stackDetailZone === 'accessory'
+        ? !addedItems.some((e) => e.zoneId === 'accessory' || e.zoneId === 'bag')
+        : !addedItems.some((e) => e.zoneId === stackDetailZone);
+    if (isEmpty) setStackDetailZone(null);
+  }, [stackDetailZone, addedItems]);
 
   const onBigPlusPress = useCallback(() => {
     setCategoryModalVisible(true);
@@ -203,6 +237,14 @@ export default function OutfitBuilderScreen() {
     });
   }, []);
 
+  const removeItemsInZone = useCallback((zoneId: ZoneId) => {
+    setAddedItems((prev) => {
+      const next = prev.filter((e) => e.zoneId !== zoneId);
+      persistedTableItems = next;
+      return next;
+    });
+  }, []);
+
   const refreshTrashRect = useCallback(() => {
     trashRef.current?.measureInWindow((x, y, width, height) => {
       setTrashRect({ x, y, width, height });
@@ -210,13 +252,13 @@ export default function OutfitBuilderScreen() {
   }, []);
 
   useEffect(() => {
-    if (draggingEntryId === null) return;
+    if (draggingZoneId === null) return;
     const raf = requestAnimationFrame(() => {
       refreshTrashRect();
       setTimeout(refreshTrashRect, 50);
     });
     return () => cancelAnimationFrame(raf);
-  }, [draggingEntryId, refreshTrashRect]);
+  }, [draggingZoneId, refreshTrashRect]);
 
   const isInTrash = useCallback(
     (moveX: number, moveY: number) => {
@@ -232,23 +274,22 @@ export default function OutfitBuilderScreen() {
   );
 
   const onDragStart = useCallback(
-    (entryId: number) => {
-      setDraggingEntryId(entryId);
+    (zoneId: ZoneId) => {
+      setDraggingZoneId(zoneId);
       requestAnimationFrame(refreshTrashRect);
     },
     [refreshTrashRect]
   );
 
-  const onDropItem = useCallback(
-    (entryId: number, moveX: number, moveY: number) => {
-      // Fallback hit zona za slučaj da measure kasni u prvom frame-u drag-a.
+  const onDropZone = useCallback(
+    (zoneId: ZoneId, moveX: number, moveY: number) => {
       const fallbackBottomRightHit = moveX > SCREEN_W - 130 && moveY > SCREEN_H - 190;
       if (isInTrash(moveX, moveY) || fallbackBottomRightHit) {
-        removeItem(entryId);
+        removeItemsInZone(zoneId);
       }
-      setDraggingEntryId(null);
+      setDraggingZoneId(null);
     },
-    [isInTrash, removeItem]
+    [isInTrash, removeItemsInZone]
   );
 
   const selectItem = useCallback((item: OutfitWithSaved) => {
@@ -295,65 +336,113 @@ export default function OutfitBuilderScreen() {
         <View style={styles.headerLine} />
 
         <View style={[styles.canvas, { width: contentW, height: contentH }]}>
-          {/* Svi dodati komadi ostaju na stolu – kaput iza, ostalo preko */}
-          {(() => {
-            const sorted = [...addedItems].sort((a, b) =>
-              a.zoneId === 'outerwear' ? -1 : b.zoneId === 'outerwear' ? 1 : 0
-            );
-            const zoneStack = new Map<ZoneId, number>();
-            return sorted.map((entry) => {
-              const { zoneId, item, entryId } = entry;
-              const size = getItemSize(zoneId);
-              const pos = getItemPosition(zoneId);
-              const sameZoneIndex = zoneStack.get(zoneId) ?? 0;
-              zoneStack.set(zoneId, sameZoneIndex + 1);
-              const stackOffset = getStackOffset(sameZoneIndex);
-              const left = contentW * pos.left - size / 2 + stackOffset.x;
-              const top = contentH * pos.top - size / 2 + stackOffset.y;
-              return (
-                <DraggableItem
-                  key={entryId}
-                  entryId={entryId}
-                  imageUrl={item.image_url}
-                  zoneId={zoneId}
-                  left={left}
-                  top={top}
-                  size={size}
-                  isDragging={draggingEntryId === entryId}
-                  onDragStart={onDragStart}
-                  onDrop={onDropItem}
-                />
-              );
-            });
-          })()}
-          {totalItems === 0 && (
-            <TouchableOpacity
-              style={styles.plusCenter}
-              onPress={onBigPlusPress}
-              activeOpacity={0.7}
-              hitSlop={24}
-            >
-              <Feather name="plus" size={64} color={CREAM} strokeWidth={2.5} />
-            </TouchableOpacity>
-          )}
-          {draggingEntryId !== null && (
-            <View pointerEvents="none" style={styles.trashWrap}>
-              <View ref={trashRef} style={styles.trashBin}>
-                <Feather name="trash-2" size={26} color="#fff" />
-                <Text style={styles.trashText}>Obriši</Text>
-              </View>
-            </View>
-          )}
-        </View>
+          <ScrollView
+            style={styles.slotScroll}
+            contentContainerStyle={[
+              styles.slotScrollContent,
+              { paddingBottom: insets.bottom + 120 },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            {(() => {
+              const byZone = new Map<ZoneId, AddedEntry[]>();
+              for (const entry of addedItems) {
+                const list = byZone.get(entry.zoneId) ?? [];
+                list.push(entry);
+                byZone.set(entry.zoneId, list);
+              }
+              const allZones = getZoneLabels();
+              const mainZones = allZones.slice(0, 4); // Kaput, Gornji, Donji, Obuća
+              // Jedan box "Aksesoar" (obuhvata i torbe) – puna širina
+              const accessoryEntries = (byZone.get('accessory') ?? []).concat(byZone.get('bag') ?? []);
 
-        {totalItems > 0 && (
-          <View style={[styles.addFloatingWrap, { bottom: insets.bottom + 112 }]}>
-            <TouchableOpacity style={styles.addFloatingBtn} onPress={onBigPlusPress} activeOpacity={0.88}>
-              <Feather name="plus" size={20} color="#fff" />
-              <Text style={styles.addFloatingText}>Dodaj</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+              const renderSlot = (key: ZoneId, label: string, entriesOverride?: AddedEntry[]) => {
+                const entries = entriesOverride ?? (byZone.get(key) ?? []);
+                const firstEntry = entries[0];
+                const hasItems = entries.length > 0;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[styles.slotCard, hasItems && styles.slotCardFilled]}
+                    activeOpacity={0.88}
+                    onPress={() => {
+                      if (hasItems) setStackDetailZone(key);
+                      else onCategoryPick(key);
+                    }}
+                  >
+                    <View style={styles.slotHeader}>
+                      <Text style={styles.slotLabel}>{label}</Text>
+                      {entries.length > 1 && (
+                        <View style={styles.slotCountBadge}>
+                          <Text style={styles.slotCountBadgeText}>{entries.length}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {hasItems ? (
+                      <View style={styles.slotContent}>
+                        <View style={styles.slotPreviewWrap}>
+                          <Image
+                            source={{ uri: firstEntry.item.image_url }}
+                            style={[
+                              styles.slotPreview,
+                              (key === 'accessory' || firstEntry.zoneId === 'accessory') && styles.slotPreviewAccessory,
+                              (key === 'bag' || firstEntry.zoneId === 'bag') && styles.slotPreviewBag,
+                            ]}
+                            resizeMode="contain"
+                          />
+                        </View>
+                        <View style={styles.slotMeta}>
+                          <Text style={styles.slotItemTitle} numberOfLines={2}>
+                            {firstEntry.item.title ?? 'Dodati komad'}
+                          </Text>
+                          <Text style={styles.slotItemSubtitle}>
+                            {entries.length === 1 ? '1 komad dodat' : `${entries.length} komada dodato`}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.slotAddMoreBtn}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              onCategoryPick(key);
+                            }}
+                            activeOpacity={0.85}
+                          >
+                            <Feather name="plus" size={14} color={DARK} />
+                            <Text style={styles.slotAddMoreText}>Dodaj još</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.slotEmptyState}>
+                        <View style={styles.slotEmptyIcon}>
+                          <Feather name="plus" size={18} color={CREAM} />
+                        </View>
+                        <Text style={styles.slotEmptyText}>Dodaj komad</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              };
+
+              return (
+                <>
+                  <View style={styles.slotGridRow}>
+                    {mainZones.map(({ key, label }) => (
+                      <View key={key} style={styles.slotGridCardWrap}>
+                        {renderSlot(key, label)}
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.slotBottomRow}>
+                    <View style={styles.slotBottomCardWrapFull}>
+                      {renderSlot('accessory', 'Aksesoar', accessoryEntries)}
+                    </View>
+                  </View>
+                </>
+              );
+            })()}
+          </ScrollView>
+        </View>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.lg }]}>
         <Text style={styles.hint}>
@@ -404,6 +493,65 @@ export default function OutfitBuilderScreen() {
           onSelect={selectItem}
           initialCategoryId={activeSlot ? ZONE_TO_CATEGORY[activeSlot] : undefined}
         />
+
+        {/* Modal: koje komade je korisnik izabrao u ovoj zoni */}
+        <Modal
+          visible={stackDetailZone !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setStackDetailZone(null)}
+        >
+          <Pressable style={styles.modalOverlay} onPress={() => setStackDetailZone(null)}>
+            <View style={styles.stackDetailSheet} onStartShouldSetResponder={() => true}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.sheetTitle}>
+                {stackDetailZone ? getZoneLabels().find((z) => z.key === stackDetailZone)?.label : ''}
+              </Text>
+              <Text style={styles.stackDetailSubtitle}>
+                {stackDetailZone &&
+                  (stackDetailZone === 'accessory'
+                    ? addedItems.filter((e) => e.zoneId === 'accessory' || e.zoneId === 'bag').length
+                    : addedItems.filter((e) => e.zoneId === stackDetailZone).length)}{' '}
+                komad(a) u ovoj zoni
+              </Text>
+              <ScrollView style={styles.stackDetailScroll} showsVerticalScrollIndicator={false}>
+                {stackDetailZone &&
+                  addedItems
+                    .filter((e) =>
+                      stackDetailZone === 'accessory'
+                        ? e.zoneId === 'accessory' || e.zoneId === 'bag'
+                        : e.zoneId === stackDetailZone
+                    )
+                    .map((entry) => (
+                      <View key={entry.entryId} style={styles.stackDetailRow}>
+                        <Image
+                          source={{ uri: entry.item.image_url }}
+                          style={styles.stackDetailThumb}
+                          resizeMode="cover"
+                        />
+                        <Text style={styles.stackDetailTitle} numberOfLines={2}>
+                          {entry.item.title ?? 'Komad'}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.stackDetailRemove}
+                          onPress={() => removeItem(entry.entryId)}
+                          hitSlop={8}
+                        >
+                          <Feather name="trash-2" size={18} color={COLORS.error} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.stackDetailCloseBtn}
+                onPress={() => setStackDetailZone(null)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.stackDetailCloseBtnText}>Zatvori</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Modal>
       </ImageBackground>
     </View>
   );
@@ -419,7 +567,7 @@ const styles = StyleSheet.create({
   bg: { flex: 1, width: '100%', height: '100%' },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(12,10,8,0.35)',
+    backgroundColor: 'rgba(12,10,8,0.24)',
   },
   header: {
     flexDirection: 'row',
@@ -473,6 +621,185 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  slotScroll: {
+    width: '100%',
+  },
+  slotScrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
+    alignItems: 'flex-start',
+  },
+  slotGridRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 12,
+    marginBottom: 12,
+  },
+  slotBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 12,
+    marginTop: 4,
+  },
+  slotGridCardWrap: {
+    width: '47%',
+  },
+  slotBottomCardWrap: {
+    width: '48%',
+  },
+  slotBottomCardWrapFull: {
+    width: '100%',
+  },
+  slotCard: {
+    width: '100%',
+    borderRadius: 16,
+    paddingVertical: 0,
+    paddingHorizontal: 0,
+    backgroundColor: 'rgba(248,244,239,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(248,244,239,0.32)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
+    overflow: 'hidden',
+  },
+  slotCardFilled: {
+    backgroundColor: 'rgba(248,244,239,0.20)',
+    borderColor: 'rgba(248,244,239,0.38)',
+  },
+  slotHeader: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: 'transparent',
+  },
+  slotLabel: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 13,
+    letterSpacing: 0.3,
+    color: COLORS.primary,
+    textAlign: 'center',
+  },
+  slotCountBadge: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  slotCountBadgeText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 13,
+    color: CREAM,
+  },
+  slotContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  slotPreviewWrap: {
+    width: '100%',
+    height: 150,
+    borderRadius: 0,
+    backgroundColor: 'rgba(248,244,239,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  slotPreview: {
+    width: '76%',
+    height: '76%',
+  },
+  slotPreviewAccessory: {
+    width: '46%',
+    height: '46%',
+  },
+  slotPreviewBag: {
+    width: '54%',
+    height: '54%',
+  },
+  slotMeta: {
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 0,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: 'transparent',
+  },
+  slotItemTitle: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 14,
+    lineHeight: 18,
+    color: DARK,
+    textAlign: 'center',
+  },
+  slotItemSubtitle: {
+    marginTop: 6,
+    fontFamily: FONTS.primary.regular,
+    fontSize: 12,
+    color: '#6F6A64',
+    letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  slotAddMoreBtn: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: 'rgba(248,244,239,0.92)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(207,143,90,0.55)',
+  },
+  slotAddMoreText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 13,
+    color: DARK,
+  },
+  slotEmptyState: {
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 30,
+    paddingHorizontal: 12,
+    backgroundColor: 'transparent',
+  },
+  slotEmptyIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(207,143,90,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(207,143,90,0.28)',
+  },
+  slotEmptyText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 14,
+    color: COLORS.primary,
+  },
   itemOnTable: {
     position: 'absolute',
     borderRadius: 24,
@@ -487,6 +814,42 @@ const styles = StyleSheet.create({
   itemOnTableImage: {
     width: '100%',
     height: '100%',
+  },
+  stackBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    minWidth: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: CREAM,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(26,26,26,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  stackBadgeSmall: {
+    top: 2,
+    right: 2,
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1.25,
+  },
+  stackBadgeText: {
+    fontFamily: FONTS.heading.semibold,
+    fontSize: 15,
+    color: DARK,
+    letterSpacing: 0.5,
+  },
+  stackBadgeTextSmall: {
+    fontSize: 12,
+    letterSpacing: 0.2,
   },
   accessoryTilt: {
     transform: [{ rotate: '-14deg' }],
@@ -626,5 +989,60 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primary.medium,
     fontSize: 15,
     color: DARK,
+  },
+  stackDetailSheet: {
+    backgroundColor: CREAM,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 12,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
+    maxHeight: '70%',
+  },
+  stackDetailSubtitle: {
+    fontFamily: FONTS.primary.regular,
+    fontSize: 13,
+    color: MUTED,
+    marginBottom: 16,
+  },
+  stackDetailScroll: {
+    maxHeight: 280,
+    marginBottom: 8,
+  },
+  stackDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.06)',
+    gap: 12,
+  },
+  stackDetailThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: COLORS.gray[100],
+  },
+  stackDetailTitle: {
+    flex: 1,
+    fontFamily: FONTS.primary.medium,
+    fontSize: 15,
+    color: DARK,
+  },
+  stackDetailRemove: {
+    padding: 8,
+  },
+  stackDetailCloseBtn: {
+    marginTop: 20,
+    paddingVertical: 14,
+    backgroundColor: DARK,
+    borderRadius: 14,
+    alignItems: 'center',
+  },
+  stackDetailCloseBtnText: {
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 15,
+    color: CREAM,
   },
 });

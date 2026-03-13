@@ -20,6 +20,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { getNotificationInbox, markNotificationRead, clearAllNotifications, type InboxNotificationRow } from '@/lib/notificationService';
 import { t, getLanguage } from '@/lib/i18n';
+import { getSavedVideos } from '@/lib/videoService';
+import { useVideoStore } from '@/stores/videoStore';
 
 export type NotificationItem = {
   id: string;
@@ -85,7 +87,7 @@ export default function NotificationsScreen() {
 
   const loadInbox = useCallback(async () => {
     const rows = await getNotificationInbox();
-    setNotifications(rows.map(mapInboxToItem));
+    setNotifications(Array.isArray(rows) ? rows.map(mapInboxToItem) : []);
   }, []);
 
   useFocusEffect(
@@ -108,6 +110,31 @@ export default function NotificationsScreen() {
     );
     markNotificationRead(id);
   }, []);
+
+  const handleNotificationPress = useCallback(async (item: NotificationItem) => {
+    markAsRead(item.id);
+
+    if (item.type === 'video') {
+      try {
+        const videos = await getSavedVideos();
+        const latestVideo = Array.isArray(videos) ? videos[0] : null;
+
+        if (latestVideo) {
+          useVideoStore.getState().setResultVideo(latestVideo.uri);
+          useVideoStore.getState().setSource(latestVideo.sourceImageUrl);
+          useVideoStore.getState().setPrompt(latestVideo.prompt);
+          useVideoStore.getState().setDuration(latestVideo.duration);
+          router.push('/video-result' as any);
+          return;
+        }
+      } catch (e) {
+        console.warn('[Notifications] Failed to open latest video', e);
+      }
+
+      router.push('/(tabs)/videos' as any);
+      return;
+    }
+  }, [markAsRead, router]);
 
   const handleClearAll = useCallback(async () => {
     if (notifications.length === 0) return;
@@ -186,7 +213,7 @@ export default function NotificationsScreen() {
                 },
               ]}
               activeOpacity={0.8}
-              onPress={() => markAsRead(item.id)}
+              onPress={() => handleNotificationPress(item)}
             >
               <View style={[styles.iconWrap, { backgroundColor: `${getIconColor(item.type)}14` }]}>
                 <Feather

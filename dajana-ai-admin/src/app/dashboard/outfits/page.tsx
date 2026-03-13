@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/database";
+
+type OutfitRow = Database["public"]["Tables"]["outfits"]["Row"];
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -60,7 +63,7 @@ async function getOutfits() {
     return [];
   }
 
-  return data || [];
+  return (data || []) as OutfitRow[];
 }
 
 export default async function OutfitsPage() {
@@ -137,8 +140,8 @@ export default async function OutfitsPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {outfit.tags?.length > 0 ? (
-                        outfit.tags.map((tag: string) => {
+{(outfit.tags?.length ?? 0) > 0 ? (
+                         (outfit.tags ?? []).map((tag: string) => {
                           const cat = CATEGORY_LABELS[tag];
                           return cat ? (
                             <Badge

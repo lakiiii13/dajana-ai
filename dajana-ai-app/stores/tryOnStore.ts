@@ -75,7 +75,7 @@ export const useTryOnStore = create<TryOnState>((set, get) => ({
   // --- Multi-item actions ---
   addOutfitItem: (item) =>
     set((state) => {
-      if (state.outfitItems.some((i) => i.id === item.id)) return state;
+      if ((state.outfitItems ?? []).some((i) => i.id === item.id)) return state;
       const items = [...state.outfitItems, item];
       const sorted = [...items].sort((a, b) => {
         const ai = a.zoneId ? ZONE_ORDER.indexOf(a.zoneId) : 999;
@@ -92,7 +92,7 @@ export const useTryOnStore = create<TryOnState>((set, get) => ({
 
   removeOutfitItem: (id) =>
     set((state) => {
-      const items = state.outfitItems.filter((i) => i.id !== id);
+      const items = (state.outfitItems ?? []).filter((i) => i.id !== id);
       return {
         outfitItems: items,
         outfitId: items[0]?.id || null,
@@ -109,7 +109,7 @@ export const useTryOnStore = create<TryOnState>((set, get) => ({
       outfitTitle: null,
     }),
 
-  hasItem: (id) => get().outfitItems.some((i) => i.id === id),
+  hasItem: (id) => (get().outfitItems ?? []).some((i) => i.id === id),
 
   // --- Legacy single item ---
   setOutfit: (id, imageUrl, title) =>

@@ -53,16 +53,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const validRows = (rows || []).filter(
+    type PushRow = { user_id: string; token: string };
+    const allRows = (rows || []) as PushRow[];
+    const validRows = allRows.filter(
       (r) => r.token && Expo.isExpoPushToken(r.token)
     );
-    const validTokens = validRows.map((r) => r.token as string);
+    const validTokens = validRows.map((r) => r.token);
 
     // Inbox: jedan red po korisniku (ne po tokenu) da se prikaže u app Notifikacije
     const seenUserIds = new Set<string>();
     for (const row of validRows) {
       if (row.user_id && !seenUserIds.has(row.user_id)) {
         seenUserIds.add(row.user_id);
+        // @ts-ignore - Supabase client infers never for insert
         const { error: inboxError } = await supabase.from("user_notifications").insert({
           user_id: row.user_id,
           type: "system",
@@ -97,7 +100,7 @@ export async function POST(request: Request) {
     }));
 
     const chunks = expo.chunkPushNotifications(messages);
-    const tickets: Expo.ExpoPushTicket[] = [];
+    const tickets: { status: string }[] = [];
 
     for (const chunk of chunks) {
       const ticketChunk = await expo.sendPushNotificationsAsync(chunk);
