@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getAdminSession } from "@/lib/auth";
+import { getAdminSession, getValidatedAdminSession } from "@/lib/auth";
 
 export async function GET() {
   const session = await getAdminSession();
@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getAdminSession();
+  const session = await getValidatedAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

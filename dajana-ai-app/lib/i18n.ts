@@ -214,6 +214,14 @@ const translations = {
       no_subscription_no_credits: 'Nemate aktivnu pretplatu niti kredite za generisanje. Obnovite pretplatu ili kupite dopunu u Shopu.',
     },
 
+    no_credits_modal: {
+      title_image: 'Nema kredita za slike',
+      title_video: 'Nema kredita za video',
+      message: 'Obnovite pretplatu ili kupite dopunu u Shopu da biste nastavili sa generisanjem.',
+      later: 'Kasnije',
+      go_to_shop: 'Obnovi pretplatu',
+    },
+
     // Payment (simulacija / Stripe)
     payment: {
       title: 'Plaćanje',
@@ -280,7 +288,6 @@ const translations = {
       // Screen 2 - Body Type
       your_body_type: 'Vaš tip građe',
       body_type_subtitle: 'Na osnovu vaših mera, izračunali smo vaš tip građe',
-      your_measurements: 'Vaše mere',
       body_type_info: 'Koristićemo ove informacije da vam prikažemo outfite koji najbolje odgovaraju vašem tipu građe',
       // Screen 3 - Analysis Question
       analysis_question: 'Da li ste radili analizu?',
@@ -816,6 +823,14 @@ const translations = {
       no_subscription_no_credits: 'You have no active subscription or credits for generation. Renew your subscription or buy a top-up in Shop.',
     },
 
+    no_credits_modal: {
+      title_image: 'No image credits',
+      title_video: 'No video credits',
+      message: 'Renew your subscription or buy a top-up in Shop to continue generating.',
+      later: 'Later',
+      go_to_shop: 'Renew subscription',
+    },
+
     // Payment (simulation / Stripe)
     payment: {
       title: 'Payment',
@@ -882,7 +897,6 @@ const translations = {
       // Screen 2 - Body Type
       your_body_type: 'Your body type',
       body_type_subtitle: 'Based on your measurements, we calculated your body type',
-      your_measurements: 'Your measurements',
       body_type_info: 'We will use this information to show you outfits that best suit your body type',
       // Screen 3 - Analysis Question
       analysis_question: 'Did you do an analysis?',

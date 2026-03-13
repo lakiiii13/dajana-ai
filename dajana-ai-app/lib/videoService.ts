@@ -324,107 +324,166 @@ export async function pollVideoResult(
   throw new Error('Video se dugo generiše. Možete pokušati ponovo ili proveriti kasnije u sekciji Video.');
 }
 
-// ---- Local gallery (saved videos) ----
+// ---- Saved videos (Supabase Storage + generations table) ----
 
-const VIDEOS_DIR = `${FileSystem.documentDirectory}videos/`;
+const VIDEO_BUCKET = 'user-videos';
+let _videoBucketReady = false;
 
-async function ensureDir() {
-  const info = await FileSystem.getInfoAsync(VIDEOS_DIR);
-  if (!info.exists) await FileSystem.makeDirectoryAsync(VIDEOS_DIR, { intermediates: true });
+async function ensureVideoBucket(): Promise<void> {
+  if (_videoBucketReady) return;
+  try {
+    const { error } = await supabase.storage.createBucket(VIDEO_BUCKET, {
+      public: true,
+      fileSizeLimit: 52428800, // 50 MB
+    });
+    if (error && !error.message.includes('already exists')) {
+      console.warn('[Video] Bucket create warning:', error.message);
+    }
+  } catch (e) {
+    console.warn('[Video] Bucket check error:', e);
+  }
+  _videoBucketReady = true;
 }
 
 export async function saveVideo(
   videoUrl: string,
   sourceImageUrl: string,
   prompt: string,
-  duration: '5' | '10'
+  duration: '5' | '10',
+  userId?: string
 ): Promise<SavedVideo> {
-  await ensureDir();
-  const id = `vid_${Date.now()}`;
-  const localPath = `${VIDEOS_DIR}${id}.mp4`;
+  const uid = userId || (await supabase.auth.getSession()).data?.session?.user?.id;
 
-  console.log('[Video] Downloading to local:', localPath);
-  const dl = await FileSystem.downloadAsync(videoUrl, localPath);
+  await ensureVideoBucket();
+
+  const tmpPath = `${FileSystem.cacheDirectory}vid_tmp_${Date.now()}.mp4`;
+  console.log('[Video] Downloading video for upload...');
+  const dl = await FileSystem.downloadAsync(videoUrl, tmpPath);
   if (dl.status !== 200) throw new Error('Failed to download video');
 
-  const saved: SavedVideo = {
-    id,
-    uri: localPath,
+  const base64 = await FileSystem.readAsStringAsync(tmpPath, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  await FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+
+  const storagePath = `${uid || 'anon'}/vid_${Date.now()}.mp4`;
+  const { error: uploadErr } = await supabase.storage
+    .from(VIDEO_BUCKET)
+    .upload(storagePath, decode(base64), {
+      contentType: 'video/mp4',
+      upsert: true,
+    });
+
+  if (uploadErr) {
+    console.error('[Video] Storage upload error:', uploadErr.message);
+    throw new Error('Greska pri cuvanju videa: ' + uploadErr.message);
+  }
+
+  const { data: urlData } = supabase.storage
+    .from(VIDEO_BUCKET)
+    .getPublicUrl(storagePath);
+
+  const publicVideoUrl = urlData.publicUrl;
+  console.log('[Video] Saved to Storage:', publicVideoUrl);
+
+  let generationId = `vid_${Date.now()}`;
+  if (uid) {
+    const { data: insertedRow, error: insertErr } = await supabase
+      .from('generations')
+      .insert({
+        user_id: uid,
+        type: 'video' as const,
+        output_url: publicVideoUrl,
+        input_image_url: sourceImageUrl,
+        prompt,
+        metadata: { duration },
+        status: 'completed' as const,
+        completed_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+    if (insertErr) {
+      console.error('[Video] Generation log insert error:', insertErr.message, insertErr.code);
+    } else if (insertedRow) {
+      generationId = insertedRow.id;
+      console.log('[Video] Generation logged OK, id:', generationId);
+    }
+  }
+
+  return {
+    id: generationId,
+    uri: publicVideoUrl,
     sourceImageUrl,
     prompt,
     duration,
     createdAt: new Date().toISOString(),
   };
-
-  // Store metadata
-  const metaPath = `${VIDEOS_DIR}meta.json`;
-  let list: SavedVideo[] = [];
-  try {
-    const raw = await FileSystem.readAsStringAsync(metaPath);
-    const parsed = JSON.parse(raw);
-    list = Array.isArray(parsed) ? parsed : [];
-  } catch {}
-  list.unshift(saved);
-  await FileSystem.writeAsStringAsync(metaPath, JSON.stringify(list));
-
-  return saved;
 }
 
-export async function getSavedVideos(): Promise<SavedVideo[]> {
-  await ensureDir();
-  const metaPath = `${VIDEOS_DIR}meta.json`;
+export async function getSavedVideos(userId?: string): Promise<SavedVideo[]> {
+  const uid = userId || (await supabase.auth.getSession()).data?.session?.user?.id;
+  if (!uid) return [];
+
   try {
-    const info = await FileSystem.getInfoAsync(metaPath);
-    if (!info.exists) {
-      console.log('[Video] No meta.json yet');
+    const { data, error } = await supabase
+      .from('generations')
+      .select('id, output_url, input_image_url, prompt, metadata, created_at')
+      .eq('user_id', uid)
+      .eq('type', 'video')
+      .eq('status', 'completed')
+      .not('output_url', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error('[Video] Load videos error:', error.message);
       return [];
     }
-    const raw = await FileSystem.readAsStringAsync(metaPath);
-    const parsed = JSON.parse(raw);
-    const list = Array.isArray(parsed) ? parsed as SavedVideo[] : [];
-    console.log('[Video] Loaded', list.length, 'saved videos');
-    return list;
-  } catch (e) {
-    console.error('[Video] Error loading saved videos:', e);
+    if (!data || data.length === 0) return [];
+
+    return data
+      .filter((row) => row.output_url && row.output_url.startsWith('http'))
+      .map((row) => {
+        const meta = (row.metadata ?? {}) as Record<string, any>;
+        return {
+          id: row.id,
+          uri: row.output_url!,
+          sourceImageUrl: (row.input_image_url as string) || '',
+          prompt: (row.prompt as string) || '',
+          duration: (meta.duration || '5') as '5' | '10',
+          createdAt: row.created_at,
+        };
+      });
+  } catch (err) {
+    console.error('[Video] Error loading saved videos:', err);
     return [];
   }
 }
 
 export async function deleteSavedVideo(id: string): Promise<void> {
-  const metaPath = `${VIDEOS_DIR}meta.json`;
-  let list: SavedVideo[] = [];
   try {
-    const raw = await FileSystem.readAsStringAsync(metaPath);
-    const parsed = JSON.parse(raw);
-    list = Array.isArray(parsed) ? parsed : [];
-  } catch {}
-  const vid = list.find((v) => v.id === id);
-  if (vid) {
-    try { await FileSystem.deleteAsync(vid.uri, { idempotent: true }); } catch {}
+    const { data } = await supabase
+      .from('generations')
+      .select('output_url')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (data?.output_url) {
+      const url = data.output_url as string;
+      const bucketPath = url.split(`/storage/v1/object/public/${VIDEO_BUCKET}/`).pop();
+      if (bucketPath) {
+        await supabase.storage.from(VIDEO_BUCKET).remove([bucketPath]).catch(() => {});
+      }
+    }
+
+    const { error: delErr } = await supabase.from('generations').delete().eq('id', id);
+    if (delErr) {
+      console.error('[Video] Delete generation error:', delErr.message, delErr.code);
+    }
+  } catch (err) {
+    console.error('[Video] Error deleting video:', err);
   }
-  list = list.filter((v) => v.id !== id);
-  await FileSystem.writeAsStringAsync(metaPath, JSON.stringify(list));
 }
 
-/**
- * Clear all local saved videos (call on sign out so next user doesn't see previous user's data).
- */
-export async function clearAllLocalVideos(): Promise<void> {
-  const metaPath = `${VIDEOS_DIR}meta.json`;
-  let list: SavedVideo[] = [];
-  try {
-    const raw = await FileSystem.readAsStringAsync(metaPath);
-    const parsed = JSON.parse(raw);
-    list = Array.isArray(parsed) ? parsed : [];
-  } catch {}
-  for (const v of list) {
-    try {
-      await FileSystem.deleteAsync(v.uri, { idempotent: true });
-    } catch {}
-  }
-  try {
-    await FileSystem.writeAsStringAsync(metaPath, '[]');
-  } catch (e) {
-    console.error('[Video] Error clearing saved videos list:', e);
-  }
-}
+/** @deprecated No longer needed - data is in Supabase, RLS protects per user. */
+export async function clearAllLocalVideos(): Promise<void> {}

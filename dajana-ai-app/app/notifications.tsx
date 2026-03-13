@@ -22,6 +22,7 @@ import { getNotificationInbox, markNotificationRead, clearAllNotifications, type
 import { t, getLanguage } from '@/lib/i18n';
 import { getSavedVideos } from '@/lib/videoService';
 import { useVideoStore } from '@/stores/videoStore';
+import { useAuthStore } from '@/stores/authStore';
 
 export type NotificationItem = {
   id: string;
@@ -116,7 +117,8 @@ export default function NotificationsScreen() {
 
     if (item.type === 'video') {
       try {
-        const videos = await getSavedVideos();
+        const uid = useAuthStore.getState().user?.id ?? useAuthStore.getState().profile?.id ?? '';
+        const videos = await getSavedVideos(uid);
         const latestVideo = Array.isArray(videos) ? videos[0] : null;
 
         if (latestVideo) {

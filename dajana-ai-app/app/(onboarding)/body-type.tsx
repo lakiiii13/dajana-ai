@@ -33,7 +33,7 @@ export default function BodyTypeScreen() {
 
     switch (profile?.body_type) {
       case 'hourglass':
-        return <MaterialCommunityIcons name="hourglass" size={iconSize} color={iconColor} />;
+        return <MaterialCommunityIcons name="timer-sand" size={iconSize} color={iconColor} />;
       case 'pear':
         return <MaterialCommunityIcons name="food-apple" size={iconSize} color={iconColor} />; // Using apple as placeholder for pear shape
       case 'apple':

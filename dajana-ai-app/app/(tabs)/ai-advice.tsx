@@ -40,6 +40,7 @@ import {
   buildSavedChat,
   titleFromMessages,
   deleteAdviceChat,
+  generateChatId,
   type SavedAdviceChat,
 } from '@/lib/adviceChatStorage';
 
@@ -109,12 +110,14 @@ export default function AIAdviceScreen() {
     transform: [{ translateY: chatContentTranslateY.value }],
   }));
 
+  const userId = profile?.id ?? useAuthStore.getState().user?.id ?? '';
+
   // Load saved images and saved chats when screen focuses
   useFocusEffect(
     useCallback(() => {
       loadSavedImages();
-      loadAdviceChats().then(setSavedChats);
-    }, [])
+      if (userId) loadAdviceChats(userId).then(setSavedChats);
+    }, [userId])
   );
 
   // Naslov ćaska: iz prvog user poruke ili sačuvan
@@ -140,7 +143,9 @@ export default function AIAdviceScreen() {
 
   const loadSavedImages = async () => {
     try {
-      const images = await getSavedTryOnImages();
+      const uid = profile?.id ?? useAuthStore.getState().user?.id;
+      if (!uid) return;
+      const images = await getSavedTryOnImages(uid);
       setSavedImages(images);
     } catch (err) {
       console.error('[Advice] Error loading images:', err);
@@ -169,12 +174,20 @@ content: t('ai_advice.no_credits_message'),
     setIsLoading(true);
 
     try {
-      const base64 = await FileSystem.readAsStringAsync(image.uri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+      let base64: string;
+      const imageUri = typeof image.uri === 'string' ? image.uri : '';
+      if (imageUri.startsWith('http')) {
+        const tmpPath = `${FileSystem.cacheDirectory}advice_tmp_${Date.now()}.png`;
+        const dl = await FileSystem.downloadAsync(imageUri, tmpPath);
+        if (dl.status !== 200) throw new Error('Greška pri preuzimanju slike.');
+        base64 = await FileSystem.readAsStringAsync(tmpPath, { encoding: FileSystem.EncodingType.Base64 });
+        await FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+      } else {
+        base64 = await FileSystem.readAsStringAsync(imageUri, { encoding: FileSystem.EncodingType.Base64 });
+      }
       setCurrentImageBase64(base64);
 
-      const imagePath = typeof image.uri === 'string' ? image.uri : (image.uri as any)?.uri ?? (image.uri as any)?.path ?? '';
+      const imagePath = imageUri;
       const userMsg: ChatMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
@@ -183,7 +196,7 @@ content: t('ai_advice.no_credits_message'),
         timestamp: new Date(),
       };
       setMessages((prev) => {
-        if (!currentChatId) setCurrentChatId(`chat-${Date.now()}`);
+        if (!currentChatId) setCurrentChatId(generateChatId());
         return [...prev, userMsg];
       });
 
@@ -266,7 +279,7 @@ content: t('ai_advice.no_credits_message'),
     };
     setMessages((prev) => {
       const next = [...prev, userMsg];
-      if (!currentChatId) setCurrentChatId(`chat-${Date.now()}`);
+      if (!currentChatId) setCurrentChatId(generateChatId());
       return next;
     });
     setIsLoading(true);
@@ -319,12 +332,12 @@ content: t('ai_advice.no_credits_message'),
   };
 
   const handleNewChat = async () => {
-    if (messages.length > 0) {
-      const id = currentChatId || `chat-${Date.now()}`;
+    if (messages.length > 0 && userId) {
+      const id = currentChatId || generateChatId();
       const title = currentChatTitle || `Outfit ${savedChats.length + 1}`;
       const chat = buildSavedChat(id, messages, conversationHistory);
       const toSave: SavedAdviceChat = { ...chat, id, title };
-      await saveAdviceChat(toSave);
+      await saveAdviceChat(userId, toSave);
       setSavedChats((prev) => [toSave, ...prev.filter((c) => c.id !== id)].slice(0, 50));
     }
     setMessages([]);
@@ -346,7 +359,7 @@ content: t('ai_advice.no_credits_message'),
             text: t('ai_advice.delete_chat_confirm') || 'Obriši',
             style: 'destructive',
             onPress: async () => {
-              await deleteAdviceChat(chat.id);
+              if (userId) await deleteAdviceChat(userId, chat.id);
               setSavedChats((prev) => prev.filter((c) => c.id !== chat.id));
               if (currentChatId === chat.id) {
                 setMessages([]);
@@ -361,7 +374,7 @@ content: t('ai_advice.no_credits_message'),
         ]
       );
     },
-    [currentChatId]
+    [currentChatId, userId]
   );
 
   const handleOpenChat = (chat: SavedAdviceChat) => {

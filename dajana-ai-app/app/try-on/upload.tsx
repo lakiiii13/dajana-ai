@@ -25,6 +25,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { t } from '@/lib/i18n';
+import { NoCreditsModal } from '@/components/NoCreditsModal';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { useAuthStore } from '@/stores/authStore';
 import { getUserCredits } from '@/lib/creditService';
@@ -120,14 +121,7 @@ export default function TryOnUploadScreen() {
       return;
     }
     if (creditsRemaining !== null && creditsRemaining <= 0) {
-      Alert.alert(
-        t('capsule.credits.no_credits'),
-        t('shop.no_subscription_no_credits'),
-        [
-          { text: t('cancel'), style: 'cancel' },
-          { text: t('try_on.shop_btn'), onPress: () => router.replace('/shop') },
-        ]
-      );
+      setShowNoCreditsModal(true);
       return;
     }
     router.push('/try-on/generating');
@@ -266,6 +260,13 @@ export default function TryOnUploadScreen() {
           <Text style={styles.infoText}>Snimaj većinski deo tela (gornji deo) za najbolji rezultat.</Text>
         </Animated.View>
       </ScrollView>
+
+      <NoCreditsModal
+        visible={showNoCreditsModal}
+        type="image"
+        onClose={() => setShowNoCreditsModal(false)}
+        onGoToShop={() => router.replace('/shop')}
+      />
     </View>
   );
 }

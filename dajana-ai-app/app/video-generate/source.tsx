@@ -16,6 +16,7 @@ import { COLORS, FONTS } from '@/constants/theme';
 import { useVideoStore } from '@/stores/videoStore';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { getSavedTryOnImages, type SavedTryOnImage } from '@/lib/tryOnService';
+import { useAuthStore } from '@/stores/authStore';
 import { VideoWizardShell } from '@/components/video/VideoWizardShell';
 
 const DARK_GREEN = '#0D4326';
@@ -49,14 +50,23 @@ export default function VideoGenerateSourceScreen() {
   const [tryOnImages, setTryOnImages] = useState<SavedTryOnImage[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  const didAutoRestore = React.useRef(false);
   useEffect(() => {
-    if (!sourceImageUrl && generatedImageUri) setSource(generatedImageUri);
-    else if (!sourceImageUrl && tryOnItems.length > 0) setSource(tryOnItems[0].imageUrl);
+    if (didAutoRestore.current) return;
+    if (!sourceImageUrl && generatedImageUri) {
+      didAutoRestore.current = true;
+      setSource(generatedImageUri);
+    } else if (!sourceImageUrl && tryOnItems.length > 0) {
+      didAutoRestore.current = true;
+      setSource(tryOnItems[0].imageUrl);
+    }
   }, [generatedImageUri, tryOnItems, sourceImageUrl, setSource]);
 
   const loadTryOnImages = useCallback(async () => {
     try {
-      const imgs = await getSavedTryOnImages();
+      const uid = useAuthStore.getState().user?.id ?? useAuthStore.getState().profile?.id;
+      if (!uid) return;
+      const imgs = await getSavedTryOnImages(uid);
       setTryOnImages(imgs);
     } catch (e) {
       console.error('[VideoWizard] Load try-on images error', e);
@@ -96,6 +106,7 @@ export default function VideoGenerateSourceScreen() {
   }, [router, sourceImageUrl]);
 
   const handleChangeImage = useCallback(() => {
+    useTryOnStore.getState().setGeneratedImage('', undefined);
     setSource(null);
   }, [setSource]);
 

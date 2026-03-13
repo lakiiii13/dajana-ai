@@ -110,7 +110,7 @@ async function withRetry<T>(
 function handleSupabaseError(error: any): never {
   console.error('Supabase error:', error);
   
-  let errorCode = ERROR_CODES.UNKNOWN;
+  let errorCode: string = ERROR_CODES.UNKNOWN;
   let statusCode: number | undefined;
   
   if (!error) {

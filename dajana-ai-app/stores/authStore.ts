@@ -9,8 +9,7 @@ import { Database } from '@/types/database';
 import { setLanguage as setI18nLanguage, getLanguage } from '@/lib/i18n';
 import { getAllCredits, type AllCredits } from '@/lib/creditService';
 import { getSubscription, type SubscriptionInfo } from '@/lib/subscriptionService';
-import { clearAllLocalTryOnData } from '@/lib/tryOnService';
-import { clearAllLocalVideos } from '@/lib/videoService';
+import { clearBackgroundJob } from '@/lib/backgroundVideoTask';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type UserCredits = Database['public']['Tables']['user_credits']['Row'];
@@ -199,24 +198,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setI18nLanguage(lang);
     set({ language: lang });
 
-    // If logged in, save to database
     if (user) {
-      try {
-        await supabase
-          .from('profiles')
-          .update({ language: lang, updated_at: new Date().toISOString() })
-          .eq('id', user.id);
-      } catch (error) {
-        console.error('Save language error:', error);
+      const { error } = await supabase
+        .from('profiles')
+        .update({ language: lang, updated_at: new Date().toISOString() })
+        .eq('id', user.id);
+      if (error) {
+        console.error('Save language error:', error.message);
       }
     }
   },
 
   signOut: async () => {
     try {
-      // Clear local try-on images, outfits and videos so next user doesn't see previous user's data
-      await Promise.all([clearAllLocalTryOnData(), clearAllLocalVideos()]).catch((e) =>
-        console.warn('Clear local data on signOut:', e)
+      await clearBackgroundJob().catch((e) =>
+        console.warn('Clear background job on signOut:', e)
       );
       await supabase.auth.signOut();
       get().reset();

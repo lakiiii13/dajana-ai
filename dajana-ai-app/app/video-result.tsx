@@ -92,15 +92,35 @@ export default function VideoResultScreen() {
     Alert.alert('Sačuvano', 'Video je sačuvan u tvoju kolekciju');
   };
 
+  const downloadToLocal = async (): Promise<string | null> => {
+    if (!resultVideoUrl) return null;
+    if (resultVideoUrl.startsWith('file://')) return resultVideoUrl;
+    try {
+      const tmpPath = `${FileSystem.cacheDirectory}dajana_video_${Date.now()}.mp4`;
+      const dl = await FileSystem.downloadAsync(resultVideoUrl, tmpPath);
+      if (dl.status !== 200) {
+        console.error('[Video] Download failed:', dl.status);
+        return null;
+      }
+      return tmpPath;
+    } catch (e) {
+      console.error('[Video] Download to local error:', e);
+      return null;
+    }
+  };
+
   const handleShare = async () => {
     if (!resultVideoUrl) return;
     try {
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(resultVideoUrl, {
-          mimeType: 'video/mp4',
-          dialogTitle: 'Podeli video',
-        });
+      const localPath = await downloadToLocal();
+      if (localPath) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(localPath, {
+            mimeType: 'video/mp4',
+            dialogTitle: 'Podeli video',
+          });
+        }
       } else {
         await Share.share({ url: resultVideoUrl, message: 'Pogledaj moj AI fashion video! - Dajana AI' });
       }
@@ -112,13 +132,18 @@ export default function VideoResultScreen() {
   const handleDownload = async () => {
     if (!resultVideoUrl) return;
     try {
-      const canShare = await Sharing.isAvailableAsync();
-      if (canShare) {
-        await Sharing.shareAsync(resultVideoUrl, {
-          mimeType: 'video/mp4',
-          dialogTitle: 'Sačuvaj video',
-          UTI: 'public.movie',
-        });
+      const localPath = await downloadToLocal();
+      if (localPath) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(localPath, {
+            mimeType: 'video/mp4',
+            dialogTitle: 'Sačuvaj video',
+            UTI: 'public.movie',
+          });
+        }
+      } else {
+        Alert.alert('Greška', 'Video nije mogao biti preuzet.');
       }
     } catch (e) {
       console.error('[Video] Download error', e);
@@ -132,8 +157,8 @@ export default function VideoResultScreen() {
 
   const handleGoHome = () => {
     resetGeneration();
-    (router as any).dismissAll?.();
-    router.replace('/(tabs)' as any);
+    router.dismissAll();
+    setTimeout(() => router.replace('/(tabs)/index' as any), 200);
   };
 
   if (!resultVideoUrl) {

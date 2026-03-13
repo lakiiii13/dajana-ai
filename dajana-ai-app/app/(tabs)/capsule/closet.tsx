@@ -367,7 +367,7 @@ export default function ClosetScreen() {
           <VideoView
             style={styles.videoPlayer}
             player={player}
-            fullScreenOptions={{ allowsFullscreen: false }}
+            fullscreenOptions={{ enable: false }}
             allowsPictureInPicture={false}
             showsTimecodes={false}
             nativeControls={false}

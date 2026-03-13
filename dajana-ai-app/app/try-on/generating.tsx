@@ -4,7 +4,7 @@
 // ===========================================
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing, Dimensions, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -13,6 +13,7 @@ import { hasImageCredits, deductImageCredit } from '@/lib/creditService';
 import { logImageGeneration } from '@/lib/generationLog';
 import { FONTS, COLORS } from '@/constants/theme';
 import { AppLogo } from '@/components/AppLogo';
+import { NoCreditsModal } from '@/components/NoCreditsModal';
 import { t } from '@/lib/i18n';
 
 const { width: SW } = Dimensions.get('window');
@@ -41,6 +42,7 @@ export default function TryOnGeneratingScreen() {
   } = useTryOnStore();
 
   const [stageIndex, setStageIndex] = useState(0);
+  const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
 
   // Animations
   const fadeIn = useRef(new Animated.Value(0)).current;
@@ -140,8 +142,7 @@ export default function TryOnGeneratingScreen() {
     }
     const hasCredits = await hasImageCredits(user.id);
     if (!hasCredits) {
-      setError('Nemate dovoljno kredita za slike. Kupite više u Profilu.');
-      router.replace('/try-on/upload');
+      setShowNoCreditsModal(true);
       return;
     }
     const effectiveOutfitId = hasItems ? outfitItems[0].id : outfitId!;
@@ -162,14 +163,14 @@ export default function TryOnGeneratingScreen() {
         const result = await generateTryOn(faceImageBase64, items);
         await deductImageCredit(user.id);
         useAuthStore.getState().fetchCredits();
-        const savedUri = await saveTryOnImage(result.imageBase64, effectiveOutfitId);
+        const savedUri = await saveTryOnImage(result.imageBase64, effectiveOutfitId, user.id);
 
         await logImageGeneration(user.id, effectiveOutfitId ?? null, savedUri ?? null);
 
         const compositionItems = hasItems
           ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title, zoneId: i.zoneId }))
           : [{ id: outfitId!, imageUrl: outfitImageUrl!, title: outfitTitle || null }];
-        await saveOutfitComposition(compositionItems, savedUri).catch(() => {});
+        await saveOutfitComposition(compositionItems, savedUri, user.id).catch(() => {});
 
         setGeneratedImage(result.imageBase64, savedUri);
         setGenerating(false);
@@ -271,6 +272,16 @@ export default function TryOnGeneratingScreen() {
           {stageIndex + 1} / {STAGES.length}
         </Text>
       </View>
+
+      <NoCreditsModal
+        visible={showNoCreditsModal}
+        type="image"
+        onClose={() => {
+          setShowNoCreditsModal(false);
+          router.replace('/try-on/upload');
+        }}
+        onGoToShop={() => router.replace('/shop')}
+      />
     </Animated.View>
   );
 }

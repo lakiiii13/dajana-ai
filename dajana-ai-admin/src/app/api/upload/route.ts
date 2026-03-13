@@ -5,11 +5,17 @@
 
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminSession } from "@/lib/auth";
 
 const BUCKET = "outfit-images";
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(request: Request) {
+  const session = await getAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;

@@ -374,6 +374,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     fontSize: FONT_SIZES.md,
     fontFamily: FONTS.primary.semibold,

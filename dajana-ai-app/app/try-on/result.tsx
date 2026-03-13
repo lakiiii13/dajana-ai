@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from '@/lib/safeFileSystem';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { AppLogo } from '@/components/AppLogo';
 import { useTryOnStore } from '@/stores/tryOnStore';
@@ -113,9 +114,17 @@ export default function TryOnResultScreen() {
   const handleShare = useCallback(async () => {
     if (!generatedImageUri) return;
     try {
+      let localPath = generatedImageUri;
+      if (generatedImageUri.startsWith('http')) {
+        const tmpPath = `${FileSystem.cacheDirectory}dajana_share_${Date.now()}.png`;
+        const dl = await FileSystem.downloadAsync(generatedImageUri, tmpPath);
+        if (dl.status === 200) {
+          localPath = tmpPath;
+        }
+      }
       const ok = await Sharing.isAvailableAsync();
       if (ok) {
-        await Sharing.shareAsync(generatedImageUri, {
+        await Sharing.shareAsync(localPath, {
           mimeType: 'image/png',
           dialogTitle: 'DAJANA AI',
         });

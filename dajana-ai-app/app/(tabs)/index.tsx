@@ -99,35 +99,37 @@ export default function HomeScreen() {
 
   // Credits
 
-  // Load generated images when SLIKA tab is active or screen gains focus
+  const currentUserId = useAuthStore((s) => s.user?.id ?? s.profile?.id ?? '');
+
   const loadImages = useCallback(async () => {
+    if (!currentUserId) return;
     try {
-      const images = await getSavedTryOnImages();
+      const images = await getSavedTryOnImages(currentUserId);
       setGeneratedImages(images);
     } catch (err) {
       console.error('Error loading generated images:', err);
     }
-  }, []);
+  }, [currentUserId]);
 
-  // Load saved outfits
   const loadOutfits = useCallback(async () => {
+    if (!currentUserId) return;
     try {
-      const outfits = await getSavedOutfits();
+      const outfits = await getSavedOutfits(currentUserId);
       setSavedOutfits(outfits);
     } catch (err) {
       console.error('Error loading saved outfits:', err);
     }
-  }, []);
+  }, [currentUserId]);
 
-  // Load saved videos
   const loadVideos = useCallback(async () => {
+    if (!currentUserId) return;
     try {
-      const vids = await getSavedVideos();
+      const vids = await getSavedVideos(currentUserId);
       setSavedVideos(vids);
     } catch (err) {
       console.error('Error loading saved videos:', err);
     }
-  }, []);
+  }, [currentUserId]);
 
   const fetchCredits = useAuthStore((s) => s.fetchCredits);
   const allCredits = useAuthStore((s) => s.allCredits);
@@ -207,13 +209,13 @@ export default function HomeScreen() {
           text: t('delete'),
           style: 'destructive',
           onPress: async () => {
-            await deleteOutfitComposition(outfit.id);
+            await deleteOutfitComposition(outfit.id, currentUserId);
             loadOutfits();
           },
         },
       ]
     );
-  }, [loadOutfits]);
+  }, [loadOutfits, currentUserId]);
 
   // Handle delete image
   const handleDeleteImage = useCallback((image: SavedTryOnImage) => {
@@ -226,7 +228,7 @@ export default function HomeScreen() {
           text: t('delete'),
           style: 'destructive',
           onPress: async () => {
-            await deleteTryOnImage(image.uri);
+            await deleteTryOnImage(image.generationId);
             loadImages();
           },
         },
@@ -304,7 +306,7 @@ export default function HomeScreen() {
         <View style={[styles.imageGridItem, { backgroundColor: colors.surface, borderColor: colors.gray[200] }]}>
           <TouchableOpacity
             activeOpacity={0.9}
-            onPress={() => displayUri && setSelectedImage({ uri: displayUri, timestamp: item.timestamp, filename: '', outfitId: item.id })}
+            onPress={() => displayUri && setSelectedImage({ generationId: '', uri: displayUri, timestamp: item.timestamp, filename: '', outfitId: item.id })}
           >
             <Image
               source={typeof chosenOutfitImageUrl === 'number' ? chosenOutfitImageUrl : { uri: String(chosenOutfitImageUrl) }}

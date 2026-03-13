@@ -142,6 +142,7 @@ CREATE TABLE generations (
   output_url TEXT,
   ai_response TEXT,
   prompt TEXT,
+  metadata JSONB DEFAULT '{}'::jsonb,
   status generation_status DEFAULT 'pending',
   error_message TEXT,
   api_cost_cents INTEGER DEFAULT 0,
@@ -180,6 +181,15 @@ CREATE TABLE admin_users (
   is_active BOOLEAN DEFAULT TRUE
 );
 
+-- OUTFIT_COMPOSITIONS (Kapsula outfit compositions created by users)
+CREATE TABLE outfit_compositions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  try_on_image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- SAVED_OUTFITS (Favorites)
 CREATE TABLE saved_outfits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -187,6 +197,17 @@ CREATE TABLE saved_outfits (
   outfit_id UUID REFERENCES outfits(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, outfit_id)
+);
+
+-- ADVICE_CHATS (AI Savetnik razgovori, vezani za korisnika)
+CREATE TABLE advice_chats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT 'Novi razgovor',
+  messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+  conversation_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- USER_NOTIFICATIONS (Inbox za sekciju Notifikacije: video spreman, Dajana iz admina)
@@ -211,6 +232,8 @@ CREATE INDEX idx_generations_status ON generations(status);
 CREATE INDEX idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX idx_transactions_user ON transactions(user_id);
 CREATE INDEX idx_saved_outfits_user ON saved_outfits(user_id);
+CREATE INDEX idx_outfit_compositions_user ON outfit_compositions(user_id, created_at DESC);
+CREATE INDEX idx_advice_chats_user ON advice_chats(user_id, updated_at DESC);
 CREATE INDEX idx_user_notifications_user_created ON user_notifications(user_id, created_at DESC);
 
 -- =========================================
@@ -228,12 +251,19 @@ CREATE POLICY "Users can update own profile"
   ON profiles FOR UPDATE
   USING (auth.uid() = id);
 
--- USER_CREDITS: SAMO SELECT - UPDATE ide kroz funkcije
--- ⚠️ KRITIČNO: Nema UPDATE/INSERT/DELETE policy = blokirano za klijente
+-- USER_CREDITS: Korisnik čita i menja samo svoje
 ALTER TABLE user_credits ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own credits"
   ON user_credits FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own credits"
+  ON user_credits FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own credits"
+  ON user_credits FOR UPDATE
   USING (auth.uid() = user_id);
 
 -- OUTFITS: Svi ulogovani vide aktivne
@@ -254,11 +284,19 @@ CREATE POLICY "Users can insert own generations"
   ON generations FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- SUBSCRIPTIONS: Samo čitanje svog
+-- SUBSCRIPTIONS: Korisnik čita, kreira i menja svoju pretplatu
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own subscription"
   ON subscriptions FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own subscription"
+  ON subscriptions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own subscription"
+  ON subscriptions FOR UPDATE
   USING (auth.uid() = user_id);
 
 -- TRANSACTIONS: Samo čitanje svog
@@ -281,6 +319,24 @@ ALTER TABLE saved_outfits ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own saved outfits"
   ON saved_outfits FOR ALL
   USING (auth.uid() = user_id);
+
+-- OUTFIT_COMPOSITIONS: Korisnik upravlja samo svojim kompozicijama
+ALTER TABLE outfit_compositions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own outfit compositions"
+  ON outfit_compositions FOR ALL
+  USING (auth.uid() = user_id);
+
+-- ADVICE_CHATS: Korisnik upravlja samo svojim razgovorima
+ALTER TABLE advice_chats ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage own advice chats"
+  ON advice_chats FOR ALL
+  USING (auth.uid() = user_id);
+
+-- ADMIN_USERS: RLS uključen, ali bez policy-ja = potpuno blokirano za anon/authenticated klijente.
+-- Admin panel koristi service_role ključ koji zaobilazi RLS.
+ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY;
 
 -- USER_NOTIFICATIONS: Korisnik vidi i označava svoje; insert (app ili admin)
 ALTER TABLE user_notifications ENABLE ROW LEVEL SECURITY;

@@ -26,6 +26,7 @@ import { t, getLanguage } from '@/lib/i18n';
 import { useVideoStore } from '@/stores/videoStore';
 import { getSavedVideos, deleteSavedVideo, type SavedVideo } from '@/lib/videoService';
 import { getSavedTryOnImages, type SavedTryOnImage } from '@/lib/tryOnService';
+import { useAuthStore } from '@/stores/authStore';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -82,9 +83,11 @@ export default function VideosScreen() {
   const [refreshing, setRefreshing] = React.useState(false);
   const [savedImages, setSavedImages] = React.useState<SavedTryOnImage[]>([]);
 
+  const currentUserId = useAuthStore((s) => s.user?.id ?? s.profile?.id ?? '');
   const loadVideos = useCallback(async () => {
+    if (!currentUserId) return;
     try {
-      const [vids, imgs] = await Promise.all([getSavedVideos(), getSavedTryOnImages()]);
+      const [vids, imgs] = await Promise.all([getSavedVideos(currentUserId), getSavedTryOnImages(currentUserId)]);
       setSavedVideos(vids);
       setSavedImages(imgs);
     } catch (e) {
@@ -93,7 +96,7 @@ export default function VideosScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [currentUserId]);
 
   useFocusEffect(
     useCallback(() => {

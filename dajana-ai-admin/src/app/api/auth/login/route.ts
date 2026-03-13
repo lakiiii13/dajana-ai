@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/server";
+import { signSessionToken } from "@/lib/auth";
 import type { Database } from "@/types/database";
 import bcrypt from "bcryptjs";
 
@@ -19,7 +20,6 @@ export async function POST(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Find admin user
     const { data: admin, error } = await supabase
       .from("admin_users")
       .select("*")
@@ -43,7 +43,6 @@ export async function POST(request: NextRequest) {
     }
 
     const adminRow = admin as AdminRow;
-    // Verify password (bcrypt accepts both $2a$ and $2b$)
     const isValidPassword = await bcrypt.compare(password, adminRow.password_hash);
     if (!isValidPassword) {
       console.log("[Login] Password mismatch for:", adminRow.email);
@@ -53,23 +52,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create session token (simple implementation)
-    const sessionToken = Buffer.from(
-      JSON.stringify({
-        id: adminRow.id,
-        email: adminRow.email,
-        role: adminRow.role,
-        exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-      })
-    ).toString("base64");
+    const sessionToken = signSessionToken({
+      id: adminRow.id,
+      email: adminRow.email,
+      role: adminRow.role,
+      exp: Date.now() + 24 * 60 * 60 * 1000,
+    });
 
-    // Set cookie
     const cookieStore = await cookies();
     cookieStore.set("admin_session", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 24 * 60 * 60, // 24 hours
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60,
       path: "/",
     });
 

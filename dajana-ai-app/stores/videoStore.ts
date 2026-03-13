@@ -39,7 +39,7 @@ export interface VideoState {
   savedVideos: SavedVideo[];
 
   // Actions - form
-  setSource: (imageUrl: string) => void;
+  setSource: (imageUrl: string | null) => void;
   setPrompt: (prompt: string) => void;
   setDuration: (d: '5' | '10') => void;
   setStatus: (s: VideoStatus) => void;

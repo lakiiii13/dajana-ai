@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getAdminSession } from "@/lib/auth";
+import { getAdminSession, getValidatedAdminSession } from "@/lib/auth";
 import type { Database } from "@/types/database";
 
 type OutfitUpdate = Database["public"]["Tables"]["outfits"]["Update"];
@@ -38,7 +38,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getAdminSession();
+  const session = await getValidatedAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -94,7 +94,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await getAdminSession();
+  const session = await getValidatedAdminSession();
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

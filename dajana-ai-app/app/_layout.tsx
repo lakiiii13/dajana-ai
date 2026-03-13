@@ -320,17 +320,15 @@ function VideoBackgroundPoller() {
 
       if (result.videoUrl) {
         console.log('[Poller] Video ready! Downloading...');
+        const currentUserId = useAuthStore.getState().user?.id;
         const saved = await saveVideo(
           result.videoUrl,
           job.publicImageUrl,
           job.prompt,
-          job.duration
+          job.duration,
+          currentUserId
         );
-        if (user?.id) {
-          const { logVideoGeneration } = await import('@/lib/generationLog');
-          await logVideoGeneration(user.id, saved.uri);
-        }
-        await notifyVideoReady(saved.uri, user?.id ?? undefined);
+        await notifyVideoReady(saved.uri, currentUserId ?? undefined);
         await clearBgJobStorage();
         completeBackgroundJob(saved.uri);
         router.push('/video-result' as any);

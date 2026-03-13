@@ -38,6 +38,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuthStore();
   
+  const isZoneLocked = !!initialCategoryId && initialCategoryId !== 'all';
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
   const [useMyBodyType, setUseMyBodyType] = useState(false);
   const [useMySeason, setUseMySeason] = useState(false);
@@ -114,7 +115,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
     <OutfitCard
       outfit={item}
       onPress={() => onSelect(item)}
-      onToggleSave={() => {}}
+      onToggleSave={async () => {}}
       isLoggedIn={!!user}
       index={index}
     />
@@ -136,10 +137,16 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
         </View>
 
         <View style={styles.dropdownWrap}>
-          <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowCategoryModal(true)} activeOpacity={0.7}>
-            <Text style={styles.dropdownLabel}>Kategorija: {currentCategoryLabel}</Text>
-            <Ionicons name="chevron-down" size={18} color={CAPSULE_TEXT} />
-          </TouchableOpacity>
+          {isZoneLocked ? (
+            <View style={[styles.dropdownButton, { opacity: 0.7 }]}>
+              <Text style={styles.dropdownLabel}>Kategorija: {currentCategoryLabel}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowCategoryModal(true)} activeOpacity={0.7}>
+              <Text style={styles.dropdownLabel}>Kategorija: {currentCategoryLabel}</Text>
+              <Ionicons name="chevron-down" size={18} color={CAPSULE_TEXT} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {(profile?.body_type || profile?.season) && (

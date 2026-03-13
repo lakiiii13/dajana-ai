@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
   ImageBackground,
-  Modal,
-  Pressable,
   StatusBar,
   StyleSheet,
   Text,
@@ -30,6 +28,7 @@ import { startVideoGeneration } from '@/lib/videoService';
 import { saveBackgroundJob } from '@/lib/backgroundVideoTask';
 import { hasVideoCredits, deductVideoCredit } from '@/lib/creditService';
 import { VideoWizardShell } from '@/components/video/VideoWizardShell';
+import { NoCreditsModal } from '@/components/NoCreditsModal';
 import { t } from '@/lib/i18n';
 
 const DARK_GREEN = '#0D4326';
@@ -203,43 +202,12 @@ export default function VideoGenerateReviewScreen() {
           </TouchableOpacity>
         </View>
 
-        <Modal
+        <NoCreditsModal
           visible={showNoCreditsModal}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowNoCreditsModal(false)}
-        >
-          <Pressable style={styles.modalOverlay} onPress={() => setShowNoCreditsModal(false)}>
-            <View style={styles.noCreditsCard}>
-              <View style={styles.noCreditsIconWrap}>
-                <Ionicons name="wallet-outline" size={28} color={GOLD} />
-              </View>
-              <Text style={styles.noCreditsTitle}>Nemate više video kredita</Text>
-              <Text style={styles.noCreditsText}>
-                Obnovi pretplatu ili kupi dopunu u Shopu da nastaviš generisanje videa.
-              </Text>
-              <View style={styles.noCreditsActions}>
-                <TouchableOpacity
-                  style={styles.noCreditsSecondaryBtn}
-                  onPress={() => setShowNoCreditsModal(false)}
-                  activeOpacity={0.85}
-                >
-                  <Text style={styles.noCreditsSecondaryText}>Kasnije</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.noCreditsPrimaryBtn}
-                  onPress={() => {
-                    setShowNoCreditsModal(false);
-                    router.replace('/shop');
-                  }}
-                  activeOpacity={0.88}
-                >
-                  <Text style={styles.noCreditsPrimaryText}>Idi u Shop</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Pressable>
-        </Modal>
+          type="video"
+          onClose={() => setShowNoCreditsModal(false)}
+          onGoToShop={() => router.replace('/shop')}
+        />
       </ImageBackground>
     </VideoWizardShell>
   );
@@ -510,76 +478,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#FFD2D2',
     flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.42)',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  noCreditsCard: {
-    backgroundColor: '#F8F4EF',
-    borderRadius: 24,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: 'rgba(207,143,90,0.24)',
-  },
-  noCreditsIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(207,143,90,0.12)',
-    marginBottom: 16,
-    alignSelf: 'center',
-  },
-  noCreditsTitle: {
-    fontFamily: FONTS.heading.semibold,
-    fontSize: 22,
-    color: DARK,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  noCreditsText: {
-    fontFamily: FONTS.primary.regular,
-    fontSize: 14,
-    lineHeight: 21,
-    color: '#6F6A64',
-    textAlign: 'center',
-  },
-  noCreditsActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 20,
-  },
-  noCreditsSecondaryBtn: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(44,42,40,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  noCreditsSecondaryText: {
-    fontFamily: FONTS.primary.medium,
-    fontSize: 14,
-    color: DARK,
-  },
-  noCreditsPrimaryBtn: {
-    flex: 1,
-    minHeight: 48,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: GOLD,
-  },
-  noCreditsPrimaryText: {
-    fontFamily: FONTS.primary.semibold,
-    fontSize: 14,
-    color: COLORS.white,
   },
 });
 

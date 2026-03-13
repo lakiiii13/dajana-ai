@@ -6,12 +6,18 @@
 import { NextResponse } from "next/server";
 import Expo from "expo-server-sdk";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getAdminSession, getValidatedAdminSession } from "@/lib/auth";
 
 const DEFAULT_TITLE = "DAJANA AI";
 const ANDROID_CHANNEL = "dajana-announcements";
 
 /** GET: return count of registered push tokens (for admin UI). */
 export async function GET() {
+  const session = await getAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const supabase = createAdminClient();
     const { count, error } = await supabase
@@ -28,6 +34,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await getValidatedAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await request.json();
     const title = (body.title as string)?.trim() || DEFAULT_TITLE;

@@ -25,6 +25,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { t } from '@/lib/i18n';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuthStore } from '@/stores/authStore';
 import {
   getSavedOutfits,
   getSavedTryOnImages,
@@ -50,6 +51,7 @@ const SAVED_OUTFIT_CARD_WIDTH = Math.min(CARD_WIDTH, (SCREEN_WIDTH - SPACING.lg 
 export default function SavedScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const currentUserId = useAuthStore((s) => s.user?.id ?? s.profile?.id ?? '');
   const [outfits, setOutfits] = useState<SavedOutfit[]>([]);
   const [images, setImages] = useState<SavedTryOnImage[]>([]);
   const [videos, setVideos] = useState<SavedVideo[]>([]);
@@ -58,11 +60,12 @@ export default function SavedScreen() {
   const [outfitCarouselIndex, setOutfitCarouselIndex] = useState(0);
 
   const loadAll = useCallback(async () => {
+    if (!currentUserId) return;
     try {
       const [o, i, v] = await Promise.all([
-        getSavedOutfits(),
-        getSavedTryOnImages(),
-        getSavedVideos(),
+        getSavedOutfits(currentUserId),
+        getSavedTryOnImages(currentUserId),
+        getSavedVideos(currentUserId),
       ]);
       setOutfits(o);
       setImages(i);
@@ -71,7 +74,7 @@ export default function SavedScreen() {
     } catch (e) {
       console.error('[Saved] Load error', e);
     }
-  }, []);
+  }, [currentUserId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -99,14 +102,14 @@ export default function SavedScreen() {
             text: t('delete'),
             style: 'destructive',
             onPress: async () => {
-              await deleteOutfitComposition(outfit.id);
+              await deleteOutfitComposition(outfit.id, currentUserId);
               loadAll();
             },
           },
         ]
       );
     },
-    [loadAll]
+    [loadAll, currentUserId]
   );
 
   const handleDeleteImage = useCallback(
@@ -120,7 +123,7 @@ export default function SavedScreen() {
             text: t('delete'),
             style: 'destructive',
             onPress: async () => {
-              await deleteTryOnImage(image.uri);
+              await deleteTryOnImage(image.generationId);
               loadAll();
             },
           },
@@ -224,7 +227,7 @@ export default function SavedScreen() {
                     return (
                       <TouchableOpacity
                         style={[styles.imageGridItem, { backgroundColor: colors.background, borderColor: colors.gray[200] }]}
-                        onPress={() => displayUri && setSelectedImage({ uri: displayUri, timestamp: item.timestamp, filename: '', outfitId: item.id })}
+                        onPress={() => displayUri && setSelectedImage({ generationId: '', uri: displayUri, timestamp: item.timestamp, filename: '', outfitId: item.id })}
                         activeOpacity={0.9}
                       >
                         <Image

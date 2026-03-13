@@ -4,10 +4,16 @@
 // ===========================================
 
 import { NextResponse } from "next/server";
+import { getAdminSession } from "@/lib/auth";
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 export async function POST(request: Request) {
+  const session = await getAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const key = process.env.OPENAI_API_KEY?.trim();
     if (!key) {

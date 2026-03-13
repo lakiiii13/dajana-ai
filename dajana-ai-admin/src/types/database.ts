@@ -132,6 +132,7 @@ export interface Database {
           output_url: string | null;
           ai_response: string | null;
           prompt: string | null;
+          metadata: Json | null;
           status: GenerationStatus;
           error_message: string | null;
           api_cost_cents: number;

@@ -20,6 +20,7 @@ import { FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { t } from '@/lib/i18n';
 import { AppLogo } from '@/components/AppLogo';
 import { getSavedOutfits, SavedOutfit } from '@/lib/tryOnService';
+import { useAuthStore } from '@/stores/authStore';
 
 const CALENDAR_PALETTE = {
   background: '#FDF8F3',
@@ -93,14 +94,16 @@ export default function CalendarScreen() {
   const cellWidth = gridWidth / 7;
 
   // Load outfits on focus
+  const currentUserId = useAuthStore((s) => s.user?.id ?? s.profile?.id ?? '');
   const loadOutfits = useCallback(async () => {
+    if (!currentUserId) return;
     try {
-      const data = await getSavedOutfits();
+      const data = await getSavedOutfits(currentUserId);
       setSavedOutfits(data);
     } catch (err) {
       console.error('Error loading outfits for calendar:', err);
     }
-  }, []);
+  }, [currentUserId]);
 
   useFocusEffect(
     useCallback(() => {

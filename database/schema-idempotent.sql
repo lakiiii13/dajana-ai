@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS generations (
   output_url TEXT,
   ai_response TEXT,
   prompt TEXT,
+  metadata JSONB DEFAULT '{}'::jsonb,
   status generation_status DEFAULT 'pending',
   error_message TEXT,
   api_cost_cents INTEGER DEFAULT 0,
@@ -122,6 +123,12 @@ CREATE TABLE IF NOT EXISTS generations (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   completed_at TIMESTAMPTZ
 );
+
+-- Add metadata column if not exists (for existing databases)
+DO $$ BEGIN
+  ALTER TABLE generations ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -158,6 +165,26 @@ CREATE TABLE IF NOT EXISTS saved_outfits (
   UNIQUE(user_id, outfit_id)
 );
 
+-- Outfit compositions (Kapsula outfit compositions created by users)
+CREATE TABLE IF NOT EXISTS outfit_compositions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  items JSONB NOT NULL DEFAULT '[]'::jsonb,
+  try_on_image_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- AI Savetnik razgovori (vezani za korisnika, ne lokalno)
+CREATE TABLE IF NOT EXISTS advice_chats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  title TEXT NOT NULL DEFAULT 'Novi razgovor',
+  messages JSONB NOT NULL DEFAULT '[]'::jsonb,
+  conversation_history JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- Inbox notifikacija (video spreman, Dajana iz admina, sistem) – prikaz u sekciji Notifikacije
 CREATE TABLE IF NOT EXISTS user_notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -180,6 +207,8 @@ CREATE INDEX IF NOT EXISTS idx_generations_status ON generations(status);
 CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_outfits_user ON saved_outfits(user_id);
+CREATE INDEX IF NOT EXISTS idx_outfit_compositions_user ON outfit_compositions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_advice_chats_user ON advice_chats(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_notifications_user_created ON user_notifications(user_id, created_at DESC);
 
 -- =========================================
@@ -213,6 +242,10 @@ CREATE POLICY "Users can insert own generations" ON generations FOR INSERT WITH 
 DO $$ BEGIN ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can view own subscription" ON subscriptions;
 CREATE POLICY "Users can view own subscription" ON subscriptions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own subscription" ON subscriptions;
+CREATE POLICY "Users can insert own subscription" ON subscriptions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can update own subscription" ON subscriptions;
+CREATE POLICY "Users can update own subscription" ON subscriptions FOR UPDATE USING (auth.uid() = user_id);
 
 DO $$ BEGIN ALTER TABLE transactions ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can view own transactions" ON transactions;
@@ -225,6 +258,17 @@ CREATE POLICY "Users can manage own push token" ON push_tokens FOR ALL USING (au
 DO $$ BEGIN ALTER TABLE saved_outfits ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can manage own saved outfits" ON saved_outfits;
 CREATE POLICY "Users can manage own saved outfits" ON saved_outfits FOR ALL USING (auth.uid() = user_id);
+
+DO $$ BEGIN ALTER TABLE outfit_compositions ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DROP POLICY IF EXISTS "Users can manage own outfit compositions" ON outfit_compositions;
+CREATE POLICY "Users can manage own outfit compositions" ON outfit_compositions FOR ALL USING (auth.uid() = user_id);
+
+DO $$ BEGIN ALTER TABLE advice_chats ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DROP POLICY IF EXISTS "Users can manage own advice chats" ON advice_chats;
+CREATE POLICY "Users can manage own advice chats" ON advice_chats FOR ALL USING (auth.uid() = user_id);
+
+-- ADMIN_USERS: RLS uključen, nema policy-ja = anon/authenticated ne mogu pristupiti.
+DO $$ BEGIN ALTER TABLE admin_users ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
 DO $$ BEGIN ALTER TABLE user_notifications ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can view own notifications" ON user_notifications;

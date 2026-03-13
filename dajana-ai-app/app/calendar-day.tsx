@@ -19,6 +19,7 @@ import { FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { OutfitCompositionCard } from '@/components/OutfitCompositionCard';
 import { deleteOutfitComposition, getSavedOutfits, SavedOutfit } from '@/lib/tryOnService';
+import { useAuthStore } from '@/stores/authStore';
 import { t } from '@/lib/i18n';
 
 const GOLD = '#CF8F5A';
@@ -52,14 +53,16 @@ export default function CalendarDayScreen() {
   const cardWidth = Math.min(width - SPACING.lg * 2, 460);
   const formattedDate = dateParam ? formatDayLabel(dateParam) : '';
 
+  const currentUserId = useAuthStore((s) => s.user?.id ?? s.profile?.id ?? '');
   const loadOutfits = useCallback(async () => {
+    if (!currentUserId) return;
     try {
-      const data = await getSavedOutfits();
+      const data = await getSavedOutfits(currentUserId);
       setSavedOutfits(data);
     } catch (error) {
       console.error('Error loading outfits for day screen:', error);
     }
-  }, []);
+  }, [currentUserId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,8 +83,8 @@ export default function CalendarDayScreen() {
           text: t('delete'),
           style: 'destructive',
           onPress: async () => {
-            await deleteOutfitComposition(outfit.id);
-            const data = await getSavedOutfits();
+            await deleteOutfitComposition(outfit.id, currentUserId);
+            const data = await getSavedOutfits(currentUserId);
             setSavedOutfits(data);
             const remaining = data.filter((item) => dateKeyFromTimestamp(item.timestamp) === dateParam);
             if (remaining.length === 0) {
@@ -91,7 +94,7 @@ export default function CalendarDayScreen() {
         },
       ]);
     },
-    [dateParam, router]
+    [dateParam, router, currentUserId]
   );
 
   const handleCarouselArrow = useCallback(

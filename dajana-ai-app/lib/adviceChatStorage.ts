@@ -1,13 +1,18 @@
 // ===========================================
 // DAJANA AI - Čuvanje ćaskanja sa Dajanom (AI Advice)
-// AsyncStorage: lista sačuvanih razgovora, naslov iz prvog korisničkog poruke
+// Supabase: advice_chats tabela, RLS po korisniku
 // ===========================================
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '@/lib/supabase';
 import type { AdvisorMessage } from '@/lib/aiAdvisorService';
 
-const STORAGE_KEY = '@dajana_advice_chats';
 const MAX_CHATS = 50;
+
+export function generateChatId(): string {
+  const hex = '0123456789abcdef';
+  const s = (n: number) => Array.from({ length: n }, () => hex[Math.floor(Math.random() * 16)]).join('');
+  return `${s(8)}-${s(4)}-4${s(3)}-${hex[8 + Math.floor(Math.random() * 4)]}${s(3)}-${s(12)}`;
+}
 
 export interface StoredMessage {
   role: 'user' | 'assistant';
@@ -20,7 +25,6 @@ export interface SavedAdviceChat {
   id: string;
   title: string;
   messages: StoredMessage[];
-  /** Istorija samo tekst (za continueConversation), bez base64 slika */
   conversationHistoryText: { role: 'user' | 'assistant'; content: string }[];
   createdAt: string;
 }
@@ -45,29 +49,69 @@ function historyToTextOnly(history?: AdvisorMessage[] | null): { role: 'user' | 
     .filter((m) => m.content.length > 0);
 }
 
-export async function loadAdviceChats(): Promise<SavedAdviceChat[]> {
+export async function loadAdviceChats(userId: string): Promise<SavedAdviceChat[]> {
   try {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const list = JSON.parse(raw) as SavedAdviceChat[];
-    return Array.isArray(list) ? list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) : [];
-  } catch {
+    const { data, error } = await supabase
+      .from('advice_chats')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(MAX_CHATS);
+
+    if (error) {
+      console.error('[AdviceChat] Load error:', error.message);
+      return [];
+    }
+    if (!data || data.length === 0) return [];
+
+    return data.map((row) => ({
+      id: row.id,
+      title: row.title,
+      messages: (row.messages as unknown as StoredMessage[]) ?? [],
+      conversationHistoryText: (row.conversation_history ?? []) as { role: 'user' | 'assistant'; content: string }[],
+      createdAt: row.created_at,
+    }));
+  } catch (e) {
+    console.error('[AdviceChat] Load exception:', e);
     return [];
   }
 }
 
-export async function saveAdviceChat(chat: SavedAdviceChat): Promise<void> {
-  const full: SavedAdviceChat = { ...chat, createdAt: chat.createdAt || new Date().toISOString() };
-  const list = await loadAdviceChats();
-  const without = list.filter((c) => c.id !== full.id);
-  const next = [full, ...without].slice(0, MAX_CHATS);
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+export async function saveAdviceChat(userId: string, chat: SavedAdviceChat): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('advice_chats')
+      .upsert({
+        id: chat.id,
+        user_id: userId,
+        title: chat.title,
+        messages: chat.messages as any,
+        conversation_history: chat.conversationHistoryText as any,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+
+    if (error) {
+      console.error('[AdviceChat] Save error:', error.message);
+    }
+  } catch (e) {
+    console.error('[AdviceChat] Save exception:', e);
+  }
 }
 
-export async function deleteAdviceChat(id: string): Promise<void> {
-  const list = await loadAdviceChats();
-  const next = list.filter((c) => c.id !== id);
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+export async function deleteAdviceChat(userId: string, chatId: string): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('advice_chats')
+      .delete()
+      .eq('id', chatId)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[AdviceChat] Delete error:', error.message);
+    }
+  } catch (e) {
+    console.error('[AdviceChat] Delete exception:', e);
+  }
 }
 
 /** Sačuvaj trenutni razgovor (naslov iz prvog user poruke). */

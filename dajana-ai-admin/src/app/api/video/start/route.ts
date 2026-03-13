@@ -4,10 +4,16 @@
 // ===========================================
 
 import { NextResponse } from "next/server";
+import { getAdminSession } from "@/lib/auth";
 
 const BASE = "https://thenewblack.ai/api/1.1/wf";
 
 export async function POST(request: Request) {
+  const session = await getAdminSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const key = process.env.VIDEO_API_KEY?.trim();
     if (!key) {

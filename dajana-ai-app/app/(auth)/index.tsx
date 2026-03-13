@@ -143,7 +143,7 @@ export default function WelcomeScreen() {
           style={[styles.videoFullscreen, styles.videoZoomUp]}
           contentFit="cover"
           nativeControls={false}
-          fullScreenOptions={{ allowsFullscreen: false }}
+          fullscreenOptions={{ enable: false }}
         />
         <LinearGradient
           colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.75)']}

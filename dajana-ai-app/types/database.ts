@@ -10,10 +10,8 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[];
 
-// Body Types
 export type BodyType = 'pear' | 'apple' | 'hourglass' | 'rectangle' | 'inverted_triangle';
 
-// 12 Seasons
 export type Season =
   | 'light_spring'
   | 'warm_spring'
@@ -28,25 +26,12 @@ export type Season =
   | 'cool_winter'
   | 'clear_winter';
 
-// Credit Types
 export type CreditType = 'image' | 'video' | 'analysis';
-
-// Generation Types
 export type GenerationType = 'image' | 'video' | 'analysis';
-
-// Generation Status
 export type GenerationStatus = 'pending' | 'processing' | 'completed' | 'failed';
-
-// Subscription Status
 export type SubscriptionStatus = 'active' | 'canceled' | 'past_due' | 'expired';
-
-// Plan Types
 export type PlanType = 'monthly' | 'yearly';
-
-// Transaction Types
 export type TransactionType = 'subscription_payment' | 'credit_purchase' | 'refund';
-
-// Transaction Status
 export type TransactionStatus = 'pending' | 'succeeded' | 'failed';
 
 export interface Database {
@@ -101,6 +86,7 @@ export interface Database {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       user_credits: {
         Row: {
@@ -145,6 +131,7 @@ export interface Database {
           last_reset_date?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       subscriptions: {
         Row: {
@@ -186,6 +173,7 @@ export interface Database {
           canceled_at?: string | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       outfits: {
         Row: {
@@ -224,6 +212,7 @@ export interface Database {
           display_order?: number;
           created_at?: string;
         };
+        Relationships: [];
       };
       generations: {
         Row: {
@@ -235,6 +224,7 @@ export interface Database {
           output_url: string | null;
           ai_response: string | null;
           prompt: string | null;
+          metadata: Json;
           status: GenerationStatus;
           error_message: string | null;
           api_cost_cents: number;
@@ -251,6 +241,7 @@ export interface Database {
           output_url?: string | null;
           ai_response?: string | null;
           prompt?: string | null;
+          metadata?: Json;
           status?: GenerationStatus;
           error_message?: string | null;
           api_cost_cents?: number;
@@ -267,6 +258,7 @@ export interface Database {
           output_url?: string | null;
           ai_response?: string | null;
           prompt?: string | null;
+          metadata?: Json;
           status?: GenerationStatus;
           error_message?: string | null;
           api_cost_cents?: number;
@@ -274,6 +266,7 @@ export interface Database {
           created_at?: string;
           completed_at?: string | null;
         };
+        Relationships: [];
       };
       transactions: {
         Row: {
@@ -306,6 +299,7 @@ export interface Database {
           status?: TransactionStatus;
           created_at?: string;
         };
+        Relationships: [];
       };
       push_tokens: {
         Row: {
@@ -326,6 +320,7 @@ export interface Database {
           platform?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       admin_users: {
         Row: {
@@ -352,6 +347,61 @@ export interface Database {
           role?: string;
           is_active?: boolean;
         };
+        Relationships: [];
+      };
+      advice_chats: {
+        Row: {
+          id: string;
+          user_id: string;
+          title: string;
+          messages: Json;
+          conversation_history: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          title?: string;
+          messages?: Json;
+          conversation_history?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          title?: string;
+          messages?: Json;
+          conversation_history?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      outfit_compositions: {
+        Row: {
+          id: string;
+          user_id: string;
+          items: Json;
+          try_on_image_url: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          items?: Json;
+          try_on_image_url?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          items?: Json;
+          try_on_image_url?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       saved_outfits: {
         Row: {
@@ -372,6 +422,7 @@ export interface Database {
           outfit_id?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       user_notifications: {
         Row: {
@@ -401,7 +452,11 @@ export interface Database {
           read?: boolean;
           created_at?: string;
         };
+        Relationships: [];
       };
+    };
+    Views: {
+      [_ in never]: never;
     };
     Functions: {
       check_and_use_credit: {
@@ -425,6 +480,12 @@ export interface Database {
         };
         Returns: void;
       };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 }

@@ -95,12 +95,9 @@ TaskManager.defineTask(VIDEO_POLL_TASK, async () => {
         result.videoUrl,
         job.publicImageUrl,
         job.prompt,
-        job.duration
+        job.duration,
+        job.userId
       );
-      if (job.userId) {
-        const { logVideoGeneration } = await import('./generationLog');
-        await logVideoGeneration(job.userId, saved.uri);
-      }
       await notifyVideoReady(saved.uri, job.userId ?? undefined);
       await clearBackgroundJob();
       return BackgroundFetch.BackgroundFetchResult.NewData;
