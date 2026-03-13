@@ -53,29 +53,51 @@ async function ensureBucket(): Promise<void> {
 }
 
 /**
- * If the image is a local file (file:///...), upload to Supabase
+ * If the image is a local file (file:///...) or data URI, upload to Supabase
  * storage and return a public URL. Otherwise return as-is.
  */
 async function ensurePublicUrl(imageUrl: string): Promise<string> {
   const path = toPathString(imageUrl);
   if (!path) throw new Error('Slika za video nije ispravna.');
-  if (!path.startsWith('file://') && !path.startsWith('/')) {
+
+  let base64: string;
+  let isPng = false;
+
+  if (path.startsWith('data:')) {
+    // data URI (e.g. data:image/png;base64,iVBOR...) — extract base64 payload
+    console.log('[Video] Converting data URI to upload...');
+    isPng = path.includes('image/png');
+    const commaIdx = path.indexOf(',');
+    if (commaIdx < 0) throw new Error('Neispravan data URI za video.');
+    base64 = path.substring(commaIdx + 1);
+  } else if (path.startsWith('file://') || path.startsWith('/')) {
+    console.log('[Video] Uploading local image to Supabase...');
+    isPng = path.toLowerCase().endsWith('.png');
+    base64 = await FileSystem.readAsStringAsync(path, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  } else {
     return path; // already a remote URL
   }
 
-  console.log('[Video] Uploading local image to Supabase...');
   await ensureBucket();
 
-  const base64 = await FileSystem.readAsStringAsync(path, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  const approxKB = Math.round(base64.length * 3 / 4 / 1024);
+  if (approxKB > 8192) {
+    console.warn(`[Video] Image too large: ${approxKB} KB, max 8 MB`);
+    throw new Error('Slika je prevelika za video (max ~8 MB). Pokušajte sa manjom slikom.');
+  }
 
-  const filename = `src_${Date.now()}.jpg`;
+  const ext = isPng ? 'png' : 'jpg';
+  const contentType = isPng ? 'image/png' : 'image/jpeg';
+  const filename = `src_${Date.now()}.${ext}`;
+
+  console.log(`[Video] Uploading as ${contentType}, size ~${approxKB} KB`);
 
   const { data, error } = await supabase.storage
     .from(BUCKET_NAME)
     .upload(filename, decode(base64), {
-      contentType: 'image/jpeg',
+      contentType,
       upsert: true,
     });
 
@@ -153,8 +175,11 @@ export async function startVideoGeneration(
 
   for (let attempt = 1; attempt <= VIDEO_START_RETRIES; attempt++) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       const res = await fetch(edgeUrl, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -163,6 +188,7 @@ export async function startVideoGeneration(
         },
         body,
       });
+      clearTimeout(timeoutId);
 
       const responseText = await res.text().catch(() => '');
       if (!res.ok) {
@@ -219,8 +245,11 @@ export async function getVideoResult(jobId: string): Promise<VideoResult> {
   const edgeUrl = `${SUPABASE_URL}/functions/v1/video-result`;
   const { data: sessionData } = await supabase.auth.getSession();
   const userToken = sessionData?.session?.access_token ?? '';
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   const res = await fetch(edgeUrl, {
     method: 'POST',
+    signal: controller.signal,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -229,6 +258,7 @@ export async function getVideoResult(jobId: string): Promise<VideoResult> {
     },
     body: JSON.stringify({ jobId }),
   });
+  clearTimeout(timeoutId);
   const text = await res.text().catch(() => '');
   if (!res.ok) {
     if (res.status === 404 || text.toLowerCase().includes('not ready')) return { videoUrl: null };
@@ -264,7 +294,8 @@ export async function getVideoResult(jobId: string): Promise<VideoResult> {
 }
 
 /**
- * Poll until video is ready (max ~5 min).
+ * Poll until video is ready (max ~8 min).
+ * Resilient to transient network errors — skips failed polls instead of aborting.
  */
 export async function pollVideoResult(
   jobId: string,
@@ -272,10 +303,22 @@ export async function pollVideoResult(
   maxAttempts = 48,
   intervalMs = 10000
 ): Promise<string> {
+  let consecutiveErrors = 0;
+  const MAX_CONSECUTIVE_ERRORS = 5;
+
   for (let i = 0; i < maxAttempts; i++) {
     onProgress?.(i + 1);
-    const result = await getVideoResult(jobId);
-    if (result.videoUrl) return result.videoUrl;
+    try {
+      const result = await getVideoResult(jobId);
+      consecutiveErrors = 0;
+      if (result.videoUrl) return result.videoUrl;
+    } catch (e: unknown) {
+      consecutiveErrors++;
+      console.warn(`[Video] Poll attempt ${i + 1} failed (${consecutiveErrors}/${MAX_CONSECUTIVE_ERRORS}):`, e instanceof Error ? e.message : e);
+      if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+        throw new Error('Veza sa video servisom nije stabilna. Proverite internet i pokušajte ponovo.');
+      }
+    }
     await new Promise((r) => setTimeout(r, intervalMs));
   }
   throw new Error('Video se dugo generiše. Možete pokušati ponovo ili proveriti kasnije u sekciji Video.');
