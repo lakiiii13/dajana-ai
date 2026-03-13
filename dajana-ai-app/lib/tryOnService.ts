@@ -86,11 +86,10 @@ export async function generateTryOn(
   if (typeof faceImageBase64 !== 'string' || !faceImageBase64.trim()) {
     throw new Error('Slika lica nije ispravna. Pokušajte ponovo sa jasnom fotografijom.');
   }
-  // Prevelika slika često izaziva 400 od Gemini / limit Supabase body
   const approxMb = (faceImageBase64.length * 3) / 4 / 1024 / 1024;
-  if (approxMb > 2) {
+  if (approxMb > 5) {
     throw new Error(
-      'Slika je prevelika. Izaberite manju fotografiju ili isečite samo lice/telo (preporuka do ~1–2 MB).'
+      'Slika je prevelika. Izaberite manju fotografiju ili isečite samo lice/telo (preporuka do ~2–3 MB).'
     );
   }
   console.log('[TryOn] Starting generation...', 'face ~', approxMb.toFixed(2), 'MB');
@@ -115,7 +114,7 @@ export async function generateTryOn(
       const token = sessionData?.session?.access_token ?? '';
       const edgeUrl = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/generate-try-on`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 min za generisanje
+      const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 min (edge retry + fallback model)
       const edgeRes = await fetch(edgeUrl, {
         method: 'POST',
         signal: controller.signal,

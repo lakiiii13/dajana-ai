@@ -138,7 +138,6 @@ export async function startVideoGeneration(
   }
 
   const edgeUrl = `${SUPABASE_URL}/functions/v1/video-start`;
-  // Zoom ka licu: kad korisnik izabere Zoom, šaljemo jasnu instrukciju za zoom na lice
   const rawPrompt = prompt.trim();
   const sceneMotion =
     /^\s*zoom\s*$/i.test(rawPrompt) || /zoom\s*(ka\s*)?licu|zoom\s+to\s+face/i.test(rawPrompt)
@@ -147,6 +146,9 @@ export async function startVideoGeneration(
   const preserveFacePrompt =
     `Preserve the person's face and identity exactly. Keep all facial features, skin tone, expression, and likeness identical to the source photo. The result must look like the same person. Scene or motion: ${sceneMotion}`.trim();
   const body = JSON.stringify({ image: publicUrl, prompt: preserveFacePrompt, time: duration });
+
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userToken = sessionData?.session?.access_token ?? '';
   let lastErrMsg = '';
 
   for (let attempt = 1; attempt <= VIDEO_START_RETRIES; attempt++) {
@@ -157,6 +159,7 @@ export async function startVideoGeneration(
           'Content-Type': 'application/json',
           Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
           apikey: SUPABASE_ANON_KEY,
+          ...(userToken ? { 'X-User-JWT': userToken } : {}),
         },
         body,
       });
@@ -214,12 +217,15 @@ export async function getVideoResult(jobId: string): Promise<VideoResult> {
   }
 
   const edgeUrl = `${SUPABASE_URL}/functions/v1/video-result`;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userToken = sessionData?.session?.access_token ?? '';
   const res = await fetch(edgeUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       apikey: SUPABASE_ANON_KEY,
+      ...(userToken ? { 'X-User-JWT': userToken } : {}),
     },
     body: JSON.stringify({ jobId }),
   });

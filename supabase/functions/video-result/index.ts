@@ -3,9 +3,11 @@
 // VIDEO_API_KEY u Supabase Secrets. Retry za 5xx / mrežu.
 // ===========================================
 
+import { verifyAuth, checkRateLimit } from "../_shared/guards.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-user-jwt",
 };
 
 const BASE = "https://thenewblack.ai/api/1.1/wf";
@@ -27,6 +29,12 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  const auth = await verifyAuth(req, corsHeaders);
+  if (auth.error) return auth.error;
+
+  const rlErr = checkRateLimit(auth.userId, "video-result", 60, corsHeaders);
+  if (rlErr) return rlErr;
 
   const apiKey = Deno.env.get("VIDEO_API_KEY")?.trim();
   if (!apiKey) {

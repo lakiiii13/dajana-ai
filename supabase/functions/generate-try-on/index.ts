@@ -3,13 +3,15 @@
 // Koristi GEMINI_API_KEY iz Supabase Secrets
 // ===========================================
 
+import { verifyAuth, checkRateLimit, checkCredits } from "../_shared/guards.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-user-jwt",
 };
 
-// gemini-3-pro-image-preview = Nano Banana Pro (bolji kvalitet); gemini-2.5-flash-image = brži, slabiji
-const GEMINI_MODEL = "gemini-3-pro-image-preview";
+const GEMINI_PRIMARY = "gemini-3-pro-image-preview";
+const OPENAI_FALLBACK_MODEL = "gpt-image-1";
 
 interface OutfitItem {
   title: string | null;
@@ -110,6 +112,84 @@ IMAGE QUALITY RULES:
 Generate the image now.`;
 }
 
+async function callOpenAIFallback(
+  openaiKey: string,
+  faceBase64: string,
+  outfitImages: OutfitImage[],
+  items: OutfitItem[]
+): Promise<Response | null> {
+  const MAX_OPENAI_ATTEMPTS = 2;
+  const OPENAI_DELAY = 5000;
+
+  const prompt = buildTryOnPrompt(items);
+
+  const images: { image_url: string }[] = [
+    { image_url: `data:image/jpeg;base64,${faceBase64}` },
+  ];
+  for (const img of outfitImages) {
+    const mime = img.mimeType || "image/jpeg";
+    images.push({ image_url: `data:${mime};base64,${img.base64}` });
+  }
+
+  const body = {
+    model: OPENAI_FALLBACK_MODEL,
+    prompt,
+    images,
+    n: 1,
+    size: "1024x1536" as const,
+    quality: "high" as const,
+  };
+
+  for (let attempt = 1; attempt <= MAX_OPENAI_ATTEMPTS; attempt++) {
+    try {
+      console.log(`[TryOn] OpenAI ${OPENAI_FALLBACK_MODEL} attempt ${attempt}/${MAX_OPENAI_ATTEMPTS}`);
+
+      const res = await fetch("https://api.openai.com/v1/images/edits", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${openaiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => "");
+        console.error(`[TryOn] OpenAI HTTP ${res.status}:`, errBody.slice(0, 300));
+        if (res.status === 429 || res.status >= 500) {
+          if (attempt < MAX_OPENAI_ATTEMPTS) {
+            await new Promise((r) => setTimeout(r, OPENAI_DELAY * attempt));
+            continue;
+          }
+        }
+        return null;
+      }
+
+      const data = await res.json();
+      const imageData = data?.data?.[0]?.b64_json;
+      if (imageData) {
+        console.log(`[TryOn] OpenAI returned image on attempt ${attempt}`);
+        return new Response(
+          JSON.stringify({ imageBase64: imageData, mimeType: "image/png" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log("[TryOn] OpenAI returned no image data");
+      if (attempt < MAX_OPENAI_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, OPENAI_DELAY));
+        continue;
+      }
+    } catch (e: unknown) {
+      console.error("[TryOn] OpenAI error:", e instanceof Error ? e.message : e);
+      if (attempt < MAX_OPENAI_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, OPENAI_DELAY));
+      }
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -121,6 +201,15 @@ Deno.serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+
+  const auth = await verifyAuth(req, corsHeaders);
+  if (auth.error) return auth.error;
+
+  const rlErr = checkRateLimit(auth.userId, "generate-try-on", 10, corsHeaders);
+  if (rlErr) return rlErr;
+
+  const creditErr = await checkCredits(auth.userId, "image", corsHeaders);
+  if (creditErr) return creditErr;
 
   const apiKey = Deno.env.get("GEMINI_API_KEY");
   if (!apiKey?.trim()) {
@@ -159,18 +248,17 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const geminiBody = {
+  const geminiBodyBase = {
     contents: [{ parts: imageParts }],
     generationConfig: {
-      responseModalities: ["IMAGE"],
+      responseModalities: ["IMAGE", "TEXT"],
       temperature: 0.4,
       imageConfig: { aspectRatio: "3:4", imageSize: "2K" },
     },
   };
 
   const MAX_ATTEMPTS = 3;
-  const RETRY_DELAY_MS = 1500;
+  const RETRY_DELAY_MS = 4000;
   function sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -187,81 +275,119 @@ Deno.serve(async (req: Request) => {
     return "Greška pri generisanju slike. Pokušajte ponovo.";
   }
 
-  let lastErr: unknown = null;
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    try {
-      const res = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody),
-      });
-      const rawBody = await res.text();
+  interface GeminiCandidate {
+    content?: { parts?: GeminiCandidatePart[] };
+    finishReason?: string;
+  }
 
-      if (!res.ok) {
-        if (res.status === 403 || res.status === 429) {
+  function extractImageFromCandidates(
+    candidates: GeminiCandidate[] | undefined
+  ): { imageBase64: string; mimeType: string } | null {
+    if (!candidates?.length) return null;
+    const parts = candidates[0].content?.parts ?? [];
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        return {
+          imageBase64: part.inlineData.data,
+          mimeType: part.inlineData.mimeType || "image/png",
+        };
+      }
+    }
+    return null;
+  }
+
+  function getFilterReason(candidates: GeminiCandidate[] | undefined): string | null {
+    if (!candidates?.length) return null;
+    const c = candidates[0] as Record<string, unknown>;
+    if (c.finishReason === "SAFETY") return "Slika je blokirana zbog sigurnosnog filtera. Pokušajte sa drugom fotografijom.";
+    if (typeof c.raiFilteredReason === "string") return `Slika filtrirana: ${(c.raiFilteredReason as string).slice(0, 120)}`;
+    return null;
+  }
+
+  async function callGemini(model: string): Promise<Response | null> {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    let lastErr: unknown = null;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        console.log(`[TryOn] ${model} attempt ${attempt}/${MAX_ATTEMPTS}`);
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiBodyBase),
+        });
+        const rawBody = await res.text();
+
+        if (!res.ok) {
+          if (res.status === 403 || res.status === 429) {
+            return new Response(JSON.stringify({ error: tryOnError(res.status, rawBody) }), {
+              status: res.status === 429 ? 429 : 502,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (attempt < MAX_ATTEMPTS && res.status >= 500) {
+            console.log(`[TryOn] HTTP ${res.status}, retrying in ${RETRY_DELAY_MS * attempt}ms...`);
+            await sleep(RETRY_DELAY_MS * attempt);
+            continue;
+          }
           return new Response(JSON.stringify({ error: tryOnError(res.status, rawBody) }), {
-            status: res.status === 429 ? 429 : 502,
+            status: 502,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-        if (attempt < MAX_ATTEMPTS && res.status >= 500) {
+
+        let data: { candidates?: GeminiCandidate[] };
+        try {
+          data = JSON.parse(rawBody);
+        } catch {
+          if (attempt < MAX_ATTEMPTS) { await sleep(RETRY_DELAY_MS * attempt); continue; }
+          return null;
+        }
+
+        const image = extractImageFromCandidates(data.candidates);
+        if (image) {
+          console.log(`[TryOn] ${model} returned image on attempt ${attempt}`);
+          return new Response(JSON.stringify(image), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const filterReason = getFilterReason(data.candidates);
+        if (filterReason) {
+          console.log(`[TryOn] ${model} safety filter: ${filterReason}`);
+          return null;
+        }
+
+        console.log(`[TryOn] ${model} returned 200 but no image, attempt ${attempt}`);
+        if (attempt < MAX_ATTEMPTS) {
           await sleep(RETRY_DELAY_MS * attempt);
           continue;
         }
-        return new Response(JSON.stringify({ error: tryOnError(res.status, rawBody) }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      } catch (e: unknown) {
+        lastErr = e;
+        if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS * attempt);
       }
-
-      let data: { candidates?: Array<{ content?: { parts?: GeminiCandidatePart[] } }> };
-      try {
-        data = JSON.parse(rawBody);
-      } catch {
-        return new Response(JSON.stringify({ error: "Neispravan odgovor servisa. Pokušajte ponovo." }), {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const candidates = data.candidates;
-      if (!candidates?.length) {
-        return new Response(
-          JSON.stringify({ error: "AI nije vratio sliku. Pokušajte ponovo." }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const parts = candidates[0].content?.parts ?? [];
-      const textParts = parts.map((part) => part.text).filter(Boolean).join(" ").trim();
-      for (const part of parts) {
-        if (part.inlineData?.data) {
-          return new Response(
-            JSON.stringify({
-              imageBase64: part.inlineData.data,
-              mimeType: part.inlineData.mimeType || "image/png",
-            }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      }
-      return new Response(
-        JSON.stringify({
-          error: textParts
-            ? `AI nije generisao sliku. Odgovor modela: ${textParts.slice(0, 180)}`
-            : "AI nije generisao sliku. Pokušajte ponovo.",
-        }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    } catch (e: unknown) {
-      lastErr = e;
-      if (attempt < MAX_ATTEMPTS) await sleep(RETRY_DELAY_MS * attempt);
     }
+    return null;
   }
 
-  const errMsg = lastErr instanceof Error ? lastErr.message : String(lastErr);
+  // 1) Pokušaj primarni model (Gemini 3 Pro) — do 3 pokušaja, delay 4/8/12s
+  const primaryResult = await callGemini(GEMINI_PRIMARY);
+  if (primaryResult) return primaryResult;
+
+  // 2) Fallback na OpenAI gpt-image-1
+  const openaiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
+  if (openaiKey) {
+    console.log("[TryOn] Gemini failed, trying OpenAI fallback...");
+    const openaiResult = await callOpenAIFallback(openaiKey, faceImageBase64, outfitImages, items);
+    if (openaiResult) return openaiResult;
+  } else {
+    console.log("[TryOn] No OPENAI_API_KEY set, skipping fallback.");
+  }
+
+  // 3) Svi modeli nisu uspeli
   return new Response(
-    JSON.stringify({ error: "Veza sa try-on servisom nije uspela. Proverite internet i pokušajte ponovo. (" + (errMsg?.slice(0, 60) ?? "") + ")" }),
+    JSON.stringify({ error: "AI nije uspeo da generiše sliku ni posle više pokušaja. Pokušajte sa drugom fotografijom ili probajte ponovo za par minuta." }),
     { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
   );
 });

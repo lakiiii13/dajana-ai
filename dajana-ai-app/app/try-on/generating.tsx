@@ -147,33 +147,46 @@ export default function TryOnGeneratingScreen() {
     const effectiveOutfitId = hasItems ? outfitItems[0].id : outfitId!;
     setGenerating(true);
     setError(null);
-    try {
-      const items = hasItems
-        ? outfitItems.map((i) => ({ imageUrl: i.imageUrl, title: i.title }))
-        : [{ imageUrl: outfitImageUrl!, title: outfitTitle || null }];
 
-      const result = await generateTryOn(faceImageBase64, items);
-      await deductImageCredit(user.id);
-      useAuthStore.getState().fetchCredits();
-      const savedUri = await saveTryOnImage(result.imageBase64, effectiveOutfitId);
+    const items = hasItems
+      ? outfitItems.map((i) => ({ imageUrl: i.imageUrl, title: i.title }))
+      : [{ imageUrl: outfitImageUrl!, title: outfitTitle || null }];
 
-      await logImageGeneration(user.id, effectiveOutfitId ?? null, savedUri ?? null);
+    const CLIENT_RETRIES = 2;
+    const CLIENT_RETRY_DELAY = 5000;
+    let lastError: string = 'Generation failed';
 
-      // Sačuvaj outfit sa tryOnImageUri → na Home ide u OUTFIT/Ormar sekciju (ne u Kapsula)
-      const compositionItems = hasItems
-        ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title, zoneId: i.zoneId }))
-        : [{ id: outfitId!, imageUrl: outfitImageUrl!, title: outfitTitle || null }];
-      await saveOutfitComposition(compositionItems, savedUri).catch(() => {});
+    for (let clientAttempt = 1; clientAttempt <= CLIENT_RETRIES; clientAttempt++) {
+      try {
+        console.log(`[TryOn] Client attempt ${clientAttempt}/${CLIENT_RETRIES}`);
+        const result = await generateTryOn(faceImageBase64, items);
+        await deductImageCredit(user.id);
+        useAuthStore.getState().fetchCredits();
+        const savedUri = await saveTryOnImage(result.imageBase64, effectiveOutfitId);
 
-      setGeneratedImage(result.imageBase64, savedUri);
-      setGenerating(false);
-      router.replace('/try-on/result');
-    } catch (err: any) {
-      console.error('[TryOn] Generation error:', err);
-      setGenerating(false);
-      setError(err.message || 'Generation failed');
-      router.replace('/try-on/result');
+        await logImageGeneration(user.id, effectiveOutfitId ?? null, savedUri ?? null);
+
+        const compositionItems = hasItems
+          ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title, zoneId: i.zoneId }))
+          : [{ id: outfitId!, imageUrl: outfitImageUrl!, title: outfitTitle || null }];
+        await saveOutfitComposition(compositionItems, savedUri).catch(() => {});
+
+        setGeneratedImage(result.imageBase64, savedUri);
+        setGenerating(false);
+        router.replace('/try-on/result');
+        return;
+      } catch (err: any) {
+        lastError = err.message || 'Generation failed';
+        console.error(`[TryOn] Client attempt ${clientAttempt} error:`, lastError);
+        if (clientAttempt < CLIENT_RETRIES) {
+          await new Promise((r) => setTimeout(r, CLIENT_RETRY_DELAY));
+        }
+      }
     }
+
+    setGenerating(false);
+    setError(lastError);
+    router.replace('/try-on/result');
   }, [faceImageBase64, outfitImageUrl, outfitId, outfitTitle, outfitItems, user?.id]);
 
   useEffect(() => { runGeneration(); }, [runGeneration]);

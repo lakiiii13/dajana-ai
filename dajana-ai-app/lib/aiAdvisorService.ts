@@ -8,6 +8,7 @@ import type { Season } from '@/types/database';
 import { BODY_TYPES } from '@/constants/bodyTypes';
 import { SEASONS } from '@/constants/seasons';
 import { findAiResponseForSeason } from '@/constants/seasonPalettes';
+import { supabase } from '@/lib/supabase';
 
 const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim().replace(/\/$/, '');
 const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
@@ -23,12 +24,15 @@ async function chatViaEdge(
     );
   }
   const edgeUrl = `${SUPABASE_URL}/functions/v1/chat`;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userToken = sessionData?.session?.access_token ?? '';
   const res = await fetch(edgeUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       apikey: SUPABASE_ANON_KEY,
+      ...(userToken ? { 'X-User-JWT': userToken } : {}),
     },
     body: JSON.stringify({
       model: 'gpt-4o',
@@ -68,12 +72,15 @@ async function outfitAdviceViaEdge(
     : 'image/png';
 
   const edgeUrl = `${SUPABASE_URL}/functions/v1/outfit-advice`;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userToken = sessionData?.session?.access_token ?? '';
   const res = await fetch(edgeUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       apikey: SUPABASE_ANON_KEY,
+      ...(userToken ? { 'X-User-JWT': userToken } : {}),
     },
     body: JSON.stringify({
       systemPrompt,

@@ -67,7 +67,7 @@ export default function TryOnUploadScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [3, 4],
-        quality: 0.7,
+        quality: 0.6,
         base64: true,
       });
 
@@ -96,7 +96,7 @@ export default function TryOnUploadScreen() {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [3, 4],
-        quality: 0.7,
+        quality: 0.6,
         base64: true,
       });
 
