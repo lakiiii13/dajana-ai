@@ -28,6 +28,8 @@ import { useTryOnStore } from '@/stores/tryOnStore';
 import { OutfitPickerModal } from '@/components/OutfitPickerModal';
 import { OutfitWithSaved } from '@/lib/api';
 import { CategoryId } from '@/constants/categories';
+import { useAuthStore } from '@/stores/authStore';
+import { loadOutfitDraft, saveOutfitDraft, type OutfitDraftItem } from '@/lib/tryOnService';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const TABLE_BG = require('@/assets/images/table-outfit3.jpg');
@@ -64,11 +66,11 @@ function getItemPosition(zoneId: ZoneId): { left: number; top: number } {
 
 function getZoneLabels(): { key: ZoneId; label: string }[] {
   return [
-    { key: 'outerwear', label: 'Kaput / Jakna' },
-    { key: 'top', label: 'Gornji delovi' },
-    { key: 'bottom', label: 'Donji deo' },
-    { key: 'shoes', label: 'Obuća' },
-    { key: 'accessory', label: 'Aksesoar' },
+    { key: 'outerwear', label: t('table_builder.zone_outerwear') },
+    { key: 'top', label: t('table_builder.zone_top') },
+    { key: 'bottom', label: t('table_builder.zone_bottom') },
+    { key: 'shoes', label: t('table_builder.zone_shoes') },
+    { key: 'accessory', label: t('table_builder.zone_accessory') },
   ];
 }
 
@@ -83,8 +85,6 @@ const ZONE_TO_CATEGORY: Record<ZoneId, CategoryId> = {
 
 type AddedEntry = { zoneId: ZoneId; item: OutfitWithSaved; entryId: number };
 
-// Lista ostaje i kad se ekran ponovo mount-uje (npr. tab, modal)
-let persistedTableItems: AddedEntry[] = [];
 let nextEntryId = 1;
 const TRASH_HIT_SLOP = 24;
 
@@ -187,11 +187,30 @@ function ZoneStack({
   );
 }
 
+function draftToEntries(draft: OutfitDraftItem[]): AddedEntry[] {
+  return draft.map((d, i) => ({
+    zoneId: d.zoneId as ZoneId,
+    item: { id: d.id, image_url: d.image_url, title: d.title } as OutfitWithSaved,
+    entryId: 1000 + i,
+  }));
+}
+
+function entriesToDraft(entries: AddedEntry[]): OutfitDraftItem[] {
+  return entries.map((e) => ({
+    zoneId: e.zoneId,
+    id: e.item.id,
+    image_url: e.item.image_url,
+    title: e.item.title ?? null,
+  }));
+}
+
 export default function OutfitBuilderScreen() {
   const insets = useSafeAreaInsets();
+  const userId = useAuthStore((s) => s.user?.id);
   const CATEGORIES = getZoneLabels();
   const trashRef = useRef<View | null>(null);
-  const [addedItems, setAddedItems] = useState<AddedEntry[]>(() => [...persistedTableItems]);
+  const [addedItems, setAddedItems] = useState<AddedEntry[]>([]);
+  const [draftLoaded, setDraftLoaded] = useState(false);
   const [activeSlot, setActiveSlot] = useState<ZoneId | null>(null);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -206,9 +225,30 @@ export default function OutfitBuilderScreen() {
   const contentH = SCREEN_H - 140;
 
   useEffect(() => {
-    const maxPersistedId = persistedTableItems.reduce((max, entry) => Math.max(max, entry.entryId), 0);
-    nextEntryId = Math.max(nextEntryId, maxPersistedId + 1);
-  }, []);
+    if (!userId) {
+      setAddedItems([]);
+      setDraftLoaded(true);
+      return;
+    }
+    let cancelled = false;
+    loadOutfitDraft(userId).then((draft) => {
+      if (!cancelled) {
+        const entries = draftToEntries(draft);
+        setAddedItems(entries);
+        nextEntryId = Math.max(nextEntryId, 2000 + entries.length);
+      }
+      setDraftLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!draftLoaded || !userId) return;
+    const draft = entriesToDraft(addedItems);
+    saveOutfitDraft(userId, draft);
+  }, [draftLoaded, userId, addedItems]);
 
   useEffect(() => {
     if (!stackDetailZone) return;
@@ -230,19 +270,11 @@ export default function OutfitBuilderScreen() {
   }, []);
 
   const removeItem = useCallback((entryId: number) => {
-    setAddedItems((prev) => {
-      const next = prev.filter((e) => e.entryId !== entryId);
-      persistedTableItems = next;
-      return next;
-    });
+    setAddedItems((prev) => prev.filter((e) => e.entryId !== entryId));
   }, []);
 
   const removeItemsInZone = useCallback((zoneId: ZoneId) => {
-    setAddedItems((prev) => {
-      const next = prev.filter((e) => e.zoneId !== zoneId);
-      persistedTableItems = next;
-      return next;
-    });
+    setAddedItems((prev) => prev.filter((e) => e.zoneId !== zoneId));
   }, []);
 
   const refreshTrashRect = useCallback(() => {
@@ -294,11 +326,7 @@ export default function OutfitBuilderScreen() {
 
   const selectItem = useCallback((item: OutfitWithSaved) => {
     if (activeSlot) {
-      setAddedItems((prev) => {
-        const next: AddedEntry[] = [...prev, { zoneId: activeSlot, item, entryId: nextEntryId++ }];
-        persistedTableItems = next;
-        return next;
-      });
+      setAddedItems((prev) => [...prev, { zoneId: activeSlot, item, entryId: nextEntryId++ }]);
       setPickerVisible(false);
     }
   }, [activeSlot]);
@@ -314,7 +342,7 @@ export default function OutfitBuilderScreen() {
         zoneId,
       });
     });
-    setOutfitTitle('Moj outfit');
+    setOutfitTitle(t('outfit_builder.my_outfit'));
     router.push('/try-on' as any);
   }, [canTryOn, addedItems, clearOutfitItems, addOutfitItem, setOutfitTitle]);
 
@@ -394,10 +422,10 @@ export default function OutfitBuilderScreen() {
                         </View>
                         <View style={styles.slotMeta}>
                           <Text style={styles.slotItemTitle} numberOfLines={2}>
-                            {firstEntry.item.title ?? 'Dodati komad'}
+                            {firstEntry.item.title ?? t('table_builder.added_item')}
                           </Text>
                           <Text style={styles.slotItemSubtitle}>
-                            {entries.length === 1 ? '1 komad dodat' : `${entries.length} komada dodato`}
+                            {entries.length === 1 ? t('table_builder.piece_added_one') : t('table_builder.piece_added_many', { count: entries.length })}
                           </Text>
                           <TouchableOpacity
                             style={styles.slotAddMoreBtn}
@@ -408,7 +436,7 @@ export default function OutfitBuilderScreen() {
                             activeOpacity={0.85}
                           >
                             <Feather name="plus" size={14} color={DARK} />
-                            <Text style={styles.slotAddMoreText}>Dodaj još</Text>
+                            <Text style={styles.slotAddMoreText}>{t('table_builder.add_more')}</Text>
                           </TouchableOpacity>
                         </View>
                       </View>
@@ -417,7 +445,7 @@ export default function OutfitBuilderScreen() {
                         <View style={styles.slotEmptyIcon}>
                           <Feather name="plus" size={18} color={CREAM} />
                         </View>
-                        <Text style={styles.slotEmptyText}>Dodaj komad</Text>
+                        <Text style={styles.slotEmptyText}>{t('table_builder.add_piece')}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -435,7 +463,7 @@ export default function OutfitBuilderScreen() {
                   </View>
                   <View style={styles.slotBottomRow}>
                     <View style={styles.slotBottomCardWrapFull}>
-                      {renderSlot('accessory', 'Aksesoar', accessoryEntries)}
+                      {renderSlot('accessory', t('table_builder.zone_accessory'), accessoryEntries)}
                     </View>
                   </View>
                 </>
@@ -447,8 +475,8 @@ export default function OutfitBuilderScreen() {
         <View style={[styles.footer, { paddingBottom: insets.bottom + SPACING.lg }]}>
         <Text style={styles.hint}>
           {totalItems < 2
-            ? `Dodaj najmanje ${2 - totalItems} komad${totalItems === 1 ? '' : 'a'} da bi isprobao outfit`
-            : 'Outfit je spreman za probanje!'}
+            ? (2 - totalItems === 1 ? t('table_builder.add_min_hint', { count: 1 }) : t('table_builder.add_min_hint_plural', { count: 2 - totalItems }))
+            : t('table_builder.outfit_ready')}
         </Text>
         <TouchableOpacity
           style={[styles.tryBtn, totalItems < 2 && styles.tryBtnDisabled]}
@@ -457,7 +485,7 @@ export default function OutfitBuilderScreen() {
           activeOpacity={0.88}
         >
           <Text style={[styles.tryBtnText, totalItems < 2 && styles.tryBtnTextDisabled]}>
-            Isprobaj outfit
+            {t('table_builder.try_outfit')}
           </Text>
         </TouchableOpacity>
         </View>
@@ -512,7 +540,7 @@ export default function OutfitBuilderScreen() {
                   (stackDetailZone === 'accessory'
                     ? addedItems.filter((e) => e.zoneId === 'accessory' || e.zoneId === 'bag').length
                     : addedItems.filter((e) => e.zoneId === stackDetailZone).length)}{' '}
-                komad(a) u ovoj zoni
+                {t('table_builder.pieces_in_zone')}
               </Text>
               <ScrollView style={styles.stackDetailScroll} showsVerticalScrollIndicator={false}>
                 {stackDetailZone &&
@@ -547,7 +575,7 @@ export default function OutfitBuilderScreen() {
                 onPress={() => setStackDetailZone(null)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.stackDetailCloseBtnText}>Zatvori</Text>
+                <Text style={styles.stackDetailCloseBtnText}>{t('table_builder.close')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>

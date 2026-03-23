@@ -1,10 +1,9 @@
 // ===========================================
 // DAJANA AI - Luxury "No credits" popup
-// Prikazuje se kad korisnik nema kredite za sliku ili video.
-// Stil: krem, zlatno, tamno zelena — u skladu sa aplikacijom.
+// Transparentno, elegantno — box oko Obnovi pretplatu + animacija.
 // ===========================================
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Modal,
   Pressable,
@@ -13,13 +12,19 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { t } from '@/lib/i18n';
 
-const CREAM = '#F8F4EF';
-const GOLD = '#CF8F5A';
 const DARK_GREEN = '#0D4326';
 const DARK = '#2C2A28';
 
@@ -39,7 +44,29 @@ export function NoCreditsModal({
   onGoToShop,
 }: NoCreditsModalProps) {
   const title = type === 'image' ? t('no_credits_modal.title_image') : t('no_credits_modal.title_video');
-  const iconName = type === 'image' ? 'camera-outline' : 'videocam-outline';
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    const ease = Easing.bezier(0.4, 0, 0.2, 1);
+    if (visible) {
+      scale.value = withRepeat(
+        withSequence(
+          withTiming(1.015, { duration: 1800, easing: ease }),
+          withTiming(1, { duration: 1800, easing: ease })
+        ),
+        -1,
+        true
+      );
+    } else {
+      cancelAnimation(scale);
+      scale.value = 1;
+    }
+    return () => { cancelAnimation(scale); };
+  }, [visible]);
+
+  const animatedBtnStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   return (
     <Modal
@@ -55,11 +82,10 @@ export function NoCreditsModal({
             entering={FadeInDown.duration(320).springify()}
             style={styles.card}
           >
-            <View style={styles.iconWrap}>
-              <Ionicons name={iconName as any} size={32} color={GOLD} />
+            <View style={styles.content}>
+              <Text style={styles.title}>{title}</Text>
+              <Text style={styles.message}>{t('no_credits_modal.message')}</Text>
             </View>
-            <Text style={styles.title}>{title}</Text>
-            <Text style={styles.message}>{t('no_credits_modal.message')}</Text>
             <View style={styles.actions}>
               <TouchableOpacity
                 style={styles.secondaryBtn}
@@ -68,17 +94,18 @@ export function NoCreditsModal({
               >
                 <Text style={styles.secondaryText}>{t('no_credits_modal.later')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => {
-                  onClose();
-                  onGoToShop();
-                }}
-                activeOpacity={0.88}
-              >
-                <Ionicons name="wallet-outline" size={18} color={COLORS.white} />
-                <Text style={styles.primaryText}>{t('no_credits_modal.go_to_shop')}</Text>
-              </TouchableOpacity>
+              <Animated.View style={[styles.primaryBtnWrap, animatedBtnStyle]}>
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={() => {
+                    onClose();
+                    onGoToShop();
+                  }}
+                  activeOpacity={0.88}
+                >
+                  <Text style={styles.primaryText}>{t('no_credits_modal.go_to_shop')}</Text>
+                </TouchableOpacity>
+              </Animated.View>
             </View>
           </Animated.View>
         </Pressable>
@@ -90,7 +117,7 @@ export function NoCreditsModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(44,42,40,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: SPACING.lg,
@@ -98,28 +125,24 @@ const styles = StyleSheet.create({
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: CREAM,
+    backgroundColor: 'rgba(248,244,239,0.98)',
     borderRadius: 24,
-    padding: SPACING.xl,
+    padding: SPACING.xl + 4,
     borderWidth: 1,
-    borderColor: 'rgba(207,143,90,0.35)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
+    borderColor: 'rgba(207,143,90,0.25)',
+    shadowColor: 'rgba(13,67,38,0.08)',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
     shadowRadius: 24,
-    elevation: 12,
-  },
-  iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(207,143,90,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(207,143,90,0.4)',
+    elevation: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'center',
-    marginBottom: SPACING.md,
+  },
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    marginBottom: SPACING.lg,
   },
   title: {
     fontFamily: FONTS.heading.semibold,
@@ -127,27 +150,25 @@ const styles = StyleSheet.create({
     color: DARK,
     textAlign: 'center',
     marginBottom: SPACING.sm,
+    letterSpacing: 0.3,
   },
   message: {
     fontFamily: FONTS.primary.regular,
     fontSize: FONT_SIZES.md,
-    lineHeight: 22,
-    color: COLORS.gray[600],
+    lineHeight: 24,
+    color: '#525252',
     textAlign: 'center',
-    marginBottom: SPACING.lg,
+    marginTop: SPACING.sm,
   },
   actions: {
     flexDirection: 'row',
-    gap: SPACING.sm,
-    marginTop: SPACING.xs,
+    gap: SPACING.md,
+    width: '100%',
+    justifyContent: 'center',
   },
   secondaryBtn: {
     flex: 1,
-    minHeight: 50,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: 'rgba(207,143,90,0.5)',
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -155,26 +176,24 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.primary.medium,
     fontSize: FONT_SIZES.md,
     color: DARK_GREEN,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  primaryBtnWrap: {
+    flex: 1,
   },
   primaryBtn: {
     flex: 1,
-    flexDirection: 'row',
+    minHeight: 52,
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    minHeight: 50,
-    borderRadius: 20,
-    backgroundColor: DARK_GREEN,
-    borderWidth: 0,
-    shadowColor: DARK_GREEN,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
   primaryText: {
     fontFamily: FONTS.primary.semibold,
     fontSize: FONT_SIZES.md,
-    color: COLORS.white,
+    color: DARK_GREEN,
+    letterSpacing: 0.6,
+    textAlign: 'center',
   },
 });

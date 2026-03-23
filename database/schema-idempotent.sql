@@ -174,6 +174,13 @@ CREATE TABLE IF NOT EXISTS outfit_compositions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Draft outfit u Kapsula buildera – vezan za profil, ništa lokalno
+CREATE TABLE IF NOT EXISTS user_outfit_draft (
+  user_id UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+  items JSONB NOT NULL DEFAULT $$[]$$::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- AI Savetnik razgovori (vezani za korisnika, ne lokalno)
 CREATE TABLE IF NOT EXISTS advice_chats (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -208,6 +215,7 @@ CREATE INDEX IF NOT EXISTS idx_subscriptions_user ON subscriptions(user_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_saved_outfits_user ON saved_outfits(user_id);
 CREATE INDEX IF NOT EXISTS idx_outfit_compositions_user ON outfit_compositions(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_outfit_draft_user ON user_outfit_draft(user_id);
 CREATE INDEX IF NOT EXISTS idx_advice_chats_user ON advice_chats(user_id, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_notifications_user_created ON user_notifications(user_id, created_at DESC);
 
@@ -250,6 +258,8 @@ CREATE POLICY "Users can update own subscription" ON subscriptions FOR UPDATE US
 DO $$ BEGIN ALTER TABLE transactions ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can view own transactions" ON transactions;
 CREATE POLICY "Users can view own transactions" ON transactions FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own transactions" ON transactions;
+CREATE POLICY "Users can insert own transactions" ON transactions FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 DO $$ BEGIN ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can manage own push token" ON push_tokens;
@@ -262,6 +272,10 @@ CREATE POLICY "Users can manage own saved outfits" ON saved_outfits FOR ALL USIN
 DO $$ BEGIN ALTER TABLE outfit_compositions ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can manage own outfit compositions" ON outfit_compositions;
 CREATE POLICY "Users can manage own outfit compositions" ON outfit_compositions FOR ALL USING (auth.uid() = user_id);
+
+DO $$ BEGIN ALTER TABLE user_outfit_draft ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
+DROP POLICY IF EXISTS "Users can manage own outfit draft" ON user_outfit_draft;
+CREATE POLICY "Users can manage own outfit draft" ON user_outfit_draft FOR ALL USING (auth.uid() = user_id);
 
 DO $$ BEGIN ALTER TABLE advice_chats ENABLE ROW LEVEL SECURITY; EXCEPTION WHEN OTHERS THEN NULL; END $$;
 DROP POLICY IF EXISTS "Users can manage own advice chats" ON advice_chats;

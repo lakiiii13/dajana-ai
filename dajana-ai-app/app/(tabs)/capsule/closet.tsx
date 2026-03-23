@@ -138,7 +138,7 @@ function TapOfingerHint({ visible, topOffset }: { visible: boolean; topOffset: n
       <View style={styles.tapOfingerArrow}>
         <Feather name="chevron-up" size={28} color={CREAM} strokeWidth={2.5} />
       </View>
-      <Text style={styles.tapOfingerLabel}>Dodirni vešalicu</Text>
+      <Text style={styles.tapOfingerLabel}>{t('ormar.touch_hanger')}</Text>
     </Animated.View>
   );
 }
@@ -352,7 +352,7 @@ export default function ClosetScreen() {
                     textStyle={styles.modalIsprobajBtnText}
                     onPress={() => handleTryOn(selectedOutfit)}
                   >
-                    Isprobaj
+                    {t('outfit_builder.try_btn')}
                   </IsprobajButtonAnimated>
                 </View>
               </Animated.View>
@@ -384,7 +384,7 @@ export default function ClosetScreen() {
             style={[styles.skipBtn, { top: insets.top + 10 }]}
             onPress={() => setIsVideoFinished(true)}
           >
-            <Text style={styles.skipBtnText}>Preskoči</Text>
+            <Text style={styles.skipBtnText}>{t('auth.skip')}</Text>
           </TouchableOpacity>
         </View>
       )}

@@ -85,6 +85,16 @@ export async function getContentUriAsync(fileUri: unknown) {
   return FS.getContentUriAsync(path(fileUri, 'getContentUriAsync'));
 }
 
+export async function uploadAsync(
+  url: string,
+  fileUri: unknown,
+  options?: Parameters<typeof FS.uploadAsync>[2]
+) {
+  return FS.uploadAsync(url, path(fileUri, 'uploadAsync(fileUri)'), options ?? {});
+}
+
+export const FileSystemUploadType = FS.FileSystemUploadType;
+
 // Re-export the rest unchanged (no path args or optional)
 export const getFreeDiskStorageAsync = FS.getFreeDiskStorageAsync;
 export const getTotalDiskCapacityAsync = FS.getTotalDiskCapacityAsync;

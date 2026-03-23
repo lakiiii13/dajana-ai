@@ -23,7 +23,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
-import { t } from '@/lib/i18n';
+import { t, getLanguage } from '@/lib/i18n';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
 import {
@@ -185,12 +185,12 @@ export default function SavedScreen() {
             </View>
             <View style={styles.sectionCardTitleWrap}>
               <Text style={[styles.sectionCardTitle, { color: colors.text }]}>{t('home.segment_outfit')}</Text>
-              <Text style={[styles.sectionCardCount, { color: colors.textSecondary }]}>{outfitCount} {outfitCount === 1 ? 'outfit' : 'outfita'}</Text>
+              <Text style={[styles.sectionCardCount, { color: colors.textSecondary }]}>{outfitCount} {outfitCount === 1 ? t('saved_screen.outfit_one') : t('saved_screen.outfit_many')}</Text>
             </View>
           </View>
           {outfitCount === 0 ? (
             <View style={styles.emptyBlock}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Nema sačuvanih outfita</Text>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{t('saved_screen.no_outfits')}</Text>
             </View>
           ) : (
             <>
@@ -261,7 +261,7 @@ export default function SavedScreen() {
             </View>
             <View style={styles.sectionCardTitleWrap}>
               <Text style={[styles.sectionCardTitle, { color: colors.text }]}>{t('home.segment_image')}</Text>
-              <Text style={[styles.sectionCardCount, { color: colors.textSecondary }]}>{images.length} {images.length === 1 ? 'slika' : 'slika'}</Text>
+              <Text style={[styles.sectionCardCount, { color: colors.textSecondary }]}>{images.length} {images.length === 1 ? t('saved_screen.image_one') : t('saved_screen.image_many')}</Text>
             </View>
           </View>
           {images.length === 0 ? (
@@ -295,7 +295,7 @@ export default function SavedScreen() {
             </View>
             <View style={styles.sectionCardTitleWrap}>
               <Text style={[styles.sectionCardTitle, { color: colors.text }]}>{t('home.segment_video')}</Text>
-              <Text style={[styles.sectionCardCount, { color: colors.textSecondary }]}>{videos.length} {videos.length === 1 ? 'video' : 'videa'}</Text>
+              <Text style={[styles.sectionCardCount, { color: colors.textSecondary }]}>{videos.length} {videos.length === 1 ? t('saved_screen.video_one') : t('saved_screen.video_many')}</Text>
             </View>
           </View>
           {videos.length === 0 ? (
@@ -306,7 +306,7 @@ export default function SavedScreen() {
             <View style={styles.videoList}>
               {videos.map((vid) => {
                 const title = vid.prompt && vid.prompt.length > 28 ? vid.prompt.substring(0, 28) + '...' : vid.prompt || 'Video';
-                const dateStr = new Date(vid.createdAt).toLocaleDateString('sr-RS', { day: 'numeric', month: 'short' });
+                const dateStr = new Date(vid.createdAt).toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'sr-RS', { day: 'numeric', month: 'short' });
                 return (
                   <TouchableOpacity
                     key={vid.id}

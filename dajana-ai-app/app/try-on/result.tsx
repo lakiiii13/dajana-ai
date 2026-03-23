@@ -97,7 +97,7 @@ export default function TryOnResultScreen() {
   const handleGoHome = useCallback(() => {
     reset();
     router.dismissAll();
-    setTimeout(() => router.replace('/(tabs)'), 200);
+    setTimeout(() => router.replace('/(tabs)' as any), 200);
   }, [reset, router]);
 
   const handleTryAgain = useCallback(() => {
@@ -146,13 +146,13 @@ export default function TryOnResultScreen() {
 
   const handleAskDajana = useCallback(() => {
     router.dismissAll();
-    setTimeout(() => router.push('/(tabs)/ai-advice'), 300);
+    setTimeout(() => router.replace('/(tabs)/ai-advice' as any), 200);
   }, [router]);
 
   const handleSave = useCallback(() => {
     if (isSaved) return;
     setIsSaved(true);
-    Alert.alert('Sačuvano', 'Slika je sačuvana.');
+    Alert.alert(t('profile.saved_screen_title'), t('profile.image_saved_message'));
   }, [isSaved]);
 
   if (error && !hasResult) {
@@ -163,11 +163,11 @@ export default function TryOnResultScreen() {
           <View style={styles.errorIconCircle}>
             <Ionicons name="alert-circle-outline" size={56} color={COLORS.error} />
           </View>
-          <Text style={styles.errorTitle}>Generisanje nije uspelo</Text>
+          <Text style={styles.errorTitle}>{t('try_on.generation_failed')}</Text>
           <Text style={styles.errorSub}>{error}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={handleTryAgain}>
             <Ionicons name="refresh-outline" size={20} color={COLORS.white} />
-            <Text style={styles.retryText}>Pokušaj ponovo</Text>
+            <Text style={styles.retryText}>{t('try_on.try_again')}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleDone} style={{ marginTop: 16 }}>
             <Text style={styles.linkText}>Nazad</Text>
@@ -212,7 +212,7 @@ export default function TryOnResultScreen() {
               <Image source={{ uri: imageUri }} style={styles.fullImage} resizeMode="cover" />
               <View style={styles.swipeUpHint} pointerEvents="none">
                 <Ionicons name="chevron-up" size={20} color="rgba(255,255,255,0.9)" />
-                <Text style={styles.swipeUpHintText}>Swipe ka gore da vidiš outfit koji si izabrala</Text>
+                <Text style={styles.swipeUpHintText}>{t('try_on.swipe_up_hint')}</Text>
               </View>
             </View>
             {/* Strana 2: outfit slika(e) — slika iznad, hint uvek ispod (bez preklapanja) */}
@@ -258,7 +258,7 @@ export default function TryOnResultScreen() {
                 ) : (
                   <View style={styles.placeholder}>
                     <Ionicons name="shirt-outline" size={48} color={GOLD} />
-                    <Text style={styles.comparisonPlaceholderText}>Outfit</Text>
+                    <Text style={styles.comparisonPlaceholderText}>{t('capsule.outfit_label')}</Text>
                   </View>
                 )}
               </View>

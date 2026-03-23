@@ -131,7 +131,7 @@ export default function TryOnGeneratingScreen() {
       return;
     }
     if (!hasItems && !hasSingle) {
-      setError('Nedostaje outfit. Izaberi outfit u Kapsuli ili Ormaru.');
+      setError(t('try_on.error_missing_outfit'));
       router.replace('/try-on/upload');
       return;
     }
@@ -157,6 +157,11 @@ export default function TryOnGeneratingScreen() {
     const CLIENT_RETRY_DELAY = 5000;
     let lastError: string = 'Generation failed';
 
+    function isNonRetryableError(msg: string): boolean {
+      const s = (msg || '').toLowerCase();
+      return s.includes('prebukiran') || s.includes('preopterećen') || s.includes('429') || s.includes('worker_limit') || s.includes('compute resources') || s.includes('nema kredita') || s.includes('no credits');
+    }
+
     for (let clientAttempt = 1; clientAttempt <= CLIENT_RETRIES; clientAttempt++) {
       try {
         console.log(`[TryOn] Client attempt ${clientAttempt}/${CLIENT_RETRIES}`);
@@ -170,7 +175,9 @@ export default function TryOnGeneratingScreen() {
         const compositionItems = hasItems
           ? outfitItems.map((i) => ({ id: i.id, imageUrl: i.imageUrl, title: i.title, zoneId: i.zoneId }))
           : [{ id: outfitId!, imageUrl: outfitImageUrl!, title: outfitTitle || null }];
-        await saveOutfitComposition(compositionItems, savedUri, user.id).catch(() => {});
+        const targetDate = useTryOnStore.getState().outfitTargetDate;
+        await saveOutfitComposition(compositionItems, savedUri, user.id, targetDate).catch(() => {});
+        useTryOnStore.getState().setOutfitTargetDate(null);
 
         setGeneratedImage(result.imageBase64, savedUri);
         setGenerating(false);
@@ -179,6 +186,9 @@ export default function TryOnGeneratingScreen() {
       } catch (err: any) {
         lastError = err.message || 'Generation failed';
         console.error(`[TryOn] Client attempt ${clientAttempt} error:`, lastError);
+        if (isNonRetryableError(lastError)) {
+          break;
+        }
         if (clientAttempt < CLIENT_RETRIES) {
           await new Promise((r) => setTimeout(r, CLIENT_RETRY_DELAY));
         }
@@ -210,7 +220,7 @@ export default function TryOnGeneratingScreen() {
       {/* Top section — logo */}
       <View style={styles.topSection}>
         <AppLogo height={36} maxWidth={160} />
-        <Text style={styles.brandSub}>AI STILISTA</Text>
+        <Text style={styles.brandSub}>{t('try_on.ai_stylist')}</Text>
       </View>
 
       {/* Center — animated stage icon + text */}

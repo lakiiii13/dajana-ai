@@ -14,6 +14,7 @@ function isValidUUID(s: string | null | undefined): boolean {
 /**
  * Loguje uspešnu generaciju slike (try-on) u bazu.
  * Home "Slike" i Video izbor izvora čitaju iz generations (type = 'image').
+ * Ako isti output_url već postoji za tog korisnika, ne ubacuje duplikat (svi korisnici, automatski).
  * Nikad ne baca — uvek pokušava da upiše red (retry sa minimalnim podacima).
  */
 export async function logImageGeneration(
@@ -21,6 +22,29 @@ export async function logImageGeneration(
   outfitId: string | null,
   outputUrl: string | null
 ): Promise<void> {
+  if (!outputUrl?.trim()) return;
+
+  const baseUrl = outputUrl.split('?')[0].trim().toLowerCase();
+  const { data: existing } = await supabase
+    .from('generations')
+    .select('output_url')
+    .eq('user_id', userId)
+    .eq('type', 'image')
+    .eq('status', 'completed')
+    .not('output_url', 'is', null)
+    .limit(500);
+
+  const alreadyLogged =
+    existing &&
+    existing.some((row: { output_url: string | null }) => {
+      const u = row.output_url;
+      return u != null && u.split('?')[0].trim().toLowerCase() === baseUrl;
+    });
+  if (alreadyLogged) {
+    console.log('[GenerationLog] Image already logged for this URL, skip duplicate');
+    return;
+  }
+
   const safeOutfitId = isValidUUID(outfitId) ? outfitId : null;
   const completedAt = new Date().toISOString();
 

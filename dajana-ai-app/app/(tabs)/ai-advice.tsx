@@ -30,7 +30,7 @@ import * as FileSystem from '@/lib/safeFileSystem';
 import { COLORS, FONTS, FONT_SIZES, SPACING, BORDER_RADIUS } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/stores/authStore';
-import { getStyleAdvice, continueConversation, generateChatTitle, AdvisorMessage } from '@/lib/aiAdvisorService';
+import { getStyleAdviceWithSignal, continueConversationWithSignal, generateChatTitle, AdvisorMessage, sanitizeErrorOrContent } from '@/lib/aiAdvisorService';
 import { hasAnalysisCredits, deductAnalysisCredit } from '@/lib/creditService';
 import { getSavedTryOnImages, SavedTryOnImage } from '@/lib/tryOnService';
 import { t, getLanguage } from '@/lib/i18n';
@@ -93,6 +93,13 @@ export default function AIAdviceScreen() {
   const flatListRef = useRef<FlatList>(null);
   const typingDots = useRef(new Animated.Value(0)).current;
   const headerFade = useRef(new Animated.Value(0)).current;
+  /** Chat id for which the current in-flight request is; response is applied only if still this chat. */
+  const pendingRequestChatIdRef = useRef<string | null>(null);
+  /** Always-current chat id so we can compare when async response arrives. */
+  const currentChatIdRef = useRef<string | null>(null);
+  currentChatIdRef.current = currentChatId;
+  /** Za prekid odgovora dok piše (Stop). */
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const chatContentOpacity = useSharedValue(1);
   const chatContentTranslateY = useSharedValue(0);
@@ -171,6 +178,10 @@ content: t('ai_advice.no_credits_message'),
     } catch {
       return;
     }
+    const chatIdForRequest = currentChatId || generateChatId();
+    if (!currentChatId) setCurrentChatId(chatIdForRequest);
+    pendingRequestChatIdRef.current = chatIdForRequest;
+    abortControllerRef.current = new AbortController();
     setIsLoading(true);
 
     try {
@@ -195,22 +206,23 @@ content: t('ai_advice.no_credits_message'),
         imageUri: imagePath,
         timestamp: new Date(),
       };
-      setMessages((prev) => {
-        if (!currentChatId) setCurrentChatId(generateChatId());
-        return [...prev, userMsg];
-      });
+      setMessages((prev) => [...prev, userMsg]);
 
-      // Prvo skini kredit, pa onda pozovi API
+      const advice = await getStyleAdviceWithSignal(
+        base64,
+        abortControllerRef.current.signal,
+        null,
+        t('ai_advice.try_on_question'),
+        profile?.season ?? undefined,
+        profile?.body_type ?? undefined,
+        getLanguage()
+      );
+
+      if (pendingRequestChatIdRef.current !== currentChatIdRef.current) {
+        return;
+      }
       await deductAnalysisCredit(userId);
       useAuthStore.getState().fetchCredits();
-
-      const advice = await getStyleAdvice(
-        base64,
-        null,
-        undefined,
-        profile?.season ?? undefined,
-        profile?.body_type ?? undefined
-      );
 
       const assistantMsg: ChatMessage = {
         id: `assistant-${Date.now()}`,
@@ -221,10 +233,9 @@ content: t('ai_advice.no_credits_message'),
       setMessages((prev) => [...prev, assistantMsg]);
 
       generateChatTitle(userMsg.content, advice).then((title) => {
-        if (title) setCurrentChatTitle(title);
+        if (title && pendingRequestChatIdRef.current === currentChatIdRef.current) setCurrentChatTitle(title);
       });
 
-      // Store conversation history for follow-ups
       setConversationHistory([
         {
           role: 'user',
@@ -236,18 +247,31 @@ content: t('ai_advice.no_credits_message'),
         { role: 'assistant', content: advice },
       ]);
     } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      if (pendingRequestChatIdRef.current !== currentChatIdRef.current) return;
       console.error('[Advice] Error:', err);
+      const isNetwork = (err?.message || '').includes('Network request failed') || (err?.message || '').includes('Failed to fetch');
+      const content = isNetwork ? t('ai_advice.error_network') : sanitizeErrorOrContent(err.message) || t('ai_advice.error_ai');
       const errorMsg: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: err.message || t('ai_advice.error_ai'),
+        content,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      pendingRequestChatIdRef.current = null;
+      abortControllerRef.current = null;
     }
   };
+
+  const handleStop = useCallback(() => {
+    abortControllerRef.current?.abort();
+    setIsLoading(false);
+    pendingRequestChatIdRef.current = null;
+    abortControllerRef.current = null;
+  }, []);
 
   const handleSend = async () => {
     const text = inputText.trim();
@@ -271,27 +295,31 @@ content: t('ai_advice.no_credits_message'),
 
     setInputText('');
 
+    const chatIdForRequest = currentChatId || generateChatId();
+    if (!currentChatId) setCurrentChatId(chatIdForRequest);
+    pendingRequestChatIdRef.current = chatIdForRequest;
+
     const userMsg: ChatMessage = {
       id: `user-${Date.now()}`,
       role: 'user',
       content: text,
       timestamp: new Date(),
     };
-    setMessages((prev) => {
-      const next = [...prev, userMsg];
-      if (!currentChatId) setCurrentChatId(generateChatId());
-      return next;
-    });
+    setMessages((prev) => [...prev, userMsg]);
+    abortControllerRef.current = new AbortController();
     setIsLoading(true);
 
     try {
-      const reply = await continueConversation(
+      const reply = await continueConversationWithSignal(
         conversationHistory,
         text,
+        abortControllerRef.current.signal,
         currentImageBase64 || undefined,
         profile?.season ?? undefined,
-        profile?.body_type ?? undefined
+        profile?.body_type ?? undefined,
+        getLanguage()
       );
+      if (pendingRequestChatIdRef.current !== currentChatIdRef.current) return;
       await deductAnalysisCredit(profile.id);
       useAuthStore.getState().fetchCredits();
 
@@ -306,46 +334,124 @@ content: t('ai_advice.no_credits_message'),
         const wasFirstExchange = prev.length === 1;
         if (wasFirstExchange) {
           generateChatTitle(prev[0].content, reply).then((title) => {
-            if (title) setCurrentChatTitle(title);
+            if (title && pendingRequestChatIdRef.current === currentChatIdRef.current) setCurrentChatTitle(title);
           });
         }
         return next;
       });
 
-      // Update conversation history
       setConversationHistory((prev) => [
         ...prev,
         { role: 'user', content: text },
         { role: 'assistant', content: reply },
       ]);
     } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      if (pendingRequestChatIdRef.current !== currentChatIdRef.current) return;
+      const isNetwork = (err?.message || '').includes('Network request failed') || (err?.message || '').includes('Failed to fetch');
+      const content = isNetwork ? t('ai_advice.error_network') : sanitizeErrorOrContent(err.message) || t('ai_advice.error_ai_comm');
       const errorMsg: ChatMessage = {
         id: `error-${Date.now()}`,
         role: 'assistant',
-        content: err.message || t('ai_advice.error_ai_comm'),
+        content,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
       setIsLoading(false);
+      pendingRequestChatIdRef.current = null;
+      abortControllerRef.current = null;
     }
   };
 
-  const handleNewChat = async () => {
-    if (messages.length > 0 && userId) {
-      const id = currentChatId || generateChatId();
-      const title = currentChatTitle || `Outfit ${savedChats.length + 1}`;
-      const chat = buildSavedChat(id, messages, conversationHistory);
-      const toSave: SavedAdviceChat = { ...chat, id, title };
-      await saveAdviceChat(userId, toSave);
-      setSavedChats((prev) => [toSave, ...prev.filter((c) => c.id !== id)].slice(0, 50));
+  const lastMessage = messages[messages.length - 1];
+  const lastUserMessage = messages.filter((m) => m.role === 'user').pop();
+  const canRetry = !isLoading && lastUserMessage && (lastMessage?.role === 'user' || (lastMessage?.role === 'assistant' && lastMessage?.id?.startsWith('error-')));
+
+  const handleRetry = useCallback(async () => {
+    if (!lastUserMessage || !profile?.id || isLoading) return;
+    const text = typeof lastUserMessage.content === 'string' ? lastUserMessage.content : '';
+    if (!text.trim()) return;
+    try {
+      const hasCredits = await hasAnalysisCredits(profile.id);
+      if (!hasCredits) {
+        setMessages((prev) => [...prev, {
+          id: `error-${Date.now()}`,
+          role: 'assistant',
+          content: t('ai_advice.no_credits_message'),
+          timestamp: new Date(),
+        }]);
+        return;
+      }
+    } catch { return; }
+
+    const chatIdForRequest = currentChatId || generateChatId();
+    if (!currentChatId) setCurrentChatId(chatIdForRequest);
+    pendingRequestChatIdRef.current = chatIdForRequest;
+    abortControllerRef.current = new AbortController();
+    setIsLoading(true);
+
+    const historyForRetry = conversationHistory.slice(0, -1);
+
+    try {
+      const reply = await continueConversationWithSignal(
+        historyForRetry,
+        text,
+        abortControllerRef.current.signal,
+        currentImageBase64 || undefined,
+        profile?.season ?? undefined,
+        profile?.body_type ?? undefined,
+        getLanguage()
+      );
+      if (pendingRequestChatIdRef.current !== currentChatIdRef.current) return;
+      await deductAnalysisCredit(profile.id);
+      useAuthStore.getState().fetchCredits();
+
+      const assistantMsg: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: reply,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
+      setConversationHistory((prev) => [...prev, { role: 'user', content: text }, { role: 'assistant', content: reply }]);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
+      if (pendingRequestChatIdRef.current !== currentChatIdRef.current) return;
+      const isNetwork = (err?.message || '').includes('Network request failed') || (err?.message || '').includes('Failed to fetch');
+      const content = isNetwork ? t('ai_advice.error_network') : sanitizeErrorOrContent(err.message) || t('ai_advice.error_ai_comm');
+      setMessages((prev) => [...prev, {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content,
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setIsLoading(false);
+      pendingRequestChatIdRef.current = null;
+      abortControllerRef.current = null;
     }
+  }, [lastUserMessage, conversationHistory, currentChatId, currentImageBase64, profile, isLoading]);
+
+  const handleNewChat = () => {
+    // Odmah očisti ekran i ugasi tačkice – korisnik vidi novi chat
+    setIsLoading(false);
+    pendingRequestChatIdRef.current = null;
     setMessages([]);
     setConversationHistory([]);
     setCurrentImageBase64(null);
     setSelectedImage(null);
     setCurrentChatId(null);
     setCurrentChatTitle('');
+
+    if (messages.length > 0 && userId) {
+      const id = currentChatId || generateChatId();
+      const title = currentChatTitle || `Outfit ${savedChats.length + 1}`;
+      const chat = buildSavedChat(id, messages, conversationHistory);
+      const toSave: SavedAdviceChat = { ...chat, id, title };
+      setSavedChats((prev) => [toSave, ...prev.filter((c) => c.id !== id)].slice(0, 50));
+      saveAdviceChat(userId, toSave).catch((e) => console.warn('[Advice] Save chat on new:', e));
+    }
   };
 
   const handleDeleteChat = useCallback(
@@ -358,10 +464,12 @@ content: t('ai_advice.no_credits_message'),
           {
             text: t('ai_advice.delete_chat_confirm') || 'Obriši',
             style: 'destructive',
-            onPress: async () => {
+              onPress: async () => {
               if (userId) await deleteAdviceChat(userId, chat.id);
               setSavedChats((prev) => prev.filter((c) => c.id !== chat.id));
               if (currentChatId === chat.id) {
+                setIsLoading(false);
+                pendingRequestChatIdRef.current = null;
                 setMessages([]);
                 setConversationHistory([]);
                 setCurrentImageBase64(null);
@@ -379,6 +487,8 @@ content: t('ai_advice.no_credits_message'),
 
   const handleOpenChat = (chat: SavedAdviceChat) => {
     setShowChatListModal(false);
+    setIsLoading(false);
+    pendingRequestChatIdRef.current = null;
     setCurrentChatId(chat.id);
     setCurrentChatTitle(chat.title);
     setMessages(
@@ -440,7 +550,7 @@ content: t('ai_advice.no_credits_message'),
               isUser ? styles.userMessageText : { color: CHAT_DARK },
             ]}
           >
-            {item.content}
+            {!isUser ? sanitizeErrorOrContent(item.content) : item.content}
           </Text>
           <Text
             style={[
@@ -459,32 +569,56 @@ content: t('ai_advice.no_credits_message'),
     if (!isLoading) return null;
 
     return (
-      <View style={[styles.messageRow, styles.messageRowAssistant]}>
-        <View style={[styles.avatarWrap, { backgroundColor: 'transparent', borderColor: CHAT_BORDER }]}>
-          <Image source={CHAT_LOGO} style={styles.avatarLogoImg} resizeMode="contain" />
+      <View>
+        <View style={[styles.messageRow, styles.messageRowAssistant]}>
+          <View style={[styles.avatarWrap, { backgroundColor: 'transparent', borderColor: CHAT_BORDER }]}>
+            <Image source={CHAT_LOGO} style={styles.avatarLogoImg} resizeMode="contain" />
+          </View>
+          <View style={[styles.typingBubble, { backgroundColor: CHAT_CARD, borderColor: CHAT_BORDER }]}>
+            <Animated.View style={[styles.typingDot, { opacity: typingDots, backgroundColor: CHAT_GOLD }]} />
+            <Animated.View
+              style={[
+                styles.typingDot,
+                {
+                  opacity: typingDots.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+                  backgroundColor: CHAT_GOLD,
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.typingDot,
+                {
+                  opacity: typingDots.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+                  backgroundColor: CHAT_GOLD,
+                },
+              ]}
+            />
+          </View>
         </View>
-        <View style={[styles.typingBubble, { backgroundColor: CHAT_CARD, borderColor: CHAT_BORDER }]}>
-          <Animated.View style={[styles.typingDot, { opacity: typingDots, backgroundColor: CHAT_GOLD }]} />
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {
-                opacity: typingDots.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
-                backgroundColor: CHAT_GOLD,
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {
-                opacity: typingDots.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
-                backgroundColor: CHAT_GOLD,
-              },
-            ]}
-          />
-        </View>
+        <TouchableOpacity
+          onPress={handleStop}
+          style={[styles.retryButton, { borderColor: CHAT_BORDER }]}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="stop-circle-outline" size={18} color={CHAT_DARK} />
+          <Text style={[styles.retryButtonText, { color: CHAT_DARK }]}>{t('ai_advice.stop')}</Text>
+        </TouchableOpacity>
       </View>
+    );
+  };
+
+  const renderRetryFooter = () => {
+    if (!canRetry) return null;
+    return (
+      <TouchableOpacity
+        onPress={handleRetry}
+        style={[styles.retryButton, styles.retryButtonCenter, { borderColor: CHAT_BORDER }]}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="refresh-outline" size={18} color={CHAT_DARK} />
+        <Text style={[styles.retryButtonText, { color: CHAT_DARK }]}>{t('ai_advice.retry')}</Text>
+      </TouchableOpacity>
     );
   };
 
@@ -640,7 +774,12 @@ content: t('ai_advice.no_credits_message'),
                 renderItem={renderMessage}
                 contentContainerStyle={styles.messageList}
                 showsVerticalScrollIndicator={false}
-                ListFooterComponent={renderTypingIndicator}
+                ListFooterComponent={() => (
+                  <>
+                    {renderTypingIndicator()}
+                    {renderRetryFooter()}
+                  </>
+                )}
               />
             )}
 
@@ -904,6 +1043,27 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: SPACING.sm,
+    marginLeft: 48 + SPACING.sm,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.sm,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  retryButtonText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.sm,
+  },
+  retryButtonCenter: {
+    alignSelf: 'center',
+    marginLeft: 0,
+    marginBottom: SPACING.sm,
   },
 
   // Empty State

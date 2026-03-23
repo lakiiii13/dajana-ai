@@ -40,8 +40,6 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
   
   const isZoneLocked = !!initialCategoryId && initialCategoryId !== 'all';
   const [activeCategory, setActiveCategory] = useState<CategoryId>('all');
-  const [useMyBodyType, setUseMyBodyType] = useState(false);
-  const [useMySeason, setUseMySeason] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   
   const [outfits, setOutfits] = useState<OutfitWithSaved[]>([]);
@@ -53,10 +51,10 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
     const f: OutfitFilters = {};
     const categoryTag = getCategoryTag(activeCategory);
     if (categoryTag) f.tags = [categoryTag];
-    if (useMyBodyType && profile?.body_type) f.bodyType = profile.body_type;
-    if (useMySeason && profile?.season) f.season = profile.season;
+    if (profile?.body_type) f.bodyType = profile.body_type;
+    if (profile?.season) f.season = profile.season;
     return f;
-  }, [activeCategory, useMyBodyType, useMySeason, profile?.body_type, profile?.season]);
+  }, [activeCategory, profile?.body_type, profile?.season]);
 
   /** Build filters for a given category (used so initial load uses initialCategoryId before state updates). */
   const getFiltersForCategory = useCallback(
@@ -64,11 +62,11 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
       const f: OutfitFilters = {};
       const tag = categoryId ? getCategoryTag(categoryId) : undefined;
       if (tag) f.tags = [tag];
-      if (useMyBodyType && profile?.body_type) f.bodyType = profile.body_type;
-      if (useMySeason && profile?.season) f.season = profile.season;
+      if (profile?.body_type) f.bodyType = profile.body_type;
+      if (profile?.season) f.season = profile.season;
       return f;
     },
-    [useMyBodyType, useMySeason, profile?.body_type, profile?.season]
+    [profile?.body_type, profile?.season]
   );
 
   const loadOutfits = useCallback(
@@ -130,7 +128,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
     >
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Izaberi komad</Text>
+          <Text style={styles.headerTitle}>{t('table_builder.pick_piece')}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{top:10, bottom:10, left:10, right:10}}>
             <Ionicons name="close" size={24} color={CAPSULE_TEXT} />
           </TouchableOpacity>
@@ -149,41 +147,6 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
           )}
         </View>
 
-        {(profile?.body_type || profile?.season) && (
-          <View style={styles.quickFilters}>
-            {profile?.body_type && (
-              <TouchableOpacity
-                style={[styles.quickFilterChip, useMyBodyType && styles.quickFilterChipActive]}
-                onPress={() => setUseMyBodyType(!useMyBodyType)}
-              >
-                <Ionicons
-                  name={useMyBodyType ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={16}
-                  color={useMyBodyType ? CAPSULE_GOLD : COLORS.gray[500]}
-                />
-                <Text style={[styles.quickFilterText, useMyBodyType && styles.quickFilterTextActive]}>
-                  Tvoj tip tela
-                </Text>
-              </TouchableOpacity>
-            )}
-            {profile?.season && (
-              <TouchableOpacity
-                style={[styles.quickFilterChip, useMySeason && styles.quickFilterChipActive]}
-                onPress={() => setUseMySeason(!useMySeason)}
-              >
-                <Ionicons
-                  name={useMySeason ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={16}
-                  color={useMySeason ? CAPSULE_GOLD : COLORS.gray[500]}
-                />
-                <Text style={[styles.quickFilterText, useMySeason && styles.quickFilterTextActive]}>
-                  Tvoja paleta
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
         {isLoading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={CAPSULE_GOLD} />
@@ -193,7 +156,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
             <Ionicons name="alert-circle-outline" size={48} color={COLORS.error} />
             <Text style={styles.emptySubtitle}>{error}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-              <Text style={styles.retryButtonText}>Pokušaj ponovo</Text>
+              <Text style={styles.retryButtonText}>{t('table_builder.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -226,7 +189,7 @@ export function OutfitPickerModal({ visible, onClose, onSelect, initialCategoryI
         >
           <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryModal(false)}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>Kategorija</Text>
+              <Text style={styles.modalTitle}>{t('table_builder.category')}</Text>
               {CATEGORIES.map((item) => (
                 <TouchableOpacity
                   key={item.id}
@@ -289,20 +252,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   dropdownLabel: { fontFamily: FONTS.primary.medium, fontSize: FONT_SIZES.md, color: CAPSULE_TEXT },
-  quickFilters: { flexDirection: 'row', paddingHorizontal: SPACING.md, paddingBottom: SPACING.sm, flexWrap: 'wrap', gap: 8 },
-  quickFilterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
-    backgroundColor: '#FFFCF9',
-    borderRadius: BORDER_RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.gray[200],
-  },
-  quickFilterChipActive: { backgroundColor: CAPSULE_GOLD + '18', borderColor: CAPSULE_GOLD },
-  quickFilterText: { fontFamily: FONTS.primary.regular, fontSize: FONT_SIZES.sm, color: COLORS.gray[600], marginLeft: 4 },
-  quickFilterTextActive: { color: CAPSULE_GOLD },
   gridContent: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm, paddingBottom: 40 },
   row: { justifyContent: 'space-between', gap: 14, marginBottom: 0 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },

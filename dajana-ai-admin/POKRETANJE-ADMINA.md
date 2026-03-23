@@ -27,15 +27,17 @@ cd "C:\Users\User\Desktop\lazarev posao\dajana-ai-main\dajana-ai\dajana-ai-admin
 npm install
 ```
 
-Zatim kreiraj **`.env.local`** u istom folderu (ako već nemaš) sa Supabase podacima:
+Zatim kreiraj **`.env.local`** u istom folderu (ako već nemaš) sa:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://tvoj-projekat.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tvoj_anon_key
 SUPABASE_SERVICE_ROLE_KEY=tvoj_service_role_key
+ADMIN_SESSION_SECRET=neka-nasumicna-tajna-min-32-znaka-za-sesiju
 ```
 
-*(Vrednosti: Supabase Dashboard → Project Settings → API.)*
+- **Supabase vrednosti:** Dashboard → Project Settings → API.
+- **ADMIN_SESSION_SECRET:** obavezan za login; mora imati **najmanje 32 karaktera** (npr. nasumičan string ili `openssl rand -hex 32`).
 
 Opciono, ako admin šalje notifikacije / video / chat preko API-ja:
 ```env

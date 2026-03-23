@@ -3,13 +3,17 @@
 // ===========================================
 
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Session, User } from '@supabase/supabase-js';
 import { hasSupabaseConfig, supabase, supabaseConfigError } from '@/lib/supabase';
 import { Database } from '@/types/database';
 import { setLanguage as setI18nLanguage, getLanguage } from '@/lib/i18n';
+
+const LANGUAGE_PREF_KEY = '@dajana_language_preference';
 import { getAllCredits, type AllCredits } from '@/lib/creditService';
 import { getSubscription, type SubscriptionInfo } from '@/lib/subscriptionService';
 import { clearBackgroundJob } from '@/lib/backgroundVideoTask';
+import { useTryOnStore } from '@/stores/tryOnStore';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
 type UserCredits = Database['public']['Tables']['user_credits']['Row'];
@@ -74,7 +78,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      // Get current session
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
@@ -82,6 +85,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await get().fetchProfile();
         await get().fetchCredits();
         await get().fetchSubscription();
+      } else {
+        const storedLang = await AsyncStorage.getItem(LANGUAGE_PREF_KEY);
+        if (storedLang === 'sr' || storedLang === 'en') {
+          setI18nLanguage(storedLang as Language);
+          set({ language: storedLang as Language });
+        }
       }
 
       set({ isInitialized: true, isLoading: false });
@@ -93,11 +102,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setSession: (session) => {
     if (session) {
+      const prevUserId = get().user?.id;
+      const newUserId = session.user.id;
+      if (prevUserId && prevUserId !== newUserId) {
+        useTryOnStore.getState().reset();
+      }
       set({ session, user: session.user, isGuest: false });
       get().fetchProfile();
       get().fetchCredits();
       get().fetchSubscription();
     } else {
+      useTryOnStore.getState().reset();
       // Ako je korisnik izabrao "Nastavi kao gost", ne briši isGuest – inače ga auth listener vrati na login
       if (get().isGuest) {
         set({ session: null, user: null });
@@ -128,12 +143,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (error) throw error;
       set({ profile: data });
-      
-      // Set language from profile if available
-      if (data?.language) {
-        const lang = data.language as Language;
+
+      // Prefer language from welcome screen (before signup) over profile default
+      const storedPref = await AsyncStorage.getItem(LANGUAGE_PREF_KEY);
+      if (storedPref === 'sr' || storedPref === 'en') {
+        const lang = storedPref as Language;
         setI18nLanguage(lang);
         set({ language: lang });
+        await AsyncStorage.removeItem(LANGUAGE_PREF_KEY);
+        await supabase.from('profiles').update({ language: lang, updated_at: new Date().toISOString() }).eq('id', user.id);
+        set({ profile: { ...data, language: lang } });
+      } else if (data?.language) {
+        // Only apply profile language when store is still default – avoid overwriting EN chosen on welcome
+        // (second fetchProfile can run before DB update is visible, so profile may still say 'sr')
+        const currentLang = get().language;
+        if (currentLang === 'sr') {
+          const lang = data.language as Language;
+          setI18nLanguage(lang);
+          set({ language: lang });
+        } else {
+          setI18nLanguage(currentLang);
+        }
       }
     } catch (error) {
       console.error('Fetch profile error:', error);
@@ -193,8 +223,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setLanguage: async (lang: Language) => {
     const { user } = get();
-    
-    // Always update i18n immediately for UI
+
     setI18nLanguage(lang);
     set({ language: lang });
 
@@ -206,6 +235,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (error) {
         console.error('Save language error:', error.message);
       }
+      await AsyncStorage.removeItem(LANGUAGE_PREF_KEY);
+    } else {
+      await AsyncStorage.setItem(LANGUAGE_PREF_KEY, lang);
     }
   },
 
@@ -214,6 +246,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await clearBackgroundJob().catch((e) =>
         console.warn('Clear background job on signOut:', e)
       );
+      useTryOnStore.getState().reset();
       await supabase.auth.signOut();
       get().reset();
     } catch (error) {

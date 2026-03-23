@@ -3,7 +3,7 @@
 // Box slika, Kreiraj video, linija do Kolekcije, galerija videa
 // ===========================================
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,8 +25,35 @@ import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
 import { t, getLanguage } from '@/lib/i18n';
 import { useVideoStore } from '@/stores/videoStore';
 import { getSavedVideos, deleteSavedVideo, type SavedVideo } from '@/lib/videoService';
+import { clearBackgroundJob as clearBgJobStorage } from '@/lib/backgroundVideoTask';
 import { getSavedTryOnImages, type SavedTryOnImage } from '@/lib/tryOnService';
 import { useAuthStore } from '@/stores/authStore';
+import { ensureLocalImageUri, isRemoteUri } from '@/lib/imageCache';
+
+const PRELOAD_IMAGE_COUNT = 12;
+const PRELOAD_VIDEO_THUMB_COUNT = 8;
+const PRELOAD_BATCH_MS = 80;
+
+const PROMPT_TO_LABEL_KEY: Record<string, string> = {
+  'The model walks very slowly forward in a controlled way while staying fully centered in frame. The camera gently zooms out only a little, keeping the full body and face clearly visible at all times. Do not let the model leave the frame. Do not widen beyond the original background.': 'video.motion_walk',
+  'The model stands in place, slowly turns to the left side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.': 'video.motion_left',
+  'The model stands in place, slowly turns to the right side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.': 'video.motion_right',
+  'The model remains facing front and makes only a subtle elegant movement while keeping the full front side clearly visible. The pose should stay centered, stable, and fully in frame, with no major camera movement or background expansion.': 'video.motion_front',
+};
+
+function preloadToLocal(
+  uris: string[],
+  setPreloadedLocalUri: (remote: string, local: string) => void
+) {
+  uris.forEach((uri) => {
+    if (!uri || !isRemoteUri(uri)) return;
+    ensureLocalImageUri(uri)
+      .then((local) => {
+        if (local !== uri) setPreloadedLocalUri(uri, local);
+      })
+      .catch(() => {});
+  });
+}
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -42,13 +69,26 @@ const FRAME_MARGIN = 24;
 const LINE_COLOR = 'rgba(44,42,40,0.3)';
 const LINE_COLOR_STRONG = 'rgba(44,42,40,0.5)';
 
-function GeneratingBanner({ attempt, duration }: { attempt: number; duration: '5' | '10' }) {
+function GeneratingBanner({
+  attempt,
+  duration,
+  onCancel,
+}: {
+  attempt: number;
+  duration: '5' | '10';
+  onCancel?: () => void;
+}) {
   const est = duration === '5' ? 18 : 30;
   const min = Math.max(1, Math.ceil((est - attempt) * 10 / 60));
   return (
     <View style={bannerStyles.wrap}>
       <Ionicons name="videocam" size={18} color={GOLD} />
       <Text style={bannerStyles.text}>{t('video.generating_min', { min })}</Text>
+      {onCancel && (
+        <TouchableOpacity onPress={onCancel} style={bannerStyles.cancelBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Text style={bannerStyles.cancelText}>{t('video.stop')}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -71,6 +111,13 @@ const bannerStyles = StyleSheet.create({
     fontSize: FONT_SIZES.sm,
     color: DARK,
   },
+  cancelBtn: { marginLeft: 'auto', paddingVertical: 4, paddingHorizontal: 8 },
+  cancelText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.sm,
+    color: DARK,
+    textDecorationLine: 'underline',
+  },
 });
 
 export default function VideosScreen() {
@@ -79,35 +126,133 @@ export default function VideosScreen() {
   const setSavedVideos = useVideoStore((s) => s.setSavedVideos);
   const backgroundJob = useVideoStore((s) => s.backgroundJob);
   const bgPollAttempt = useVideoStore((s) => s.bgPollAttempt);
+  const clearBgJob = useVideoStore((s) => s.clearBackgroundJob);
   const [loading, setLoading] = React.useState(true);
+
+  const handleCancelGeneration = useCallback(() => {
+    Alert.alert(
+      t('video.cancel_generation_title'),
+      t('video.cancel_generation_message'),
+      [
+        { text: t('video.cancel'), style: 'cancel' },
+        {
+          text: t('video.abort'),
+          style: 'destructive',
+          onPress: async () => {
+            await clearBgJobStorage();
+            clearBgJob();
+          },
+        },
+      ]
+    );
+  }, [clearBgJob]);
   const [refreshing, setRefreshing] = React.useState(false);
-  const [savedImages, setSavedImages] = React.useState<SavedTryOnImage[]>([]);
 
   const currentUserId = useAuthStore((s) => s.user?.id ?? s.profile?.id ?? '');
-  const loadVideos = useCallback(async () => {
+  const userGeneratedImages = useVideoStore((s) => s.userGeneratedImages);
+  const setUserGeneratedImages = useVideoStore((s) => s.setUserGeneratedImages);
+  const setPreloadedTryOnImages = useVideoStore((s) => s.setPreloadedTryOnImages);
+  const setPreloadedLocalUri = useVideoStore((s) => s.setPreloadedLocalUri);
+  const setPreloadedLocalUrisBatch = useVideoStore((s) => s.setPreloadedLocalUrisBatch);
+  const clearPreloadedLocalUris = useVideoStore((s) => s.clearPreloadedLocalUris);
+  const preloadedLocalUris = useVideoStore((s) => s.preloadedLocalUris);
+
+  /** Jedinstvene slike: po generationId (garantovano jedinstveno) + URL deduplikacija. */
+  const uniqueImages = useMemo(() => {
+    const seenIds = new Set<string>();
+    const seenUrls = new Set<string>();
+    return userGeneratedImages.filter((img) => {
+      const id = img.generationId || '';
+      const baseUri = (img.uri || '').split('?')[0].trim().toLowerCase();
+      if (seenIds.has(id) || (baseUri && seenUrls.has(baseUri))) return false;
+      seenIds.add(id);
+      if (baseUri) seenUrls.add(baseUri);
+      return true;
+    });
+  }, [userGeneratedImages]);
+
+  const preloadBatchRef = useRef<Record<string, string>>({});
+  const preloadFlushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const batchedSetPreloaded = useCallback(
+    (remote: string, local: string) => {
+      preloadBatchRef.current[remote] = local;
+      if (preloadFlushTimerRef.current != null) return;
+      preloadFlushTimerRef.current = setTimeout(() => {
+        preloadFlushTimerRef.current = null;
+        const batch = { ...preloadBatchRef.current };
+        preloadBatchRef.current = {};
+        setPreloadedLocalUrisBatch(batch);
+      }, PRELOAD_BATCH_MS);
+    },
+    [setPreloadedLocalUrisBatch]
+  );
+
+  const loadVideosOnly = useCallback(async () => {
     if (!currentUserId) return;
     try {
-      const [vids, imgs] = await Promise.all([getSavedVideos(currentUserId), getSavedTryOnImages(currentUserId)]);
+      const vids = await getSavedVideos(currentUserId);
       setSavedVideos(vids);
-      setSavedImages(imgs);
     } catch (e) {
-      console.error('[Videos] Load error', e);
+      console.error('[Videos] Load videos error', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, [currentUserId]);
+  const loadImagesForBox = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      clearPreloadedLocalUris();
+      const imgs = await getSavedTryOnImages(currentUserId);
+      setUserGeneratedImages(imgs);
+      setPreloadedTryOnImages(imgs);
+      preloadToLocal(imgs.slice(0, PRELOAD_IMAGE_COUNT).map((i) => i.uri), batchedSetPreloaded);
+    } catch (e) {
+      console.error('[Videos] Load images error', e);
+    }
+  }, [currentUserId, setUserGeneratedImages, batchedSetPreloaded, clearPreloadedLocalUris]);
 
   useFocusEffect(
     useCallback(() => {
-      loadVideos();
-    }, [loadVideos])
+      if (savedVideos.length === 0) setLoading(true);
+      loadVideosOnly();
+      loadImagesForBox();
+    }, [loadVideosOnly, loadImagesForBox])
   );
 
-  const handleRefresh = () => {
+  useEffect(() => {
+    if (savedVideos.length === 0) return;
+    preloadToLocal(
+      savedVideos.slice(0, PRELOAD_VIDEO_THUMB_COUNT).map((v) => v.sourceImageUrl).filter(Boolean),
+      batchedSetPreloaded
+    );
+  }, [savedVideos, batchedSetPreloaded]);
+
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    loadVideos();
-  };
+    setLoading(true);
+    clearPreloadedLocalUris();
+    Promise.all([
+      currentUserId ? getSavedVideos(currentUserId) : Promise.resolve([]),
+      currentUserId ? getSavedTryOnImages(currentUserId) : Promise.resolve([]),
+    ])
+      .then(([vids, imgs]) => {
+        setSavedVideos(vids);
+        const list = imgs as SavedTryOnImage[];
+        setUserGeneratedImages(list);
+        setPreloadedTryOnImages(list);
+        preloadToLocal(list.slice(0, PRELOAD_IMAGE_COUNT).map((i) => i.uri), batchedSetPreloaded);
+        preloadToLocal(
+          (vids as SavedVideo[]).slice(0, PRELOAD_VIDEO_THUMB_COUNT).map((v) => v.sourceImageUrl).filter(Boolean),
+          batchedSetPreloaded
+        );
+      })
+      .catch((e) => console.error('[Videos] Refresh error', e))
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }, [currentUserId, batchedSetPreloaded, setUserGeneratedImages, clearPreloadedLocalUris]);
 
   const handleNewVideo = () => {
     useVideoStore.getState().resetGeneration();
@@ -123,13 +268,13 @@ export default function VideosScreen() {
 
   const handleDelete = (id: string) => {
     Alert.alert(
-      'Obriši video',
-      'Da li si sigurna da želiš da obrišeš ovaj video?',
+      t('video.delete_video_title'),
+      t('video.delete_video_message'),
       [
-        { text: 'Otkaži', style: 'cancel' },
-        { text: 'Obriši', style: 'destructive', onPress: async () => {
+        { text: t('cancel'), style: 'cancel' },
+        { text: t('delete'), style: 'destructive', onPress: async () => {
           await deleteSavedVideo(id);
-          loadVideos();
+          loadVideosOnly();
         }},
       ]
     );
@@ -147,7 +292,7 @@ export default function VideosScreen() {
   const GAP_TO_KOLEKCIJA = SPACING.md + 8;
 
   const renderFrameAndButton = () => {
-    const images = savedImages;
+    const images = uniqueImages;
     const hasImages = images.length > 0;
     const boxW = W * 0.48;
     const boxH = boxW * 1.05;
@@ -159,22 +304,30 @@ export default function VideosScreen() {
     const btnLeft = boxW + curveW - 52;
     const frameRowMinH = boxH + curveH + 60;
     return (
-      <Animated.View entering={FadeIn.duration(400)} style={styles.frameBlock}>
+      <Animated.View entering={FadeIn.duration(220)} style={styles.frameBlock}>
         <View style={[styles.frameRow, { minHeight: frameRowMinH }]}>
           <View style={[styles.imagesBox, { width: boxW, height: boxH }]}>
             {hasImages ? (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imagesBoxScroll}>
-                {images.slice(0, 8).map((img, idx) => (
-                  <TouchableOpacity key={img.uri + idx} activeOpacity={0.9} onPress={() => handleImagePress(img)} style={styles.imagesBoxThumb}>
-                    <Image source={{ uri: img.uri }} style={styles.imagesBoxThumbImg} resizeMode="contain" />
+              <FlatList
+                data={images.slice(0, 8)}
+                keyExtractor={(item) => item.generationId}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.imagesBoxScroll}
+                initialNumToRender={8}
+                windowSize={3}
+                removeClippedSubviews={false}
+                renderItem={({ item: img }) => (
+                  <TouchableOpacity activeOpacity={0.9} onPress={() => handleImagePress(img)} style={styles.imagesBoxThumb}>
+                    <Image source={{ uri: preloadedLocalUris[img.uri] ?? img.uri }} style={styles.imagesBoxThumbImg} resizeMode="cover" />
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                )}
+              />
             ) : (
               <View style={styles.imagesBoxPlaceholder}>
                 <Ionicons name="images-outline" size={36} color={GOLD} />
                 <Text style={styles.imagesBoxPlaceholderText}>{t('video.generated_images')}</Text>
-                <Text style={styles.imagesBoxPlaceholderSub}>Pojaviće se ovde</Text>
+                <Text style={styles.imagesBoxPlaceholderSub}>{t('video.will_appear_here')}</Text>
               </View>
             )}
           </View>
@@ -213,8 +366,14 @@ export default function VideosScreen() {
             </Svg>
           </View>
         </View>
-        {backgroundJob && <GeneratingBanner attempt={bgPollAttempt} duration={backgroundJob.duration} />}
-        <Animated.View entering={FadeInDown.delay(300).duration(400)} style={styles.gallerySectionHeader}>
+        {backgroundJob && (
+          <GeneratingBanner
+            attempt={bgPollAttempt}
+            duration={backgroundJob.duration}
+            onCancel={handleCancelGeneration}
+          />
+        )}
+        <Animated.View entering={FadeInDown.delay(120).duration(280)} style={styles.gallerySectionHeader}>
           <View style={styles.gallerySectionLine} />
           <Text style={styles.gallerySectionTitle}>{t('video.collection')}</Text>
           <View style={styles.gallerySectionLine} />
@@ -224,14 +383,15 @@ export default function VideosScreen() {
   };
 
   const renderGalleryItem = ({ item, index }: { item: SavedVideo; index: number }) => {
-    const title = item.prompt ? (item.prompt.length > 30 ? item.prompt.substring(0, 30) + '...' : item.prompt) : `${t('video.creation_title')} ${index + 1}`;
+    const labelKey = item.prompt ? PROMPT_TO_LABEL_KEY[item.prompt] : null;
+    const title = labelKey ? t(labelKey) : `${t('video.creation_title')} ${index + 1}`;
     const dateStr = new Date(item.createdAt).toLocaleDateString(getLanguage() === 'en' ? 'en-US' : 'sr-RS', { day: 'numeric', month: 'long' });
     return (
-      <Animated.View entering={FadeInUp.delay(160 + index * 90).duration(460)} style={styles.galleryItem}>
+      <Animated.View entering={FadeInUp.delay(60 + index * 35).duration(280)} style={styles.galleryItem}>
         <TouchableOpacity activeOpacity={0.92} onPress={() => handleOpenVideo(item)} onLongPress={() => handleDelete(item.id)} style={styles.galleryTouch}>
           <View style={styles.frameOuter}>
             <View style={styles.frameInner}>
-              <Image source={{ uri: item.sourceImageUrl }} style={styles.galleryImage} resizeMode="cover" />
+              <Image source={{ uri: preloadedLocalUris[item.sourceImageUrl] ?? item.sourceImageUrl }} style={styles.galleryImage} resizeMode="cover" />
               <View style={styles.galleryOverlay}>
                 <View style={styles.galleryPlayCircle}>
                   <Ionicons name="play" size={20} color={COLORS.white} style={{ marginLeft: 2 }} />
@@ -257,24 +417,30 @@ export default function VideosScreen() {
     </View>
   );
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {loading ? (
-        <View style={styles.loadingWrap}>
+  const listEmpty = loading && savedVideos.length === 0
+    ? (
+        <View style={styles.emptyWrap}>
           <ActivityIndicator size="large" color={GOLD} />
         </View>
-      ) : (
-        <FlatList
-          data={savedVideos}
-          keyExtractor={(item) => item.id}
-          renderItem={renderGalleryItem}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={[styles.listContent, savedVideos.length === 0 && styles.listEmpty]}
-          showsVerticalScrollIndicator={false}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={GOLD} />}
-        />
-      )}
+      )
+    : renderEmpty();
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <FlatList
+        data={savedVideos}
+        keyExtractor={(item) => item.id}
+        renderItem={renderGalleryItem}
+        ListHeaderComponent={renderHeader}
+        ListEmptyComponent={listEmpty}
+        contentContainerStyle={[styles.listContent, savedVideos.length === 0 && styles.listEmpty]}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={8}
+        maxToRenderPerBatch={6}
+        windowSize={6}
+        removeClippedSubviews={true}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={GOLD} />}
+      />
     </View>
   );
 }

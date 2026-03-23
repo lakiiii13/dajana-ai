@@ -58,6 +58,27 @@ export default function PaymentScreen() {
     await supabase.rpc('add_bonus_credits', { p_user_id: userId });
   };
 
+  /** Upis tranzakcije u bazu (i za simulaciju i za budući pravi Stripe). */
+  const recordTransaction = async (
+    userId: string,
+    type: 'subscription_payment' | 'credit_purchase',
+    amountCents: number
+  ): Promise<boolean> => {
+    const { error } = await supabase.from('transactions').insert({
+      user_id: userId,
+      type,
+      stripe_payment_intent_id: null,
+      amount_cents: amountCents,
+      currency: 'eur',
+      status: 'succeeded',
+    });
+    if (error) {
+      console.error('[Payment] recordTransaction failed:', error.message, error.code, error.details);
+      return false;
+    }
+    return true;
+  };
+
   const applySubscriptionPurchase = async (userId: string, planType: 'monthly' | 'yearly') => {
     const now = new Date();
     const periodEnd = new Date(now);
@@ -119,8 +140,17 @@ export default function PaymentScreen() {
     await new Promise((r) => setTimeout(r, 2200));
 
     const userId = useAuthStore.getState().user?.id;
-    if (userId) {
+    const amountNum = parseFloat(String(amount).replace(',', '.')) || 0;
+    const amountCents = Math.round(amountNum * 100);
+
+    if (!userId) {
+      console.warn('[Payment] No userId – tranzakcija se ne upisuje. Prijavi se pa pokušaj ponovo.');
+    } else {
       try {
+        const txType = params.itemId === 'topup' ? 'credit_purchase' : 'subscription_payment';
+        const ok = await recordTransaction(userId, txType, amountCents);
+        if (!ok) console.warn('[Payment] Tranzakcija nije sačuvana u bazu (pogledaj gornju grešku).');
+
         if (params.itemId === 'topup') {
           await applyTopupCredits(userId);
         } else if (params.itemId === 'monthly' || params.itemId === 'yearly') {

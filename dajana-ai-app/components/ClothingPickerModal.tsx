@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FONTS, COLORS } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import type { ClothingItem } from '@/assets/clothing/catalog';
 
 const { width: SCREEN_W } = Dimensions.get('window');
@@ -53,7 +54,7 @@ export function ClothingPickerModal({
           <View style={styles.handle} />
           <Text style={styles.sheetTitle}>{title}</Text>
           {items.length === 0 ? (
-            <Text style={styles.emptyText}>Nema komada u ovoj kategoriji. Dodaj PNG u assets/clothing i catalog.ts</Text>
+            <Text style={styles.emptyText}>{t('table_builder.no_items_in_category')}</Text>
           ) : (
             <FlatList
               data={items}

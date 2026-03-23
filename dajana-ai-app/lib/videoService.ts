@@ -6,8 +6,8 @@
 
 import * as FileSystem from './safeFileSystem';
 import { supabase } from './supabase';
-import { decode } from 'base64-arraybuffer';
 import { toPathString } from './fileSystemPath';
+import { isR2Configured, uploadToR2, uploadToR2FromFile, keyFromPublicUrl, deleteFromR2, R2_KEYS } from './r2Storage';
 
 const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim().replace(/\/$/, '');
 const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
@@ -80,8 +80,6 @@ async function ensurePublicUrl(imageUrl: string): Promise<string> {
     return path; // already a remote URL
   }
 
-  await ensureBucket();
-
   const approxKB = Math.round(base64.length * 3 / 4 / 1024);
   if (approxKB > 8192) {
     console.warn(`[Video] Image too large: ${approxKB} KB, max 8 MB`);
@@ -92,26 +90,14 @@ async function ensurePublicUrl(imageUrl: string): Promise<string> {
   const contentType = isPng ? 'image/png' : 'image/jpeg';
   const filename = `src_${Date.now()}.${ext}`;
 
-  console.log(`[Video] Uploading as ${contentType}, size ~${approxKB} KB`);
-
-  const { data, error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(filename, decode(base64), {
-      contentType,
-      upsert: true,
-    });
-
-  if (error) {
-    console.error('[Video] Upload error:', error.message);
-    throw new Error('Greška pri uploadu slike: ' + error.message);
+  if (!isR2Configured()) {
+    throw new Error('Slika za video zahteva Cloudflare R2. Podesite R2 u Supabase Edge Function secrets.');
   }
-
-  const { data: urlData } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(filename);
-
-  console.log('[Video] Public URL:', urlData.publicUrl);
-  return urlData.publicUrl;
+  console.log(`[Video] Uploading as ${contentType}, size ~${approxKB} KB (R2)`);
+  const key = `${R2_KEYS.SOURCES_PREFIX}${filename}`;
+  const url = await uploadToR2(key, base64, contentType);
+  console.log('[Video] Public URL (R2):', url);
+  return url;
 }
 
 const VIDEO_START_RETRIES = 3;
@@ -124,6 +110,7 @@ function sleep(ms: number): Promise<void> {
 /** Map server/Edge error text to jasne poruke za korisnika. */
 function friendlyVideoError(serverMessage: string): string {
   const s = serverMessage.toLowerCase();
+  if (s.includes('worker_limit') || s.includes('compute resources')) return 'Servis je preopterećen. Pokušaj za minutu ili izaberi nešto manju sliku.';
   if (s.includes('prebukiran') || s.includes('previše zahteva') || s.includes('429')) return 'Servis je privremeno prebukiran. Sačekajte malo i pokušajte ponovo.';
   if (s.includes('ključ') || s.includes('api key') || s.includes('invalid') || s.includes('401') || s.includes('403')) return 'Video API ključ nije ispravan. Administrator treba da proveri VIDEO_API_KEY u Supabase.';
   if (s.includes('veza') || s.includes('network') || s.includes('timeout') || s.includes('failed')) return 'Veza sa servisom nije uspela. Proverite internet i pokušajte ponovo.';
@@ -198,6 +185,10 @@ export async function startVideoGeneration(
           if (j.error && typeof j.error === 'string') errMsg = j.error;
         } catch {}
         lastErrMsg = errMsg;
+        const isCreditError = /kredita|credits|dovoljno/i.test(errMsg);
+        if (isCreditError) {
+          throw new Error(errMsg);
+        }
         if (res.status === 401 || res.status === 403 || res.status === 429) {
           throw new Error(friendlyVideoError(errMsg));
         }
@@ -220,6 +211,10 @@ export async function startVideoGeneration(
       return { jobId, publicImageUrl: publicUrl };
     } catch (e: unknown) {
       lastErrMsg = e instanceof Error ? e.message : String(e);
+      const isCreditError = /kredita|credits|dovoljno/i.test(lastErrMsg);
+      if (isCreditError) {
+        throw new Error(lastErrMsg);
+      }
       if (attempt < VIDEO_START_RETRIES) {
         console.warn('[Video] Start attempt', attempt, 'error - retrying...', lastErrMsg);
         await sleep(VIDEO_START_RETRY_DELAY_MS * attempt);
@@ -354,37 +349,31 @@ export async function saveVideo(
 ): Promise<SavedVideo> {
   const uid = userId || (await supabase.auth.getSession()).data?.session?.user?.id;
 
-  await ensureVideoBucket();
-
   const tmpPath = `${FileSystem.cacheDirectory}vid_tmp_${Date.now()}.mp4`;
   console.log('[Video] Downloading video for upload...');
   const dl = await FileSystem.downloadAsync(videoUrl, tmpPath);
   if (dl.status !== 200) throw new Error('Failed to download video');
 
-  const base64 = await FileSystem.readAsStringAsync(tmpPath, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-  await FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
-
   const storagePath = `${uid || 'anon'}/vid_${Date.now()}.mp4`;
-  const { error: uploadErr } = await supabase.storage
-    .from(VIDEO_BUCKET)
-    .upload(storagePath, decode(base64), {
-      contentType: 'video/mp4',
-      upsert: true,
-    });
+  let publicVideoUrl: string;
 
-  if (uploadErr) {
-    console.error('[Video] Storage upload error:', uploadErr.message);
-    throw new Error('Greska pri cuvanju videa: ' + uploadErr.message);
+  if (!isR2Configured()) {
+    await FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+    throw new Error('Čuvanje videa zahteva Cloudflare R2. Podesite R2 u Supabase Edge Function secrets.');
   }
-
-  const { data: urlData } = supabase.storage
-    .from(VIDEO_BUCKET)
-    .getPublicUrl(storagePath);
-
-  const publicVideoUrl = urlData.publicUrl;
-  console.log('[Video] Saved to Storage:', publicVideoUrl);
+  const key = `${R2_KEYS.VIDEOS_PREFIX}${storagePath}`;
+  try {
+    publicVideoUrl = await uploadToR2FromFile(key, tmpPath, 'video/mp4');
+    console.log('[Video] Saved to R2:', publicVideoUrl);
+  } catch (r2Err: any) {
+    const r2Msg = r2Err?.message ?? '';
+    if (r2Msg.includes('preopterećen') || r2Msg.includes('prebukirana')) {
+      throw new Error('Cloudflare R2 je trenutno preopterećen. Pokušajte ponovo za nekoliko minuta.');
+    }
+    throw r2Err;
+  } finally {
+    await FileSystem.deleteAsync(tmpPath, { idempotent: true }).catch(() => {});
+  }
 
   let generationId = `vid_${Date.now()}`;
   if (uid) {
@@ -418,6 +407,51 @@ export async function saveVideo(
     duration,
     createdAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Insert video into generations only (no file upload). Use when we have a remote URL
+ * but saveVideo failed – so the video still appears in Kolekcija (sve iz baze).
+ */
+export async function insertVideoGenerationOnly(
+  userId: string,
+  outputUrl: string,
+  sourceImageUrl: string,
+  prompt: string,
+  duration: '5' | '10'
+): Promise<SavedVideo | null> {
+  try {
+    const { data: insertedRow, error: insertErr } = await supabase
+      .from('generations')
+      .insert({
+        user_id: userId,
+        type: 'video' as const,
+        output_url: outputUrl,
+        input_image_url: sourceImageUrl,
+        prompt,
+        metadata: { duration },
+        status: 'completed' as const,
+        completed_at: new Date().toISOString(),
+      })
+      .select('id, created_at')
+      .single();
+
+    if (insertErr) {
+      console.error('[Video] Insert-only error:', insertErr.message);
+      return null;
+    }
+    return {
+      id: insertedRow.id,
+      uri: outputUrl,
+      sourceImageUrl,
+      prompt,
+      duration,
+      createdAt: insertedRow.created_at ?? new Date().toISOString(),
+    };
+  } catch (e) {
+    console.error('[Video] Insert-only exception:', e);
+    return null;
+  }
 }
 
 export async function getSavedVideos(userId?: string): Promise<SavedVideo[]> {
@@ -470,9 +504,14 @@ export async function deleteSavedVideo(id: string): Promise<void> {
 
     if (data?.output_url) {
       const url = data.output_url as string;
-      const bucketPath = url.split(`/storage/v1/object/public/${VIDEO_BUCKET}/`).pop();
-      if (bucketPath) {
-        await supabase.storage.from(VIDEO_BUCKET).remove([bucketPath]).catch(() => {});
+      if (isR2Configured()) {
+        const key = keyFromPublicUrl(url);
+        if (key) await deleteFromR2(key).catch(() => {});
+      } else {
+        const bucketPath = url.split(`/storage/v1/object/public/${VIDEO_BUCKET}/`).pop();
+        if (bucketPath) {
+          await supabase.storage.from(VIDEO_BUCKET).remove([bucketPath]).catch(() => {});
+        }
       }
     }
 

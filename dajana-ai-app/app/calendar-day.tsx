@@ -20,6 +20,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { OutfitCompositionCard } from '@/components/OutfitCompositionCard';
 import { deleteOutfitComposition, getSavedOutfits, SavedOutfit } from '@/lib/tryOnService';
 import { useAuthStore } from '@/stores/authStore';
+import { useTryOnStore } from '@/stores/tryOnStore';
 import { t } from '@/lib/i18n';
 
 const GOLD = '#CF8F5A';
@@ -121,7 +122,7 @@ export default function CalendarDayScreen() {
           <Feather name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Outfiti za {formattedDate}</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('calendar.outfits_for')} {formattedDate}</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {outfitsForDay.length} {outfitsForDay.length === 1 ? t('calendar.outfit_one') : t('calendar.outfit_many')}
           </Text>
@@ -136,9 +137,9 @@ export default function CalendarDayScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nema outfita za ovaj dan</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>{t('calendar.no_outfits_for_day')}</Text>
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              Napravi novi outfit iz Kapsule i pojaviće se ovde.
+              {t('calendar.create_from_capsule_hint')}
             </Text>
           </View>
         }
@@ -170,7 +171,10 @@ export default function CalendarDayScreen() {
       <View style={[styles.footer, { borderTopColor: colors.gray[200] }]}>
         <TouchableOpacity
           style={styles.primaryButton}
-          onPress={() => router.push('/(tabs)/capsule')}
+          onPress={() => {
+            useTryOnStore.getState().setOutfitTargetDate(dateParam || null);
+            router.push('/(tabs)/capsule');
+          }}
           activeOpacity={0.85}
         >
           <Feather name="plus" size={18} color="#FFFFFF" />
@@ -242,7 +246,7 @@ export default function CalendarDayScreen() {
                         {outfitCarouselIndex + 1} / {(selectedOutfit.items ?? []).length}
                       </Text>
                     </View>
-                    <Text style={styles.carouselHint}>Prevuci levo/desno ili koristi strelice</Text>
+                    <Text style={styles.carouselHint}>{t('calendar.swipe_arrows_hint')}</Text>
                   </View>
                 )}
                 <TouchableOpacity style={styles.modalClose} onPress={() => setSelectedOutfit(null)} activeOpacity={0.85}>

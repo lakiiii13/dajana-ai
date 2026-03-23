@@ -45,6 +45,7 @@ export default function TryOnUploadScreen() {
   const [photoFromCamera, setPhotoFromCamera] = useState(false); // selfi: prikaži kao u ogledalu
   const [isProcessing, setIsProcessing] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState<number | null>(null);
+  const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
 
   const refreshCredits = useCallback(() => {
     if (user?.id) {
@@ -142,7 +143,7 @@ export default function TryOnUploadScreen() {
           <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Virtual Try-On</Text>
+          <Text style={styles.headerTitle}>{t('try_on.virtual_tryon')}</Text>
           <Text style={styles.headerSubtitle}>{outfitTitle || t('try_on.selected_outfit')}</Text>
         </View>
         {creditsRemaining !== null ? (
@@ -165,11 +166,11 @@ export default function TryOnUploadScreen() {
         {outfitItems.length >= 1 && (
           <Animated.View entering={FadeInDown.delay(80).duration(420)} style={styles.itemsStrip}>
             <View style={styles.itemsStripHeader}>
-              <Text style={styles.itemsStripTitle}>Tvoja izabrana garderoba</Text>
+              <Text style={styles.itemsStripTitle}>{t('try_on.your_selected_wardrobe')}</Text>
               {outfitItems.length > 1 && (
                 <View style={styles.swipeHintRow}>
                   <Ionicons name="chevron-back" size={16} color={GOLD} style={{ transform: [{ scaleX: -1 }] }} />
-                  <Text style={styles.itemsSwipeHint}>Swipe da vidiš sve komade</Text>
+                  <Text style={styles.itemsSwipeHint}>{t('try_on.swipe_see_pieces')}</Text>
                   <Ionicons name="chevron-forward" size={16} color={GOLD} />
                 </View>
               )}
@@ -211,8 +212,8 @@ export default function TryOnUploadScreen() {
                 <View style={styles.iconCircle}>
                   <Ionicons name="person-outline" size={44} color={GOLD} />
                 </View>
-                <Text style={styles.placeholderTitle}>Dodaj sliku tela</Text>
-                <Text style={styles.placeholderSubtitle}>Većinski deo tela (gornji deo) ili iz galerije</Text>
+                <Text style={styles.placeholderTitle}>{t('try_on.add_body_photo')}</Text>
+                <Text style={styles.placeholderSubtitle}>{t('try_on.body_photo_placeholder')}</Text>
               </View>
             )}
             <View style={styles.frameCornerTL} />
@@ -230,26 +231,26 @@ export default function TryOnUploadScreen() {
               <View style={styles.actionIconWrap}>
                 <Ionicons name="camera-outline" size={26} color={GOLD} />
               </View>
-              <Text style={styles.actionLabel}>Fotografiši deo tela</Text>
+              <Text style={styles.actionLabel}>{t('try_on.take_body_photo')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButton} onPress={handlePickFromGallery} activeOpacity={0.85}>
               <View style={styles.actionIconWrap}>
                 <Ionicons name="images-outline" size={26} color={GOLD} />
               </View>
-              <Text style={styles.actionLabel}>Iz galerije</Text>
+              <Text style={styles.actionLabel}>{t('try_on.from_gallery')}</Text>
             </TouchableOpacity>
           </Animated.View>
         ) : (
           <Animated.View entering={FadeInUp.delay(200).duration(460)} style={styles.generateRow}>
             <TouchableOpacity style={styles.changePhotoButton} onPress={handlePickFromGallery}>
               <Feather name="refresh-cw" size={14} color={GOLD} />
-              <Text style={styles.changePhotoText}>Promeni sliku</Text>
+              <Text style={styles.changePhotoText}>{t('try_on.change_photo')}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.generateButton} onPress={handleContinue} disabled={isProcessing || (creditsRemaining !== null && creditsRemaining <= 0)} activeOpacity={0.88}>
               {isProcessing ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.generateButtonText}>Generiši</Text>
+                <Text style={styles.generateButtonText}>{t('try_on.generate')}</Text>
               )}
             </TouchableOpacity>
           </Animated.View>
@@ -257,7 +258,7 @@ export default function TryOnUploadScreen() {
 
         <Animated.View entering={FadeIn.delay(360).duration(400)} style={styles.infoSection}>
           <Ionicons name="information-circle-outline" size={16} color={COLORS.gray[500]} />
-          <Text style={styles.infoText}>Snimaj većinski deo tela (gornji deo) za najbolji rezultat.</Text>
+          <Text style={styles.infoText}>{t('try_on.photo_tip')}</Text>
         </Animated.View>
       </ScrollView>
 

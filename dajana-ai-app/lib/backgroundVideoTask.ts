@@ -24,6 +24,7 @@ export interface BackgroundJobData {
   duration: '5' | '10';
   startedAt: string;
   bgAttempts: number;
+  language?: 'sr' | 'en'; // jezik za notifikacije
 }
 
 /**
@@ -82,7 +83,7 @@ TaskManager.defineTask(VIDEO_POLL_TASK, async () => {
 
     if (job.bgAttempts >= MAX_BG_ATTEMPTS) {
       console.log('[BGVideo] Max background attempts reached, giving up');
-      await notifyVideoFailed();
+      await notifyVideoFailed(job.language);
       await clearBackgroundJob();
       return BackgroundFetch.BackgroundFetchResult.Failed;
     }
@@ -98,7 +99,7 @@ TaskManager.defineTask(VIDEO_POLL_TASK, async () => {
         job.duration,
         job.userId
       );
-      await notifyVideoReady(saved.uri, job.userId ?? undefined);
+      await notifyVideoReady(saved.uri, job.userId ?? undefined, job.language);
       await clearBackgroundJob();
       return BackgroundFetch.BackgroundFetchResult.NewData;
     }

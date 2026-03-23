@@ -39,6 +39,9 @@ export interface TryOnState {
   isGenerating: boolean;
   error: string | null;
 
+  /** Datum za koji se kreira outfit (iz kalendara, npr. "2026-03-25") */
+  outfitTargetDate: string | null;
+
   // Actions — multi item
   addOutfitItem: (item: OutfitItem) => void;
   removeOutfitItem: (id: string) => void;
@@ -53,6 +56,7 @@ export interface TryOnState {
   setGeneratedImage: (base64: string, uri?: string) => void;
   setGenerating: (isGenerating: boolean) => void;
   setError: (error: string | null) => void;
+  setOutfitTargetDate: (date: string | null) => void;
   reset: () => void;
 }
 
@@ -134,5 +138,7 @@ export const useTryOnStore = create<TryOnState>((set, get) => ({
 
   setError: (error) => set({ error }),
 
-  reset: () => set(initialState),
+  setOutfitTargetDate: (date) => set({ outfitTargetDate: date }),
+
+  reset: () => set((s) => ({ ...initialState, outfitTargetDate: s.outfitTargetDate })),
 }));

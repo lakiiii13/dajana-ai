@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -25,20 +25,20 @@ import { COLORS, FONTS, SPACING } from '@/constants/theme';
 import { useVideoStore } from '@/stores/videoStore';
 import { useAuthStore } from '@/stores/authStore';
 import { startVideoGeneration } from '@/lib/videoService';
-import { saveBackgroundJob } from '@/lib/backgroundVideoTask';
-import { hasVideoCredits, deductVideoCredit } from '@/lib/creditService';
+import { saveBackgroundJob, clearBackgroundJob as clearBgJobStorage } from '@/lib/backgroundVideoTask';
+import { getAllCredits, deductVideoCredit } from '@/lib/creditService';
 import { VideoWizardShell } from '@/components/video/VideoWizardShell';
 import { NoCreditsModal } from '@/components/NoCreditsModal';
-import { t } from '@/lib/i18n';
+import { t, getLanguage } from '@/lib/i18n';
 
 const DARK_GREEN = '#0D4326';
 const GOLD = '#CF8F5A';
 const DARK = '#2C2A28';
-const VIDEO_MOTION_LABELS: Record<string, string> = {
-  'The model walks very slowly forward in a controlled way while staying fully centered in frame. The camera gently zooms out only a little, keeping the full body and face clearly visible at all times. Do not let the model leave the frame. Do not widen beyond the original background.': 'Hod napred + zoom out',
-  'The model stands in place, slowly turns to the left side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.': 'Levi bok',
-  'The model stands in place, slowly turns to the right side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.': 'Desni bok',
-  'The model remains facing front and makes only a subtle elegant movement while keeping the full front side clearly visible. The pose should stay centered, stable, and fully in frame, with no major camera movement or background expansion.': 'Front poza',
+const PROMPT_TO_LABEL_KEY: Record<string, string> = {
+  'The model walks very slowly forward in a controlled way while staying fully centered in frame. The camera gently zooms out only a little, keeping the full body and face clearly visible at all times. Do not let the model leave the frame. Do not widen beyond the original background.': 'video.motion_walk',
+  'The model stands in place, slowly turns to the left side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.': 'video.motion_left',
+  'The model stands in place, slowly turns to the right side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.': 'video.motion_right',
+  'The model remains facing front and makes only a subtle elegant movement while keeping the full front side clearly visible. The pose should stay centered, stable, and fully in frame, with no major camera movement or background expansion.': 'video.motion_front',
 };
 
 export default function VideoGenerateReviewScreen() {
@@ -56,7 +56,27 @@ export default function VideoGenerateReviewScreen() {
   const setError = useVideoStore((s) => s.setError);
   const resetGeneration = useVideoStore((s) => s.resetGeneration);
   const startBgJob = useVideoStore((s) => s.startBackgroundJob);
+  const clearBgJob = useVideoStore((s) => s.clearBackgroundJob);
   const [showNoCreditsModal, setShowNoCreditsModal] = useState(false);
+  const [videoCreditsRemaining, setVideoCreditsRemaining] = useState<number | null>(null);
+
+  const handleCancelGeneration = useCallback(async () => {
+    Alert.alert(
+      t('video.cancel_generation_title'),
+      t('video.cancel_generation_message'),
+      [
+        { text: t('video.cancel'), style: 'cancel' },
+        {
+          text: t('video.abort'),
+          style: 'destructive',
+          onPress: async () => {
+            await clearBgJobStorage();
+            clearBgJob();
+          },
+        },
+      ]
+    );
+  }, [clearBgJob]);
 
   const isStarting = status === 'generating' && !backgroundJob;
 
@@ -70,6 +90,23 @@ export default function VideoGenerateReviewScreen() {
     }
   }, [sourceImageUrl, prompt, router]);
 
+  const refreshVideoCredits = useCallback(() => {
+    if (!user?.id) return;
+    getAllCredits(user.id).then((all) => {
+      setVideoCreditsRemaining(all.video.remaining);
+    }).catch(() => setVideoCreditsRemaining(0));
+  }, [user?.id]);
+
+  useEffect(() => {
+    refreshVideoCredits();
+  }, [refreshVideoCredits]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshVideoCredits();
+    }, [refreshVideoCredits])
+  );
+
   const handleClose = useCallback(() => {
     if (status === 'generating') return;
     resetGeneration();
@@ -78,31 +115,32 @@ export default function VideoGenerateReviewScreen() {
 
   const handleGenerate = useCallback(async () => {
     if (!sourceImageUrl) {
-      Alert.alert('Slika', 'Izaberi sliku za video.');
+      Alert.alert(t('video.alert_image'), t('video.select_image_for_video'));
       return;
     }
 
     if (!prompt.trim()) {
-      Alert.alert('Opis scene', 'Unesi opis scene.');
+      Alert.alert(t('video.alert_scene'), t('video.enter_scene'));
       return;
     }
 
     if (backgroundJob) {
       Alert.alert(
-        'Video u toku',
-        'Već se generiše jedan video. Sačekaj da se završi pre nego što pokreneš novi.'
+        t('video.video_in_progress'),
+        t('video.wait_for_finish')
       );
       return;
     }
 
     if (!user?.id) {
-      Alert.alert('Prijava', 'Morate biti prijavljeni da biste generisali video.');
+      Alert.alert(t('video.alert_login'), t('video.login_required'));
       return;
     }
 
     try {
-      const hasCredits = await hasVideoCredits(user.id);
-      if (!hasCredits) {
+      const all = await getAllCredits(user.id);
+      setVideoCreditsRemaining(all.video.remaining);
+      if (all.video.remaining <= 0) {
         setShowNoCreditsModal(true);
         return;
       }
@@ -113,6 +151,8 @@ export default function VideoGenerateReviewScreen() {
 
     setError(null);
     setStatus('generating');
+    // Let React paint the loading screen before we block on upload + video-start
+    await new Promise((r) => setTimeout(r, 150));
 
     try {
       const { jobId, publicImageUrl } = await startVideoGeneration(sourceImageUrl, prompt, duration);
@@ -127,14 +167,34 @@ export default function VideoGenerateReviewScreen() {
         prompt,
         duration,
         startedAt: new Date().toISOString(),
+        language: getLanguage(),
       };
 
       await saveBackgroundJob(jobMeta);
       startBgJob(jobMeta);
       setStatus('idle');
     } catch (e: any) {
+      const msg = e?.message ?? '';
+      const isCreditError = /kredita|credits|dovoljno/i.test(msg);
+      if (isCreditError) {
+        setStatus('idle');
+        setError(null);
+        setShowNoCreditsModal(true);
+        return;
+      }
+      const isOverload = msg.includes('preopterećen') || msg.includes('prebukirana');
+      if (isOverload) {
+        setStatus('idle');
+        setError(null);
+        const overloadMessage =
+          duration === '10'
+            ? t('video.service_busy_long')
+            : t('video.service_busy_short');
+        Alert.alert(t('video.service_busy'), overloadMessage, [{ text: t('video.ok') }]);
+        return;
+      }
       console.error('[VideoWizard]', e);
-      setError(e.message || 'Greška pri generisanju videa');
+      setError(msg || 'Greška pri generisanju videa');
       setStatus('error');
     }
   }, [sourceImageUrl, prompt, duration, backgroundJob, user?.id, setError, setStatus, startBgJob, router]);
@@ -145,6 +205,7 @@ export default function VideoGenerateReviewScreen() {
         attempt={bgPollAttempt}
         duration={backgroundJob.duration}
         onLeaveToBackground={() => router.replace('/(tabs)/videos' as any)}
+        onCancel={handleCancelGeneration}
       />
     );
   }
@@ -153,7 +214,8 @@ export default function VideoGenerateReviewScreen() {
     return <StartingOverlay />;
   }
 
-  const selectedMotionLabel = VIDEO_MOTION_LABELS[prompt] ?? 'Izabrani pokret';
+  const motionLabelKey = PROMPT_TO_LABEL_KEY[prompt];
+  const selectedMotionLabel = motionLabelKey ? t(motionLabelKey) : t('video.selected_motion');
 
   return (
     <VideoWizardShell
@@ -171,20 +233,22 @@ export default function VideoGenerateReviewScreen() {
         <View style={styles.overlay} />
 
         <View style={styles.content}>
-          <Text style={styles.title}>Pregled</Text>
-          <Text style={styles.description}>Proveri i pokreni.</Text>
+          <Text style={styles.title}>{t('video.review')}</Text>
+          <Text style={styles.description}>{t('video.check_and_start')}</Text>
 
           <View style={styles.summaryCard}>
-            <Text style={styles.summaryLabel}>Pokret</Text>
+            <Text style={styles.summaryLabel}>{t('video.motion')}</Text>
             <Text style={styles.summaryPrompt} numberOfLines={2}>{selectedMotionLabel}</Text>
             <View style={styles.summaryMetaRow}>
               <View style={styles.summaryMetaBlock}>
-                <Text style={styles.summaryLabel}>Trajanje</Text>
+                <Text style={styles.summaryLabel}>{t('video.duration')}</Text>
                 <Text style={styles.summaryMetaValue}>{duration}s</Text>
               </View>
               <View style={[styles.summaryMetaBlock, styles.metaRight]}>
-                <Text style={styles.summaryLabel}>Krediti</Text>
-                <Text style={styles.summaryMetaValue}>{duration === '5' ? '10' : '20'}</Text>
+                <Text style={styles.summaryLabel}>{t('video.your_video_credits')}</Text>
+                <Text style={styles.summaryMetaValue}>
+                  {videoCreditsRemaining === null ? '...' : videoCreditsRemaining}
+                </Text>
               </View>
             </View>
           </View>
@@ -198,7 +262,7 @@ export default function VideoGenerateReviewScreen() {
 
           <TouchableOpacity style={styles.generateBtn} onPress={handleGenerate} activeOpacity={0.88}>
             <Ionicons name="videocam" size={20} color={COLORS.white} />
-            <Text style={styles.generateBtnText}>Generiši</Text>
+            <Text style={styles.generateBtnText}>{t('video.generate')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -263,10 +327,10 @@ function StartingOverlay() {
           </View>
 
           <Animated.Text entering={FadeIn.delay(200).duration(400)} style={overlayStyles.title}>
-            Krećemo
+            {t('video.starting')}
           </Animated.Text>
           <Animated.Text entering={FadeIn.delay(400).duration(400)} style={overlayStyles.subtitle}>
-            Samo trenutak
+            {t('video.just_moment')}
           </Animated.Text>
         </View>
 
@@ -282,10 +346,12 @@ function GeneratingOverlay({
   attempt,
   duration,
   onLeaveToBackground,
+  onCancel,
 }: {
   attempt: number;
   duration: '5' | '10';
   onLeaveToBackground: () => void;
+  onCancel?: () => void | Promise<void>;
 }) {
   const insets = useSafeAreaInsets();
   const ring1 = useSharedValue(0.6);
@@ -351,7 +417,7 @@ function GeneratingOverlay({
           </View>
 
           <Animated.Text entering={FadeIn.delay(200).duration(400)} style={overlayStyles.title}>
-            Kreiramo tvoj video
+            {t('video.creating_video')}
           </Animated.Text>
 
           <View style={overlayStyles.progressWrap}>
@@ -359,12 +425,12 @@ function GeneratingOverlay({
               <View style={[overlayStyles.progressFill, { width: `${progress * 100}%` }]} />
             </View>
             <Text style={overlayStyles.progressText}>
-              {attempt > 0 ? `~${minutes} min preostalo` : 'Priprema...'}
+              {attempt > 0 ? t('video.min_left', { min: minutes }) : t('video.preparing')}
             </Text>
           </View>
 
           <Text style={overlayStyles.hint}>
-            Možeš ostati ovde ili izaći. Videćeš notifikaciju kada video bude spreman.
+            {t('video.you_can_leave')}
           </Text>
 
           <TouchableOpacity
@@ -375,6 +441,17 @@ function GeneratingOverlay({
             <Ionicons name="exit-outline" size={18} color={COLORS.white} />
             <Text style={overlayStyles.leaveBtnText}>{t('video.continue_in_background')}</Text>
           </TouchableOpacity>
+
+          {onCancel && (
+            <TouchableOpacity
+              style={overlayStyles.cancelBtn}
+              onPress={onCancel}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="stop-circle-outline" size={18} color={COLORS.white} />
+              <Text style={overlayStyles.cancelBtnText}>{t('video.cancel_generation_btn')}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={[overlayStyles.bottomRow, { paddingBottom: insets.bottom + 12 }]}>
@@ -527,18 +604,20 @@ const overlayStyles = StyleSheet.create({
     elevation: 6,
   },
   title: {
-    fontFamily: FONTS.heading.medium,
-    fontSize: 24,
+    fontFamily: FONTS.primary.semibold,
+    fontSize: 26,
     color: COLORS.white,
-    letterSpacing: 1,
+    letterSpacing: 0.4,
     textAlign: 'center',
+    marginTop: 4,
   },
   subtitle: {
-    fontFamily: FONTS.primary.light,
+    fontFamily: FONTS.primary.regular,
     fontSize: 15,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 8,
-    letterSpacing: 0.5,
+    color: 'rgba(255,255,255,0.88)',
+    marginTop: 10,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
   progressWrap: { width: '100%', marginTop: 32, alignItems: 'center' },
   progressTrack: {
@@ -576,6 +655,24 @@ const overlayStyles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   leaveBtnText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: 14,
+    color: COLORS.white,
+    letterSpacing: 0.3,
+  },
+  cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,120,100,0.6)',
+    backgroundColor: 'rgba(200,80,60,0.2)',
+  },
+  cancelBtnText: {
     fontFamily: FONTS.primary.medium,
     fontSize: 14,
     color: COLORS.white,

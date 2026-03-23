@@ -1,14 +1,28 @@
 // ===========================================
 // DAJANA AI Admin - Upload slike (galerija / fajl)
-// Prima multipart form sa poljem "file", otprema u Supabase Storage, vraća public URL
+// Otprema u Cloudflare R2 ako je podešen, inače u Supabase Storage. Vraća public URL.
 // ===========================================
 
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getAdminSession } from "@/lib/auth";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
-const BUCKET = "outfit-images";
+const SUPABASE_BUCKET = "outfit-images";
+const R2_KEY_PREFIX = "outfit-images/";
 const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+
+function getR2Client(): S3Client | null {
+  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
+  const endpoint = process.env.R2_S3_ENDPOINT ?? "https://4df8db7a24ea348b7c55ba8d768855b4.r2.cloudflarestorage.com";
+  if (!accessKeyId || !secretAccessKey) return null;
+  return new S3Client({
+    region: "auto",
+    endpoint,
+    credentials: { accessKeyId, secretAccessKey },
+  });
+}
 
 export async function POST(request: Request) {
   const session = await getAdminSession();
@@ -42,26 +56,45 @@ export async function POST(request: Request) {
       );
     }
 
-    const supabase = createAdminClient();
     const ext = type.replace("image/", "") || "jpg";
     const name = `outfit_${Date.now()}.${ext}`;
+    const buffer = Buffer.from(await file.arrayBuffer());
 
+    const r2 = getR2Client();
+    const publicUrl = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+
+    if (r2 && publicUrl) {
+      const bucket = process.env.R2_BUCKET_NAME ?? "dajana-media";
+      const key = `${R2_KEY_PREFIX}${name}`;
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: buffer,
+          ContentType: file.type,
+        })
+      );
+      const url = `${publicUrl}/${key}`;
+      return NextResponse.json({ url });
+    }
+
+    const supabase = createAdminClient();
     const { data, error } = await supabase.storage
-      .from(BUCKET)
-      .upload(name, await file.arrayBuffer(), {
+      .from(SUPABASE_BUCKET)
+      .upload(name, buffer, {
         contentType: file.type,
         upsert: true,
       });
 
     if (error) {
       if (error.message?.includes("Bucket not found")) {
-        await supabase.storage.createBucket(BUCKET, {
+        await supabase.storage.createBucket(SUPABASE_BUCKET, {
           public: true,
           fileSizeLimit: MAX_SIZE,
         });
         const retry = await supabase.storage
-          .from(BUCKET)
-          .upload(name, await file.arrayBuffer(), {
+          .from(SUPABASE_BUCKET)
+          .upload(name, buffer, {
             contentType: file.type,
             upsert: true,
           });
@@ -71,7 +104,7 @@ export async function POST(request: Request) {
             { status: 500 }
           );
         }
-        const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(retry.data.path);
+        const { data: urlData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(retry.data.path);
         return NextResponse.json({ url: urlData.publicUrl });
       }
       return NextResponse.json(
@@ -80,11 +113,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
+    const { data: urlData } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(data.path);
     return NextResponse.json({ url: urlData.publicUrl });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Greška na serveru";
     return NextResponse.json(
-      { error: err?.message || "Greška na serveru" },
+      { error: message },
       { status: 500 }
     );
   }

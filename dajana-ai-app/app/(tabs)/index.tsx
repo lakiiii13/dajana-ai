@@ -67,8 +67,10 @@ export default function HomeScreen() {
     [isGuest, setGuestShowModal]
   );
 
-  // Generated images
-  const [generatedImages, setGeneratedImages] = useState<SavedTryOnImage[]>([]);
+  // Generisane slike – ista lista kao na Video tabu (iz store, baza)
+  const userGeneratedImages = useVideoStore((s) => s.userGeneratedImages);
+  const setUserGeneratedImages = useVideoStore((s) => s.setUserGeneratedImages);
+  const generatedImages = userGeneratedImages;
 
   // Saved outfits (flat-lay compositions)
   const [savedOutfits, setSavedOutfits] = useState<SavedOutfit[]>([]);
@@ -105,11 +107,11 @@ export default function HomeScreen() {
     if (!currentUserId) return;
     try {
       const images = await getSavedTryOnImages(currentUserId);
-      setGeneratedImages(images);
+      setUserGeneratedImages(images);
     } catch (err) {
       console.error('Error loading generated images:', err);
     }
-  }, [currentUserId]);
+  }, [currentUserId, setUserGeneratedImages]);
 
   const loadOutfits = useCallback(async () => {
     if (!currentUserId) return;
@@ -134,14 +136,17 @@ export default function HomeScreen() {
   const fetchCredits = useAuthStore((s) => s.fetchCredits);
   const allCredits = useAuthStore((s) => s.allCredits);
 
-  // Kad god uđeš na Home, osveži podatke (uključujući kredite za badge)
+  // Kad god uđeš na Home: prvo outfit + krediti (brz prvi prikaz), zatim video/slike u pozadini (lazy)
   useFocusEffect(
     useCallback(() => {
-      loadImages();
       loadOutfits();
-      loadVideos();
       fetchCredits();
-    }, [loadImages, loadOutfits, loadVideos, fetchCredits])
+      const deferred = setTimeout(() => {
+        loadImages();
+        loadVideos();
+      }, 350);
+      return () => clearTimeout(deferred);
+    }, [loadOutfits, loadImages, loadVideos, fetchCredits])
   );
 
   const creditsTotal =
@@ -347,7 +352,11 @@ export default function HomeScreen() {
         </View>
         <View style={styles.heroCenter}>
           <AppLogo height={40} maxWidth={200} style={styles.heroLogoImage} />
-          <Text style={[styles.heroTagline, { color: colors.textSecondary }]}>— {t('home.hero_tagline')} —</Text>
+          <Text style={[styles.heroTagline, { color: colors.textSecondary }]}>
+            — {t('auth.tagline_before_ai')}
+            <Text style={styles.heroTaglineAI}>ai</Text>
+            {t('auth.tagline_after_ai')} —
+          </Text>
         </View>
         <View style={styles.heroIcons}>
           <TouchableOpacity style={styles.heroIconBtn} onPress={() => guestOrNavigate(() => router.push({ pathname: '/profile', params: { scrollToCredits: '1' } }))} activeOpacity={0.7} accessibilityLabel={t('profile.credits')}>
@@ -735,11 +744,16 @@ const styles = StyleSheet.create({
   },
   heroLogoImage: {},
   heroTagline: {
-    fontFamily: FONTS.primary.light,
+    fontFamily: FONTS.primary.medium,
+    fontStyle: 'italic',
     fontSize: FONT_SIZES.xs,
     color: COLORS.gray[500],
     marginTop: SPACING.xs,
     letterSpacing: 1,
+  },
+  heroTaglineAI: {
+    fontFamily: FONTS.primary.medium,
+    fontStyle: 'italic',
   },
   heroIconsLeft: {
     position: 'absolute',

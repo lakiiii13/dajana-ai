@@ -20,8 +20,9 @@ import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { COLORS, FONTS, FONT_SIZES, SPACING } from '@/constants/theme';
-import { t, getLanguage, setLanguage } from '@/lib/i18n';
+import { t } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/stores/authStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SWIPE_TRACK_HEIGHT = 56;
@@ -34,8 +35,9 @@ const WELCOME_VIDEO = require('@/assets/videos/welcome-dajana-wave.mp4');
 export default function WelcomeScreen() {
   const router = useRouter();
   const { isAuthenticated, isGuest, isInitialized } = useAuth();
+  const language = useAuthStore((s) => s.language);
+  const setLanguage = useAuthStore((s) => s.setLanguage);
 
-  // Već ulogovan / gost – ne prikazuj welcome, odmah prebaci na app (uklanja „bljesak” welcome-a pri reloadu)
   useEffect(() => {
     if (!isInitialized) return;
     if (isAuthenticated || isGuest) {
@@ -43,8 +45,6 @@ export default function WelcomeScreen() {
     }
   }, [isInitialized, isAuthenticated, isGuest, router]);
 
-  const [currentLang, setCurrentLang] = useState<'sr' | 'en'>(getLanguage());
-  const [, setRefresh] = useState(0);
   const trackWidth = SCREEN_WIDTH - SPACING.lg * 2;
   const maxThumbX = trackWidth - SWIPE_THUMB_SIZE - SPACING.xs;
   const thumbX = useRef(new Animated.Value(0)).current;
@@ -54,9 +54,7 @@ export default function WelcomeScreen() {
 
   const handleLangSwitch = useCallback((lang: 'sr' | 'en') => {
     setLanguage(lang);
-    setCurrentLang(lang);
-    setRefresh((p) => p + 1);
-  }, []);
+  }, [setLanguage]);
 
   const navigateToIntro = useCallback(() => {
     if (hasCompletedSwipe) return;
@@ -157,11 +155,11 @@ export default function WelcomeScreen() {
         <View style={styles.header}>
           <View style={styles.langSwitcher}>
             <TouchableOpacity onPress={() => handleLangSwitch('sr')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.langText, currentLang === 'sr' && styles.langTextActive]}>SRP</Text>
+              <Text style={[styles.langText, language === 'sr' && styles.langTextActive]}>SRP</Text>
             </TouchableOpacity>
             <Text style={styles.langSlash}>/</Text>
             <TouchableOpacity onPress={() => handleLangSwitch('en')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Text style={[styles.langText, currentLang === 'en' && styles.langTextActive]}>ENG</Text>
+              <Text style={[styles.langText, language === 'en' && styles.langTextActive]}>ENG</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -174,7 +172,11 @@ export default function WelcomeScreen() {
             </Text>
             <Text style={styles.aiText}>AI</Text>
           </View>
-          <Text style={styles.tagline}>{t('auth.your_personal_ai_stylist')}</Text>
+          <Text style={styles.tagline}>
+            {t('auth.tagline_before_ai')}
+            <Text style={styles.taglineAI}>ai</Text>
+            {t('auth.tagline_after_ai')}
+          </Text>
         </View>
 
         {/* Swipe */}
@@ -305,7 +307,8 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontSize: FONT_SIZES.lg,
-    fontFamily: FONTS.heading.italic,
+    fontFamily: FONTS.primary.medium,
+    fontStyle: 'italic',
     color: 'rgba(255,255,255,0.95)',
     marginTop: SPACING.md,
     letterSpacing: 1,
@@ -313,6 +316,10 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  taglineAI: {
+    fontFamily: FONTS.primary.medium,
+    fontStyle: 'italic',
   },
 
   swipeSection: {

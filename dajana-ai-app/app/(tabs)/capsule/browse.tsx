@@ -224,7 +224,7 @@ export default function CapsuleScreen() {
     <View style={[styles.container, { backgroundColor: CAPSULE_CREAM }]}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.xs }]}>
         <Text style={styles.headerTitle}>Kapsula</Text>
-        <Text style={styles.headerTagline}>Tvoja garderoba</Text>
+        <Text style={styles.headerTagline}>{t('capsule.your_wardrobe')}</Text>
         <View style={styles.headerLine} />
       </View>
 
@@ -254,7 +254,7 @@ export default function CapsuleScreen() {
         <>
           <View style={styles.dropdownWrap}>
             <TouchableOpacity style={styles.dropdownButton} onPress={() => setShowCategoryModal(true)} activeOpacity={0.7}>
-              <Text style={styles.dropdownLabel}>Kategorija: {currentCategoryLabel}</Text>
+              <Text style={styles.dropdownLabel}>{t('table_builder.category')}: {currentCategoryLabel}</Text>
               <Ionicons name="chevron-down" size={18} color={CAPSULE_TEXT} />
             </TouchableOpacity>
           </View>
@@ -303,7 +303,7 @@ export default function CapsuleScreen() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowCategoryModal(false)}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Kategorija</Text>
+            <Text style={styles.modalTitle}>{t('table_builder.category')}</Text>
             {CATEGORIES.map((item) => (
               <TouchableOpacity
                 key={item.id}
@@ -378,9 +378,9 @@ export default function CapsuleScreen() {
             <View style={styles.obInfo}>
               <Text style={styles.obTitle}>
                 {outfitItems.length}{' '}
-                {outfitItems.length === 1 ? 'komad' : outfitItems.length < 5 ? 'komada' : 'komada'}
+                {outfitItems.length === 1 ? t('calendar.pieces_one') : t('calendar.pieces_many')}
               </Text>
-              <Text style={styles.obSubtitle}>Izabrano za isprobavanje</Text>
+              <Text style={styles.obSubtitle}>{t('outfit_builder.selected_for_try')}</Text>
             </View>
             <TouchableOpacity style={styles.obClearBtn} onPress={clearOutfitItems}>
               <Ionicons name="close-circle" size={20} color={COLORS.gray[400]} />

@@ -43,9 +43,9 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#483d8d', '#2b4b7d',
     ],
     aiResponses: [
-      { trigger: 'Ne volim boje', response: 'Počnite s toplim neutralima poput camel, čokolade ili maslinaste. To su boje koje se ponašaju kao neutralne, ali Vam stoje bolje od crne.' },
-      { trigger: 'Crna mi je sigurna', response: 'Crna je sigurna boja za odjeću, ali ne i za Vaše lice. Probajte tamnu čokoladu ili petrol – dobit ćete isti efekat, ali svježiji izgled.' },
-      { trigger: 'Plava mi nikako ne stoji', response: 'To je česta situacija kod Prave Jeseni. Umjesto klasične plave, birajte teal ili petrol – to su Vaše "plave".' },
+      { trigger: 'Ne volim boje', response: 'Počnite s toplim neutralima poput camel, čokolade ili maslinaste. To su boje koje se ponašaju kao neutralne, ali ti stoje bolje od crne.' },
+      { trigger: 'Crna mi je sigurna', response: 'Crna je sigurna boja za odeću, ali ne i za Tvoje lice. Probajte tamnu čokoladu ili petrol – dobit ćete isti efekat, ali svježiji izgled.' },
+      { trigger: 'Plava mi nikako ne stoji', response: 'To je česta situacija kod Prave Jeseni. Umjesto klasične plave, birajte teal ili petrol – to su Tvoje "plave".' },
     ],
   },
   soft_autumn: {
@@ -60,7 +60,7 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#752c3b', '#5a3642', '#3f2a48',
     ],
     aiResponses: [
-      { trigger: 'Sve jake boje mi stoje loše', response: 'To je potpuno u skladu s Vašom sezonom. Meka Jesen najbolje izgleda u zagasitim i prašnjavim nijansama koje se prirodno stapaju s tenom.' },
+      { trigger: 'Sve jake boje mi stoje loše', response: 'To je potpuno u skladu s Tvojom sezonom. Meka Jesen najbolje izgleda u zagasitim i prašnjavim nijansama koje se prirodno stapaju s tenom.' },
       { trigger: 'Crna mi je najlakša', response: 'Crna je praktična, ali često previše jaka za Meku Jesen. Probajte taupe, mekanu maslinastu ili prigušenu plavo-zelenu – dobićete isti efekat, ali nježniji izgled.' },
       { trigger: 'Volim roze, ali mi rijetko stoji', response: 'Birajte soft rose i dusty pink nijanse. Čista roze je previše jaka, dok zagasite verzije lijepo prate Vaš ten.' },
     ],
@@ -78,7 +78,7 @@ const PALETTES: Record<Season, SeasonPalette> = {
     aiResponses: [
       { trigger: 'Tamne boje mi stoje, ali crna me guši', response: 'To je tipično za Tamnu Jesen. Probajte tamnu čokoladu, espresso ili petrol – dobićete isti elegantan efekat, ali s više topline.' },
       { trigger: 'Volim jake boje', response: 'Birajte jake boje s dubinom i toplom bazom. Oxblood, tamna maslina ili bogati oker će Vam stajati bolje od čistih, jarkih nijansi.' },
-      { trigger: 'Izgledam strogo u plavoj', response: 'Klasična plava zna biti hladna za Vašu sezonu. Umjesto nje, birajte petrol ili plavo-zelene s toplom bazom.' },
+      { trigger: 'Izgledam strogo u plavoj', response: 'Klasična plava zna biti hladna za Tvoju sezonu. Umjesto nje, birajte petrol ili plavo-zelene s toplom bazom.' },
     ],
   },
   cool_summer: {
@@ -92,9 +92,9 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#beb5a6', '#a1988f', '#adacaa', '#787974', '#99848d', '#644b5e', '#584f50', '#564444',
     ],
     aiResponses: [
-      { trigger: 'Siva mi stoji bolje od bež', response: 'To je tipično za Pravo Ljeto. Hladni neutrali naglašavaju Vašu svježinu, dok Vas topli mogu učiniti umornom.' },
+      { trigger: 'Siva mi stoji bolje od bež', response: 'To je tipično za Pravo Ljeto. Hladni neutrali naglašavaju Vašu svježinu, dok te topli mogu učiniti umornom.' },
       { trigger: 'U crnoj izgledam strogo', response: 'Crna često preuzima pažnju kod Pravog Ljeta. Probajte tamno sivu ili denim plavu za mekši, ali i dalje elegantan efekat.' },
-      { trigger: 'Volim roze, ali ne svaku', response: 'Birajte roze sa hladnim podtonom. Kada je boja čista i svježa, a ne breskvasta, ona Vam najljepše stoji.' },
+      { trigger: 'Volim roze, ali ne svaku', response: 'Birajte roze sa hladnim podtonom. Kada je boja čista i svježa, a ne breskvasta, ona ti najljepše stoji.' },
     ],
   },
   light_summer: {
@@ -106,9 +106,9 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#adcdef', '#89ceeb', '#aedae7', '#659bcd', '#fbf9ec', '#d9dde3', '#dcdcdc', '#bfc3cb', '#027970', '#3162a5', '#646f9e', '#c0b6ad', '#e4dbcb',
     ],
     aiResponses: [
-      { trigger: 'Sve tamne boje mi teško stoje', response: 'To je tipično za Svijetlo Ljeto. Vaša paleta traži svijetle i prozračne nijanse koje ne preuzimaju pažnju s lica.' },
-      { trigger: 'Volim pastelne boje', response: 'Pasteli s hladnom bazom su savršen izbor za Vas. Birajte nježne roze, lavandu i baby plavu za najljepši efekat.' },
-      { trigger: 'U crnoj izgledam preozbiljno', response: 'Crna je često preteška za Vašu sezonu. Probajte svijetlu sivu ili vrlo svijetlu denim plavu za mekši izgled.' },
+      { trigger: 'Sve tamne boje mi teško stoje', response: 'To je tipično za Svijetlo Ljeto. Tvoja paleta traži svijetle i prozračne nijanse koje ne preuzimaju pažnju s lica.' },
+      { trigger: 'Volim pastelne boje', response: 'Pasteli s hladnom bazom su savršen izbor za tebe. Birajte nježne roze, lavandu i baby plavu za najljepši efekat.' },
+      { trigger: 'U crnoj izgledam preozbiljno', response: 'Crna je često preteška za Tvoju sezonu. Probajte svijetlu sivu ili vrlo svijetlu denim plavu za mekši izgled.' },
     ],
   },
   soft_summer: {
@@ -120,7 +120,7 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#d4cac9', '#dfd5c8', '#dcddd1', '#aaafad', '#7b797c', '#ac9a9b', '#696f6f', '#5c565a', '#44464e',
     ],
     aiResponses: [
-      { trigger: 'Sve jarke boje mi stoje loše', response: 'To je tipično za Meku Ljetnu paletu. Vaše boje treba da budu zagasite i nježne, kako bi se skladno stopile s Vašim tenom.' },
+      { trigger: 'Sve jarke boje mi stoje loše', response: 'To je tipično za Meku Ljetnu paletu. Tvoje boje treba da budu zagasite i nježne, kako bi se skladno stopile s Tvojim tenom.' },
       { trigger: 'U crnoj izgledam umorno', response: 'Crna je često previše oštra za Meku Ljetnu sezonu. Probajte srednju sivu ili prigušenu plavo-sivu za mekši izgled.' },
       { trigger: 'Ne znam zašto mi bež ne stoji', response: 'Tople bež nijanse često ne odgovaraju Mekoj Ljetnoj paleti. Birajte sivo-bež i taupe sa hladnom bazom.' },
     ],
@@ -134,7 +134,7 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#f8de7e', '#f6c36d', '#efdb82', '#f4e97b', '#fed777', '#e76677', '#ed888a', '#ff888d', '#ec5478', '#fe5b8e', '#f46fa3', '#ffcba4', '#febaad', '#fea079', '#f6c4c5', '#fea6ca', '#fd8fae',
     ],
     aiResponses: [
-      { trigger: 'Sive boje mi djeluju beživotno', response: 'To je tipično za Svijetlo Proljeće. Vašoj paleti više odgovaraju svijetli, topli neutrali koji vraćaju svježinu licu.' },
+      { trigger: 'Sive boje mi deluju beživotno', response: 'To je tipično za Svijetlo Proljeće. Vašoj paleti više odgovaraju svijetli, topli neutrali koji vraćaju svježinu licu.' },
       { trigger: 'Volim pastelne boje', response: 'Pasteli su odlični izbor ako su čisti i blago topli. Birajte breskvu, mint i svijetlu lavandu za najbolji efekat.' },
       { trigger: 'U crnoj izgledam preozbiljno', response: 'Crna je često preteška za Svijetlo Proljeće. Probajte svijetlu karamela ili topli pijesak za mekši, svježiji izgled.' },
     ],
@@ -149,9 +149,9 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#a4bae5', '#7b9cca', '#5184c3', '#06b6ed',
     ],
     aiResponses: [
-      { trigger: 'U sivom izgledam umorno', response: 'To je tipično za Pravo Proljeće. Vaša paleta traži toplinu i čistoću, pa će Vam topli neutrali dati svježiji izgled.' },
-      { trigger: 'Volim jake boje', response: 'Jake boje Vam mogu stajati odlično ako su tople i čiste. Koral, žuta i svježa zelena su Vaši saveznici.' },
-      { trigger: 'Crna mi djeluje preteško', response: 'Crna je često preoštra za Vašu sezonu. Probajte ivory ili toplu karamelu za mekši, ali i dalje elegantan efekat.' },
+      { trigger: 'U sivom izgledam umorno', response: 'To je tipično za Pravo Proljeće. Tvoja paleta traži toplinu i čistoću, pa će ti topli neutrali dati svježiji izgled.' },
+      { trigger: 'Volim jake boje', response: 'Jake boje Vam mogu stajati odlično ako su tople i čiste. Koral, žuta i svježa zelena su Tvoji saveznici.' },
+      { trigger: 'Crna mi deluje preteško', response: 'Crna je često preoštra za Tvoju sezonu. Probajte ivory ili toplu karamelu za mekši, ali i dalje elegantan efekat.' },
     ],
   },
   clear_spring: {
@@ -164,9 +164,9 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#ff6d6d', '#f94e00', '#e94934', '#fe0902', '#fe4041', '#bc433b', '#f4bbc9', '#f5909d', '#e35b7d', '#e30a5f', '#df2189', '#fe66cb',
     ],
     aiResponses: [
-      { trigger: 'Pastelne boje me čine blijedom', response: 'To je tipično za Jarko Proljeće. Vaša paleta traži čiste i snažne boje koje vraćaju energiju licu.' },
-      { trigger: 'U sivom izgledam umorno', response: 'Sive nijanse često nemaju dovoljno energije za Vašu sezonu. Probajte jarki tirkiz ili sunčanu žutu za svježiji izgled.' },
-      { trigger: 'Volim jake boje, ali ne svaku', response: 'Birajte jake boje koje su čiste i tople. Ako nijansa djeluje mutno ili prigušeno, ona izlazi iz Vaše palete.' },
+      { trigger: 'Pastelne boje me čine blijedom', response: 'To je tipično za Jarko Proljeće. Tvoja paleta traži čiste i snažne boje koje vraćaju energiju licu.' },
+      { trigger: 'U sivom izgledam umorno', response: 'Sive nijanse često nemaju dovoljno energije za Tvoju sezonu. Probajte jarki tirkiz ili sunčanu žutu za svježiji izgled.' },
+      { trigger: 'Volim jake boje, ali ne svaku', response: 'Birajte jake boje koje su čiste i tople. Ako nijansa deluje mutno ili prigušeno, ona izlazi iz Tvoje palete.' },
     ],
   },
   cool_winter: {
@@ -179,8 +179,8 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#e6f0ff', '#dbe7ff', '#cfe0ff', '#f0e6ff', '#f5e9ff',
     ],
     aiResponses: [
-      { trigger: 'U bež izgledam umorno', response: 'To je tipično za Pravu Zimu. Vaša paleta traži hladne i čiste boje, dok Vas tople bež nijanse vizuelno gase.' },
-      { trigger: 'Crna mi stoji bolje od svih boja', response: 'Crna je jedna od Vaših najboljih boja. U kombinaciji s čistom bijelom ili hladnom plavom daje najjači efekat za Vašu sezonu.' },
+      { trigger: 'U bež izgledam umorno', response: 'To je tipično za Pravu Zimu. Tvoja paleta traži hladne i čiste boje, dok Vas tople bež nijanse vizuelno gase.' },
+      { trigger: 'Crna mi stoji bolje od svih boja', response: 'Crna je jedna od Tvojih najboljih boja. U kombinaciji s čistom bijelom ili hladnom plavom daje najjači efekat za Tvoju sezonu.' },
       { trigger: 'Pastelne boje mi ne stoje', response: 'Pasteli često nemaju dovoljno kontrasta za Pravu Zimu. Birajte čiste i hladne boje za svježiji izgled.' },
     ],
   },
@@ -198,7 +198,7 @@ const PALETTES: Record<Season, SeasonPalette> = {
       {
         trigger: 'Ne sviđaju mi se boje iz moje palete',
         response: [
-          'Ne morate odmah nositi cijelu paletu. Dovoljno je krenuti s jednom ili dvije nijanse koje su Vam neutralne, a ostale posmatrati kao mogućnost, ne obavezu.',
+          'Ne morate odmah nositi cijelu paletu. Dovoljno je krenuti s jednom ili dvije nijanse koje su ti neutralne, a ostale posmatrati kao mogućnost, ne obavezu.',
           'Često volimo boje koje smo navikli nositi, a ne nužno one koje nam najbolje stoje. To ne znači da Vaš ukus nije dobar – samo da je navika jača od efekta.',
         ],
       },
@@ -215,8 +215,8 @@ const PALETTES: Record<Season, SeasonPalette> = {
       '#e6f0ff', '#dbe7ff', '#cfe0ff', '#f0e6ff', '#ffe6f2', '#fff200', '#ffeb3b', '#f6e700',
     ],
     aiResponses: [
-      { trigger: 'Volim jarke boje', response: 'To je tipično za Jarku Zimu. Vaša paleta je najjača u hladnim, čistim i kontrastnim nijansama.' },
-      { trigger: 'Pastelne boje me čine blijedom', response: 'Pasteli nemaju dovoljno kontrasta za Vašu sezonu. Birajte čiste i jarke boje za snažniji izgled.' },
+      { trigger: 'Volim jarke boje', response: 'To je tipično za Jarku Zimu. Tvoja paleta je najjača u hladnim, čistim i kontrastnim nijansama.' },
+      { trigger: 'Pastelne boje me čine blijedom', response: 'Pasteli nemaju dovoljno kontrasta za Tvoju sezonu. Birajte čiste i jarke boje za snažniji izgled.' },
       { trigger: 'U bež izgledam umorno', response: 'Bež nijanse često imaju toplu bazu koja ne odgovara Jarkoj Zimi. Probajte crnu, bijelu ili hladnu plavu za bolji balans.' },
     ],
   },

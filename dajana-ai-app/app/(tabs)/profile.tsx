@@ -177,7 +177,7 @@ export default function ProfileScreen() {
             />
 
             <View style={styles.heroTopRow}>
-              <Text style={[styles.pageTitle, { color: text }]}>Profil</Text>
+              <Text style={[styles.pageTitle, { color: text }]}>{t('tabs.profile')}</Text>
               <TouchableOpacity onPress={handleEditProfile} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Text style={[styles.editLink, { color: GOLD }]}>{t('profile.edit_link')}</Text>
               </TouchableOpacity>
@@ -374,13 +374,13 @@ export default function ProfileScreen() {
           <TouchableOpacity style={[styles.modalContent, { backgroundColor: surface, borderColor: borderGold }]} activeOpacity={1} onPress={() => {}}>
             <Text style={[styles.modalTitle, { color: text }]}>{t('profile.help')}</Text>
             <Text style={[styles.helpModalText, { color: textMuted }]}>
-              Za pomoć nam pišite na email:
+              {t('profile.help_email_text')}
             </Text>
             <TouchableOpacity onPress={() => Linking.openURL(`mailto:${HELP_EMAIL}`)} activeOpacity={0.8}>
               <Text style={[styles.helpEmail, { color: GOLD }]}>{HELP_EMAIL}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.modalCloseBtn, { borderColor: borderGold }]} onPress={() => setShowHelpModal(false)} activeOpacity={0.85}>
-              <Text style={[styles.modalCloseBtnText, { color: text }]}>OK</Text>
+              <Text style={[styles.modalCloseBtnText, { color: text }]}>{t('ok')}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -401,21 +401,19 @@ export default function ProfileScreen() {
               scrollEnabled={privacyScrollEnabled}
               showsVerticalScrollIndicator={false}
             >
-              <Text style={[styles.privacyTitle, { color: text }]}>Politika privatnosti</Text>
+              <Text style={[styles.privacyTitle, { color: text }]}>{t('profile.privacy_policy')}</Text>
               <Text style={[styles.privacyBody, { color: textMuted }]}>
-                Aplikacija DAJANA AI poštuje vašu privatnost. Prikupljamo samo podatke neophodne za pružanje usluge: email, ime i mere koje unesete u profil, kao i podatke o korišćenju kredita (slike, videi, analize). Vaši podaci se ne dele sa trećim stranama u marketinške svrhe.{'\n\n'}
-                Slike koje otpremite za virtual try-on i generisanje videa obrađuju se putem pouzdanih servisa u svrhu generisanja sadržaja i ne čuvaju se duže od potrebnog.{'\n\n'}
-                Možete u bilo kom trenutku zatražiti pristup, ispravku ili brisanje svojih podataka. Za sva pitanja u vezi sa privatnošću i za zahteve obavestite nas putem emaila:{'\n\n'}
+                {t('profile.privacy_body')}
               </Text>
               <TouchableOpacity onPress={() => Linking.openURL(`mailto:${HELP_EMAIL}`)} activeOpacity={0.8}>
                 <Text style={[styles.helpEmail, { color: GOLD }]}>{HELP_EMAIL}</Text>
               </TouchableOpacity>
               <Text style={[styles.privacyBody, { color: textMuted }]}>
-                {'\n\n'}Poslednja izmena: 2025.
+                {'\n\n'}{t('profile.privacy_last_updated')}
               </Text>
             </ScrollView>
             <TouchableOpacity style={[styles.modalCloseBtn, { borderColor: borderGold }]} onPress={() => setShowPrivacyModal(false)} activeOpacity={0.85}>
-              <Text style={[styles.modalCloseBtnText, { color: text }]}>Zatvori</Text>
+              <Text style={[styles.modalCloseBtnText, { color: text }]}>{t('profile.close')}</Text>
             </TouchableOpacity>
           </TouchableOpacity>
         </TouchableOpacity>

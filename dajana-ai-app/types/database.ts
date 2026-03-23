@@ -379,6 +379,24 @@ export interface Database {
         };
         Relationships: [];
       };
+      user_outfit_draft: {
+        Row: {
+          user_id: string;
+          items: Json;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          items?: Json;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          items?: Json;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       outfit_compositions: {
         Row: {
           id: string;

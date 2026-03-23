@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Lokalni fontovi – svi fajlovi su u assets/fonts/
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, AppState } from 'react-native';
+import { View, Text, StyleSheet, AppState, InteractionManager, Alert, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { SplashContent } from '@/components/SplashContent';
@@ -84,13 +84,20 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!fontsLoaded || splashHidden.current) return;
-    // Defer hide so native splash is registered (avoids "No native splash screen registered" on iOS)
-    const id = setTimeout(() => {
-      if (splashHidden.current) return;
-      splashHidden.current = true;
-      SplashScreen.hideAsync().catch(() => {});
-    }, 100);
-    return () => clearTimeout(id);
+    let cancelled = false;
+    const task = InteractionManager.runAfterInteractions(() => {
+      setTimeout(() => {
+        if (cancelled || splashHidden.current) return;
+        splashHidden.current = true;
+        SplashScreen.hideAsync()
+          .then(() => {})
+          .catch(() => {});
+      }, 300);
+    });
+    return () => {
+      cancelled = true;
+      task.cancel();
+    };
   }, [fontsLoaded]);
 
   if (!fontsLoaded && !fontError) {
@@ -209,7 +216,6 @@ function RootLayoutNav() {
 
 function NotificationSetup() {
   const router = useRouter();
-  const { completeBackgroundJob } = useVideoStore();
 
   // Registruj push token (sa malim odmakom da session bude spreman) i pri povratku u app
   useEffect(() => {
@@ -235,18 +241,19 @@ function NotificationSetup() {
     const sub = addNotificationResponseListener((response) => {
       const data = response.notification.request.content.data;
       if (data?.type === 'video-ready' && data.videoUri) {
-        completeBackgroundJob(data.videoUri as string);
-        router.push('/video-result' as any);
+        const uri = String(data.videoUri);
+        useVideoStore.getState().completeBackgroundJob(uri);
+        setTimeout(() => router.push('/video-result' as any), 100);
       }
     });
 
-    // Handle cold start from notification
     getLastNotificationResponse().then((response) => {
       if (response) {
         const data = response.notification.request.content.data;
         if (data?.type === 'video-ready' && data.videoUri) {
-          completeBackgroundJob(data.videoUri as string);
-          setTimeout(() => router.push('/video-result' as any), 500);
+          const uri = String(data.videoUri);
+          useVideoStore.getState().completeBackgroundJob(uri);
+          setTimeout(() => router.push('/video-result' as any), 300);
         }
       }
     });
@@ -319,23 +326,61 @@ function VideoBackgroundPoller() {
       const result = await getVideoResult(job.jobId);
 
       if (result.videoUrl) {
+        if (useVideoStore.getState().backgroundJob?.jobId !== job.jobId) {
+          pollingRef.current = false;
+          return;
+        }
         console.log('[Poller] Video ready! Downloading...');
         const currentUserId = useAuthStore.getState().user?.id;
-        const saved = await saveVideo(
-          result.videoUrl,
-          job.publicImageUrl,
-          job.prompt,
-          job.duration,
-          currentUserId
-        );
-        await notifyVideoReady(saved.uri, currentUserId ?? undefined);
+        let videoUriToShow = result.videoUrl;
+        try {
+          const saved = await saveVideo(
+            result.videoUrl,
+            job.publicImageUrl,
+            job.prompt,
+            job.duration,
+            currentUserId
+          );
+          if (useVideoStore.getState().backgroundJob?.jobId !== job.jobId) {
+            pollingRef.current = false;
+            return;
+          }
+          videoUriToShow = saved.uri;
+          await notifyVideoReady(saved.uri, currentUserId ?? undefined);
+        } catch (saveErr: any) {
+          console.warn('[Poller] Save to storage failed, showing video from link:', saveErr?.message);
+          if (currentUserId) {
+            const { insertVideoGenerationOnly } = await import('@/lib/videoService');
+            await insertVideoGenerationOnly(
+              currentUserId,
+              result.videoUrl,
+              job.publicImageUrl,
+              job.prompt,
+              job.duration
+            );
+          }
+        }
         await clearBgJobStorage();
-        completeBackgroundJob(saved.uri);
+        completeBackgroundJob(videoUriToShow);
         router.push('/video-result' as any);
       } else {
         setBgPollAttempt(attempt + 1);
       }
-    } catch (err) {
+    } catch (err: any) {
+      const errMsg = err?.message ?? '';
+      const isOverload = errMsg.includes('preopterećen') || errMsg.includes('prebukirana');
+      if (isOverload) {
+        const { clearBackgroundJob: clearBgJobStorage } = await import('@/lib/backgroundVideoTask');
+        await clearBgJobStorage();
+        clearBackgroundJob();
+        Alert.alert(
+          'Čuvanje videa',
+          'Video je bio spreman, ali privremeno nismo mogli da ga sačuvamo u galeriju. Pokušaj ponovo za minutu.',
+          [{ text: 'U redu' }]
+        );
+        pollingRef.current = false;
+        return;
+      }
       console.error('[Poller] Error:', err);
     }
 
@@ -367,9 +412,34 @@ function VideoBackgroundPoller() {
     return () => sub.remove();
   }, []);
 
+  const handleCancelGeneration = useCallback(() => {
+    Alert.alert(
+      t('video.cancel_generation_title'),
+      t('video.cancel_generation_message'),
+      [
+        { text: t('video.cancel'), style: 'cancel' },
+        {
+          text: t('video.abort'),
+          style: 'destructive',
+          onPress: async () => {
+            const { clearBackgroundJob: clearBgJobStorage } = await import('@/lib/backgroundVideoTask');
+            await clearBgJobStorage();
+            clearBackgroundJob();
+          },
+        },
+      ]
+    );
+  }, [clearBackgroundJob]);
+
   if (!backgroundJob) return null;
 
-  return <FloatingVideoIndicator attempt={bgPollAttempt} duration={backgroundJob.duration} />;
+  return (
+    <FloatingVideoIndicator
+      attempt={bgPollAttempt}
+      duration={backgroundJob.duration}
+      onCancel={handleCancelGeneration}
+    />
+  );
 }
 
 function MissingConfigScreen() {
@@ -391,7 +461,15 @@ function MissingConfigScreen() {
    Floating mini-indicator pill
    ========================================== */
 
-function FloatingVideoIndicator({ attempt, duration }: { attempt: number; duration: '5' | '10' }) {
+function FloatingVideoIndicator({
+  attempt,
+  duration,
+  onCancel,
+}: {
+  attempt: number;
+  duration: '5' | '10';
+  onCancel?: () => void;
+}) {
   const pulse = useSharedValue(0.4);
 
   useEffect(() => {
@@ -410,13 +488,25 @@ function FloatingVideoIndicator({ attempt, duration }: { attempt: number; durati
   const estimatedTotal = duration === '5' ? 18 : 30;
   const minutes = Math.max(1, Math.ceil((estimatedTotal - attempt) * 10 / 60));
 
-  return (
-    <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)} style={indicatorStyles.container}>
+  const content = (
+    <>
       <Animated.View style={[indicatorStyles.dot, dotStyle]} />
       <Ionicons name="videocam" size={14} color={COLORS.primary} />
       <Text style={indicatorStyles.text}>
         {attempt > 0 ? t('video.generating_min', { min: minutes }) : '...'}
       </Text>
+    </>
+  );
+
+  return (
+    <Animated.View entering={FadeIn.duration(400)} exiting={FadeOut.duration(300)} style={indicatorStyles.container}>
+      {onCancel ? (
+        <TouchableOpacity style={indicatorStyles.touchable} onPress={onCancel} activeOpacity={0.85}>
+          {content}
+        </TouchableOpacity>
+      ) : (
+        content
+      )}
     </Animated.View>
   );
 }
@@ -441,6 +531,11 @@ const indicatorStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(207,143,90,0.18)',
     zIndex: 9999,
+  },
+  touchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   dot: {
     width: 8,

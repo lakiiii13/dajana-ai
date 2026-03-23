@@ -24,7 +24,7 @@ import Svg, { Line } from 'react-native-svg';
 import { COLORS, FONTS, SPACING, FONT_SIZES, BORDER_RADIUS } from '@/constants/theme';
 import { useAuth } from '@/hooks/useAuth';
 import { calculateBodyType } from '@/constants/bodyTypes';
-import { t } from '@/lib/i18n';
+import { t, getLanguage } from '@/lib/i18n';
 
 const { width: W, height: H } = Dimensions.get('window');
 
@@ -181,6 +181,7 @@ export default function MeasurementsScreen() {
           waist_cm: waist,
           hips_cm: hips,
           body_type: bodyType,
+          language: getLanguage(),
         });
 
         router.push('/(onboarding)/body-type');

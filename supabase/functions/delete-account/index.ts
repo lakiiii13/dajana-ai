@@ -44,9 +44,14 @@ Deno.serve(async (req) => {
       auth: { persistSession: false },
     });
 
+    // Redosled: prvo tabele koje referenciraju user_id, na kraju profiles (transactions nema CASCADE pa mora eksplicitno)
     const tablesToDelete: { table: string; column: string }[] = [
       { table: "push_tokens", column: "user_id" },
+      { table: "user_notifications", column: "user_id" },
+      { table: "advice_chats", column: "user_id" },
+      { table: "outfit_compositions", column: "user_id" },
       { table: "generations", column: "user_id" },
+      { table: "transactions", column: "user_id" },
       { table: "user_credits", column: "user_id" },
       { table: "subscriptions", column: "user_id" },
       { table: "saved_outfits", column: "user_id" },

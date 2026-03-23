@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   ScrollView,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -47,6 +48,10 @@ function formatTime(createdAt: string): string {
     return `${t('notifications.yesterday')}, ${d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`;
   }
   return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+}
+
+function isI18nKey(s: string): boolean {
+  return typeof s === 'string' && (s.startsWith('notifications.') || s.startsWith('profile.'));
 }
 
 function mapInboxToItem(row: InboxNotificationRow): NotificationItem {
@@ -163,7 +168,13 @@ export default function NotificationsScreen() {
           <Feather name="chevron-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{t('notifications.title')}</Text>
+          <Text
+            style={[styles.headerTitle, { color: colors.text }]}
+            maxFontSizeMultiplier={1.2}
+            {...(Platform.OS === 'android' ? { includeFontPadding: false } : {})}
+          >
+            {t('notifications.title')}
+          </Text>
           {unreadCount > 0 && (
             <Text style={styles.headerBadge}>{unreadCount} {t('notifications.new_count')}</Text>
           )}
@@ -226,10 +237,10 @@ export default function NotificationsScreen() {
               </View>
               <View style={styles.cardBody}>
                 <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>
-                  {item.title}
+                  {isI18nKey(item.title) ? t(item.title) : item.title}
                 </Text>
                 <Text style={[styles.cardText, { color: colors.textSecondary }]} numberOfLines={2}>
-                  {item.body}
+                  {isI18nKey(item.body) ? t(item.body) : item.body}
                 </Text>
                 <Text style={[styles.cardTime, { color: colors.textSecondary }]}>{item.time}</Text>
               </View>
@@ -266,9 +277,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontFamily: FONTS.heading.semibold,
+    // Arquitecta: š/ć/č/đ u istoj visini kao ostala slova (Canela bold često deformiše dijakritike)
+    fontFamily: FONTS.primary.semibold,
     fontSize: FONT_SIZES.lg,
-    letterSpacing: 0.5,
+    letterSpacing: 0.35,
   },
   headerBadge: {
     fontFamily: FONTS.primary.regular,
@@ -359,9 +371,10 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   emptyTitle: {
-    fontFamily: FONTS.heading.semibold,
+    fontFamily: FONTS.primary.semibold,
     fontSize: FONT_SIZES.lg,
     marginBottom: SPACING.xs,
+    letterSpacing: 0.35,
   },
   emptySub: {
     fontFamily: FONTS.primary.regular,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +18,9 @@ import { useVideoStore } from '@/stores/videoStore';
 import { useTryOnStore } from '@/stores/tryOnStore';
 import { getSavedTryOnImages, type SavedTryOnImage } from '@/lib/tryOnService';
 import { useAuthStore } from '@/stores/authStore';
+import { ensureLocalImageUri, isRemoteUri } from '@/lib/imageCache';
 import { VideoWizardShell } from '@/components/video/VideoWizardShell';
+import { t } from '@/lib/i18n';
 
 const DARK_GREEN = '#0D4326';
 const GOLD = '#CF8F5A';
@@ -29,14 +32,19 @@ const CREAM = '#F8F4EF';
 function EmptyState({ onGallery }: { onGallery: () => void }) {
   return (
     <View style={styles.emptyHero}>
-      <Text style={styles.emptyTitle}>Nema try-on slika</Text>
-      <Text style={styles.emptySub}>Napravi try-on ili izaberi iz galerije</Text>
+      <Text style={styles.emptyTitle}>{t('video.no_tryon_images')}</Text>
+      <Text style={styles.emptySub}>{t('video.no_tryon_gallery_hint')}</Text>
       <TouchableOpacity style={styles.galleryButton} onPress={onGallery} activeOpacity={0.88}>
         <Ionicons name="images-outline" size={22} color={COLORS.white} />
-        <Text style={styles.galleryButtonText}>Iz galerije</Text>
+        <Text style={styles.galleryButtonText}>{t('video.from_gallery')}</Text>
       </TouchableOpacity>
     </View>
   );
+}
+
+function getInitialTryOnImages(): SavedTryOnImage[] {
+  const preloaded = useVideoStore.getState().preloadedTryOnImages;
+  return preloaded && preloaded.length > 0 ? preloaded : [];
 }
 
 export default function VideoGenerateSourceScreen() {
@@ -47,11 +55,16 @@ export default function VideoGenerateSourceScreen() {
   const tryOnItems = useTryOnStore((s) => s.outfitItems);
   const generatedImageUri = useTryOnStore((s) => s.generatedImageUri);
 
-  const [tryOnImages, setTryOnImages] = useState<SavedTryOnImage[]>([]);
+  const [tryOnImages, setTryOnImages] = useState<SavedTryOnImage[]>(getInitialTryOnImages);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [navigating, setNavigating] = useState(false);
+  const [localUriByIndex, setLocalUriByIndex] = useState<Record<number, string>>({});
 
+  const downloadStartedRef = useRef<Set<number>>(new Set());
   const didAutoRestore = React.useRef(false);
+  const userClearedSource = React.useRef(false);
   useEffect(() => {
+    if (userClearedSource.current) return;
     if (didAutoRestore.current) return;
     if (!sourceImageUrl && generatedImageUri) {
       didAutoRestore.current = true;
@@ -74,8 +87,57 @@ export default function VideoGenerateSourceScreen() {
   }, []);
 
   useEffect(() => {
-    if (!sourceImageUrl) loadTryOnImages();
+    if (!sourceImageUrl) {
+      loadTryOnImages();
+    }
   }, [sourceImageUrl, loadTryOnImages]);
+
+  useEffect(() => {
+    if (sourceImageUrl && isRemoteUri(sourceImageUrl)) {
+      ensureLocalImageUri(sourceImageUrl).then((localUri) => {
+        if (localUri !== sourceImageUrl) setSource(localUri);
+      }).catch(() => {});
+    }
+  }, [sourceImageUrl, setSource]);
+
+  const preloadedLocalUris = useVideoStore((s) => s.preloadedLocalUris);
+
+  useEffect(() => {
+    const initial: Record<number, string> = {};
+    tryOnImages.forEach((img, i) => {
+      const local = preloadedLocalUris[img.uri];
+      if (local) initial[i] = local;
+    });
+    setLocalUriByIndex(initial);
+    downloadStartedRef.current = new Set();
+  }, [tryOnImages, preloadedLocalUris]);
+
+  // Download images to local cache so "Sledeca" is instant (no 30s network wait)
+  useEffect(() => {
+    if (tryOnImages.length === 0) return;
+    const n = tryOnImages.length;
+    const preloaded = useVideoStore.getState().preloadedLocalUris;
+    const indicesToLoad = new Set<number>([
+      0, 1, 2, 3, 4,
+      currentIndex,
+      (currentIndex + 1) % n,
+      (currentIndex - 1 + n) % n,
+    ]);
+    indicesToLoad.forEach((i) => {
+      if (i >= n) return;
+      if (downloadStartedRef.current.has(i)) return;
+      const uri = tryOnImages[i].uri;
+      if (!isRemoteUri(uri)) return;
+      if (preloaded[uri]) {
+        downloadStartedRef.current.add(i);
+        return;
+      }
+      downloadStartedRef.current.add(i);
+      ensureLocalImageUri(uri).then((local) => {
+        setLocalUriByIndex((prev) => (prev[i] === local ? prev : { ...prev, [i]: local }));
+      }).catch(() => {});
+    });
+  }, [tryOnImages, currentIndex]);
 
   const handleClose = useCallback(() => {
     resetGeneration();
@@ -83,6 +145,7 @@ export default function VideoGenerateSourceScreen() {
   }, [resetGeneration, router]);
 
   const handlePickFromGallery = useCallback(async () => {
+    userClearedSource.current = false;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       quality: 0.9,
@@ -90,32 +153,63 @@ export default function VideoGenerateSourceScreen() {
     if (!result.canceled && result.assets[0]) setSource(result.assets[0].uri);
   }, [setSource]);
 
-  const handleSelectCurrent = useCallback(() => {
-    if (tryOnImages.length > 0 && tryOnImages[currentIndex]) {
-      setSource(tryOnImages[currentIndex].uri);
-      router.replace('/video-generate/prompt');
-    }
-  }, [tryOnImages, currentIndex, setSource, router]);
-
-  const handleContinue = useCallback(() => {
-    if (!sourceImageUrl) {
-      Alert.alert('Slika', 'Prvo izaberi jednu sliku.');
+  const downloadAndNavigate = useCallback(async (uri: string) => {
+    if (!uri) return;
+    const alreadyLocal = !isRemoteUri(uri);
+    if (alreadyLocal) {
+      setNavigating(true);
+      setSource(uri);
+      router.replace('/video-generate/prompt' as any);
+      setNavigating(false);
       return;
     }
-    router.replace('/video-generate/prompt');
-  }, [router, sourceImageUrl]);
+    setNavigating(true);
+    try {
+      const localUri = await ensureLocalImageUri(uri);
+      setSource(localUri);
+      router.replace('/video-generate/prompt' as any);
+    } finally {
+      setNavigating(false);
+    }
+  }, [router, setSource]);
+
+  const handleSelectCurrent = useCallback(async () => {
+    if (tryOnImages.length === 0 || !tryOnImages[currentIndex]) return;
+    userClearedSource.current = false;
+    const img = tryOnImages[currentIndex];
+    const alreadyLocal = localUriByIndex[currentIndex];
+    if (alreadyLocal) {
+      setNavigating(true);
+      setSource(alreadyLocal);
+      router.replace('/video-generate/prompt' as any);
+      setNavigating(false);
+      return;
+    }
+    await downloadAndNavigate(img.uri);
+  }, [tryOnImages, currentIndex, localUriByIndex, downloadAndNavigate, setSource, router]);
+
+  const handleContinue = useCallback(async () => {
+    if (!sourceImageUrl) {
+      Alert.alert(t('video.alert_image'), t('video.select_image_first'));
+      return;
+    }
+    await downloadAndNavigate(sourceImageUrl);
+  }, [sourceImageUrl, downloadAndNavigate]);
 
   const handleChangeImage = useCallback(() => {
+    userClearedSource.current = true;
     useTryOnStore.getState().setGeneratedImage('', undefined);
     setSource(null);
   }, [setSource]);
 
-  const goToNext = useCallback(() => {
-    setCurrentIndex((i) => tryOnImages.length > 0 ? (i + 1) % tryOnImages.length : 0);
-  }, [tryOnImages.length]);
-
   const hasTryOnImages = tryOnImages.length > 0;
   const currentImage = hasTryOnImages ? tryOnImages[currentIndex] : null;
+  const canChangeImage = tryOnImages.length > 1;
+
+  const goToNextIndex = useCallback(() => {
+    if (tryOnImages.length === 0) return;
+    setCurrentIndex((i) => (i + 1) % tryOnImages.length);
+  }, [tryOnImages.length]);
 
   return (
     <VideoWizardShell
@@ -137,13 +231,14 @@ export default function VideoGenerateSourceScreen() {
             </Animated.View>
             <Animated.View style={styles.bottomPanel} entering={FadeInDown.duration(300).delay(100)}>
               <View style={styles.bottomRow}>
-                <TouchableOpacity style={styles.primaryButtonCompact} onPress={handleChangeImage} activeOpacity={0.88}>
-                  <Ionicons name="sync-outline" size={20} color={COLORS.white} />
-                  <Text style={styles.primaryButtonText}>Promeni sliku</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.bottomPillGhost} onPress={handleContinue} activeOpacity={0.88}>
-                  <Text style={styles.bottomPillText}>Dalje</Text>
-                  <Ionicons name="chevron-forward" size={18} color={COLORS.white} />
+                {canChangeImage && (
+                  <TouchableOpacity style={styles.primaryButtonCompact} onPress={handleChangeImage} activeOpacity={0.88}>
+                    <Ionicons name="sync-outline" size={20} color={COLORS.white} />
+                    <Text style={styles.primaryButtonText}>{t('video.change_image')}</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.bottomPillGhost} onPress={handleContinue} activeOpacity={0.88} disabled={navigating}>
+                  {navigating ? <ActivityIndicator size="small" color={COLORS.white} /> : <><Text style={styles.bottomPillText}>{t('video.next')}</Text><Ionicons name="chevron-forward" size={18} color={COLORS.white} /></>}
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -151,9 +246,23 @@ export default function VideoGenerateSourceScreen() {
         ) : hasTryOnImages && currentImage ? (
           <>
             <View style={carouselStyles.slideWrap} key={currentIndex}>
-              <Animated.View style={StyleSheet.absoluteFill} entering={FadeIn.duration(220)}>
-                <Image source={{ uri: currentImage.uri }} style={carouselStyles.slideImage} resizeMode="cover" />
+              <Animated.View style={StyleSheet.absoluteFill} entering={FadeIn.duration(180)}>
+                <Image
+                  source={{ uri: localUriByIndex[currentIndex] ?? currentImage.uri }}
+                  style={carouselStyles.slideImage}
+                  resizeMode="cover"
+                />
               </Animated.View>
+              {/* Hidden: preload next so when local is ready it's already in memory */}
+              {tryOnImages.length > 1 && (
+                <View style={carouselStyles.hiddenPreload} pointerEvents="none">
+                  <Image
+                    source={{ uri: localUriByIndex[(currentIndex + 1) % tryOnImages.length] ?? tryOnImages[(currentIndex + 1) % tryOnImages.length].uri }}
+                    style={carouselStyles.slideImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              )}
             </View>
             {tryOnImages.length > 1 && (
               <View style={carouselStyles.dots}>
@@ -166,14 +275,14 @@ export default function VideoGenerateSourceScreen() {
               <View style={[styles.bottomRow, styles.bottomRowCompact]}>
                 <TouchableOpacity style={[styles.bottomPill, styles.bottomPillCompact]} onPress={handlePickFromGallery} activeOpacity={0.88}>
                   <Ionicons name="images-outline" size={16} color={COLORS.white} />
-                  <Text style={[styles.bottomPillText, styles.bottomPillTextCompact]}>Galerija</Text>
+                  <Text style={[styles.bottomPillText, styles.bottomPillTextCompact]}>{t('video.gallery')}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.bottomPill, styles.bottomPillPrimary, styles.bottomPillCompact, styles.bottomPillPrimaryCompact]} onPress={handleSelectCurrent} activeOpacity={0.88}>
-                  <Text style={[styles.bottomPillTextPrimary, styles.bottomPillTextPrimaryCompact]}>Izaberi</Text>
+                <TouchableOpacity style={[styles.bottomPill, styles.bottomPillPrimary, styles.bottomPillCompact, styles.bottomPillPrimaryCompact]} onPress={handleSelectCurrent} activeOpacity={0.88} disabled={navigating}>
+                  {navigating ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={[styles.bottomPillTextPrimary, styles.bottomPillTextPrimaryCompact]}>{t('video.select')}</Text>}
                 </TouchableOpacity>
                 {tryOnImages.length > 1 && (
-                  <TouchableOpacity style={[styles.bottomPill, styles.bottomPillCompact]} onPress={goToNext} activeOpacity={0.88}>
-                    <Text style={[styles.bottomPillText, styles.bottomPillTextCompact]}>Sledeca</Text>
+                  <TouchableOpacity style={[styles.bottomPill, styles.bottomPillCompact]} onPress={goToNextIndex} activeOpacity={0.88}>
+                    <Text style={[styles.bottomPillText, styles.bottomPillTextCompact]}>{t('video.next')}</Text>
                     <Ionicons name="chevron-forward" size={16} color={COLORS.white} />
                   </TouchableOpacity>
                 )}
@@ -340,6 +449,13 @@ const carouselStyles = StyleSheet.create({
   },
   slideImage: {
     ...StyleSheet.absoluteFillObject,
+  },
+  hiddenPreload: {
+    position: 'absolute',
+    left: -9999,
+    width: 1,
+    height: 1,
+    opacity: 0,
   },
   dots: {
     position: 'absolute',

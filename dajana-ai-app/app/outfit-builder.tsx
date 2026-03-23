@@ -209,7 +209,7 @@ export default function OutfitBuilderScreen() {
         >
           {selectedCount > 0 && (
             <Text style={styles.countText}>
-              {selectedCount} {selectedCount === 1 ? 'komad' : 'komada'} izabrano
+              {selectedCount === 1 ? t('outfit_builder.items_selected_one', { count: selectedCount }) : t('outfit_builder.items_selected', { count: selectedCount })}
             </Text>
           )}
           <TouchableOpacity
@@ -251,7 +251,7 @@ export default function OutfitBuilderScreen() {
             </View>
           ) : pickerItems.length === 0 ? (
             <View style={styles.sheetLoading}>
-              <Text style={styles.sheetEmptyText}>Nema dostupnih komada</Text>
+              <Text style={styles.sheetEmptyText}>{t('outfit_builder.no_items_available')}</Text>
             </View>
           ) : (
             <FlatList

@@ -7,6 +7,7 @@
 import * as FileSystem from './safeFileSystem';
 import { supabase } from './supabase';
 import { decode } from 'base64-arraybuffer';
+import { isR2Configured, uploadToR2, keyFromPublicUrl, deleteFromR2, R2_KEYS } from './r2Storage';
 
 const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL ?? '').trim();
 const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '').trim();
@@ -178,28 +179,15 @@ async function ensureTryOnBucket(): Promise<void> {
 }
 
 export async function saveTryOnImage(base64: string, outfitId: string, userId: string): Promise<string> {
-  await ensureTryOnBucket();
-
   const filename = `${userId}/tryon_${outfitId}_${Date.now()}.png`;
+  const key = `${R2_KEYS.TRYON_PREFIX}${filename}`;
 
-  const { error } = await supabase.storage
-    .from(TRYON_BUCKET)
-    .upload(filename, decode(base64), {
-      contentType: 'image/png',
-      upsert: true,
-    });
-
-  if (error) {
-    console.error('[TryOn] Storage upload error:', error.message);
-    throw new Error('Greška pri čuvanju slike: ' + error.message);
+  if (!isR2Configured()) {
+    throw new Error('Čuvanje try-on slike zahteva Cloudflare R2. Podesite R2 u Supabase Edge Function secrets.');
   }
-
-  const { data: urlData } = supabase.storage
-    .from(TRYON_BUCKET)
-    .getPublicUrl(filename);
-
-  console.log('[TryOn] Saved to Storage:', urlData.publicUrl);
-  return urlData.publicUrl;
+  const url = await uploadToR2(key, base64, 'image/png');
+  console.log('[TryOn] Saved to R2:', url);
+  return url;
 }
 
 export interface SavedTryOnImage {
@@ -220,6 +208,7 @@ export async function getSavedTryOnImages(userId: string): Promise<SavedTryOnIma
       .eq('status', 'completed')
       .not('output_url', 'is', null)
       .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
       .limit(100);
 
     if (error) {
@@ -228,8 +217,19 @@ export async function getSavedTryOnImages(userId: string): Promise<SavedTryOnIma
     }
     if (!data || data.length === 0) return [];
 
+    const seenUrls = new Set<string>();
+    const seenIds = new Set<string>();
     return data
       .filter((row) => row.output_url && row.output_url.startsWith('http'))
+      .filter((row) => {
+        const url = row.output_url!;
+        const normal = url.split('?')[0].trim().toLowerCase().replace(/\/$/, '').replace(/^https?:\/\//, '');
+        const id = row.id;
+        if (seenUrls.has(normal) || seenIds.has(id)) return false;
+        seenUrls.add(normal);
+        seenIds.add(id);
+        return true;
+      })
       .map((row) => ({
         generationId: row.id,
         uri: row.output_url!,
@@ -253,9 +253,14 @@ export async function deleteTryOnImage(generationId: string): Promise<void> {
 
     if (data?.output_url) {
       const url = data.output_url as string;
-      const bucketPath = url.split(`/storage/v1/object/public/${TRYON_BUCKET}/`).pop();
-      if (bucketPath) {
-        await supabase.storage.from(TRYON_BUCKET).remove([bucketPath]).catch(() => {});
+      if (isR2Configured()) {
+        const key = keyFromPublicUrl(url);
+        if (key) await deleteFromR2(key).catch(() => {});
+      } else {
+        const bucketPath = url.split(`/storage/v1/object/public/${TRYON_BUCKET}/`).pop();
+        if (bucketPath) {
+          await supabase.storage.from(TRYON_BUCKET).remove([bucketPath]).catch(() => {});
+        }
       }
     }
 
@@ -267,6 +272,58 @@ export async function deleteTryOnImage(generationId: string): Promise<void> {
 
 /** @deprecated No longer needed - data is in Supabase, RLS protects per user. */
 export async function clearAllLocalTryOnData(): Promise<void> {}
+
+// ===================================================
+// OUTFIT DRAFT (Kapsula builder) – vezan za profil, ništa lokalno
+// ===================================================
+
+export interface OutfitDraftItem {
+  zoneId: string;
+  id: string;
+  image_url: string;
+  title: string | null;
+}
+
+export async function loadOutfitDraft(userId: string): Promise<OutfitDraftItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('user_outfit_draft')
+      .select('items')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[OutfitDraft] Load error:', error.message);
+      return [];
+    }
+    const items = (data?.items as OutfitDraftItem[] | null) ?? [];
+    return Array.isArray(items) ? items : [];
+  } catch (err) {
+    console.warn('[OutfitDraft] Load error:', err);
+    return [];
+  }
+}
+
+export async function saveOutfitDraft(userId: string, items: OutfitDraftItem[]): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('user_outfit_draft')
+      .upsert(
+        {
+          user_id: userId,
+          items: items as unknown as Record<string, unknown>[],
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id' }
+      );
+
+    if (error) {
+      console.warn('[OutfitDraft] Save error:', error.message);
+    }
+  } catch (err) {
+    console.warn('[OutfitDraft] Save error:', err);
+  }
+}
 
 // ===================================================
 // SAVED OUTFITS - Supabase outfit_compositions table
@@ -295,20 +352,28 @@ function makeUUID(): string {
 export async function saveOutfitComposition(
   items: SavedOutfitItem[],
   tryOnImageUri?: string,
-  userId?: string
+  userId?: string,
+  forDate?: string | null
 ): Promise<SavedOutfit> {
   const uid = userId || (await supabase.auth.getSession()).data?.session?.user?.id;
   const id = makeUUID();
 
-  const newOutfit: SavedOutfit = { id, items, timestamp: Date.now(), tryOnImageUri };
+  const timestamp = forDate
+    ? new Date(forDate + 'T12:00:00.000Z').getTime()
+    : Date.now();
+  const newOutfit: SavedOutfit = { id, items, timestamp, tryOnImageUri };
 
   if (uid) {
-    const { error } = await supabase.from('outfit_compositions').insert({
+    const insertPayload: Record<string, unknown> = {
       id,
       user_id: uid,
       items: items as any,
       try_on_image_url: tryOnImageUri || null,
-    });
+    };
+    if (forDate) {
+      insertPayload.created_at = new Date(forDate + 'T12:00:00.000Z').toISOString();
+    }
+    const { error } = await supabase.from('outfit_compositions').insert(insertPayload);
     if (error) {
       console.error('[Outfits] Save error:', error.message, error.code);
     }

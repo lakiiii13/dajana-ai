@@ -306,6 +306,10 @@ CREATE POLICY "Users can view own transactions"
   ON transactions FOR SELECT
   USING (auth.uid() = user_id);
 
+CREATE POLICY "Users can insert own transactions"
+  ON transactions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
 -- PUSH_TOKENS: Korisnik upravlja svojim
 ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
 
@@ -352,6 +356,10 @@ CREATE POLICY "Users can update own notifications"
 CREATE POLICY "Users can insert own notifications"
   ON user_notifications FOR INSERT
   WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own notifications"
+  ON user_notifications FOR DELETE
+  USING (auth.uid() = user_id);
 
 -- =========================================
 -- 6. FUNCTIONS - Credit System with Rollback

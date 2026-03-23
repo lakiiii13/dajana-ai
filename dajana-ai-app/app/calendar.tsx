@@ -21,6 +21,7 @@ import { t } from '@/lib/i18n';
 import { AppLogo } from '@/components/AppLogo';
 import { getSavedOutfits, SavedOutfit } from '@/lib/tryOnService';
 import { useAuthStore } from '@/stores/authStore';
+import { useTryOnStore } from '@/stores/tryOnStore';
 
 const CALENDAR_PALETTE = {
   background: '#FDF8F3',
@@ -145,12 +146,15 @@ export default function CalendarScreen() {
     return rows;
   }, [grid]);
 
+  const setOutfitTargetDate = useTryOnStore((s) => s.setOutfitTargetDate);
+
   const handleCellPress = (cell: { day: number; isCurrentMonth: boolean; date: Date }) => {
     const key = dateKey(cell.date);
     const dayOutfits = outfitsByDate[key];
     if (dayOutfits && dayOutfits.length > 0) {
       router.push({ pathname: '/calendar-day', params: { date: key } } as any);
     } else {
+      setOutfitTargetDate(key);
       router.push('/(tabs)/capsule');
     }
   };
@@ -177,7 +181,7 @@ export default function CalendarScreen() {
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <AppLogo height={32} maxWidth={160} />
-          <Text style={[styles.tagline, { color: CALENDAR_PALETTE.gold }]}>Tvoj lični stilista</Text>
+          <Text style={[styles.tagline, { color: CALENDAR_PALETTE.gold }]}>{t('auth.your_personal_stylist')}</Text>
         </View>
         <View style={styles.headerRight} />
       </View>

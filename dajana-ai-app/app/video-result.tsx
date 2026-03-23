@@ -23,6 +23,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from '@/lib/safeFileSystem';
 import { COLORS, FONTS, SPACING } from '@/constants/theme';
+import { t } from '@/lib/i18n';
 import { AppLogo } from '@/components/AppLogo';
 import { useVideoStore } from '@/stores/videoStore';
 import Animated, {
@@ -89,7 +90,7 @@ export default function VideoResultScreen() {
 
   const handleSave = () => {
     setSaved(true);
-    Alert.alert('Sačuvano', 'Video je sačuvan u tvoju kolekciju');
+    Alert.alert(t('profile.saved_screen_title'), t('profile.video_saved_message'));
   };
 
   const downloadToLocal = async (): Promise<string | null> => {
@@ -118,11 +119,11 @@ export default function VideoResultScreen() {
         if (canShare) {
           await Sharing.shareAsync(localPath, {
             mimeType: 'video/mp4',
-            dialogTitle: 'Podeli video',
+            dialogTitle: t('video.share_dialog_title'),
           });
         }
       } else {
-        await Share.share({ url: resultVideoUrl, message: 'Pogledaj moj AI fashion video! - Dajana AI' });
+        await Share.share({ url: resultVideoUrl, message: t('video.share_message') });
       }
     } catch (e) {
       console.error('[Video] Share error', e);
@@ -138,12 +139,12 @@ export default function VideoResultScreen() {
         if (canShare) {
           await Sharing.shareAsync(localPath, {
             mimeType: 'video/mp4',
-            dialogTitle: 'Sačuvaj video',
+            dialogTitle: t('video.save_dialog_title'),
             UTI: 'public.movie',
           });
         }
       } else {
-        Alert.alert('Greška', 'Video nije mogao biti preuzet.');
+        Alert.alert(t('video.download_error_title'), t('video.download_error_message'));
       }
     } catch (e) {
       console.error('[Video] Download error', e);
@@ -158,15 +159,15 @@ export default function VideoResultScreen() {
   const handleGoHome = () => {
     resetGeneration();
     router.dismissAll();
-    setTimeout(() => router.replace('/(tabs)/index' as any), 200);
+    setTimeout(() => router.replace('/(tabs)' as any), 200);
   };
 
   if (!resultVideoUrl) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={styles.errorText}>Video nije dostupan</Text>
+        <Text style={styles.errorText}>{t('video.video_unavailable')}</Text>
         <TouchableOpacity style={styles.errorBtn} onPress={handleClose}>
-          <Text style={styles.errorBtnText}>Nazad</Text>
+          <Text style={styles.errorBtnText}>{t('back')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -230,28 +231,28 @@ export default function VideoResultScreen() {
               color={saved ? GOLD : COLORS.white}
             />
           </View>
-          <Text style={styles.sideBtnLabel}>Sačuvaj</Text>
+          <Text style={styles.sideBtnLabel}>{t('video.save')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.sideBtn} onPress={handleShare} activeOpacity={0.7}>
           <View style={styles.sideCircle}>
             <Ionicons name="share-social-outline" size={22} color={COLORS.white} />
           </View>
-          <Text style={styles.sideBtnLabel}>Podeli</Text>
+          <Text style={styles.sideBtnLabel}>{t('video.share')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.sideBtn} onPress={handleDownload} activeOpacity={0.7}>
           <View style={styles.sideCircle}>
             <Ionicons name="download-outline" size={22} color={COLORS.white} />
           </View>
-          <Text style={styles.sideBtnLabel}>Preuzmi</Text>
+          <Text style={styles.sideBtnLabel}>{t('video.download')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.sideBtn} onPress={handleNewVideo} activeOpacity={0.7}>
           <View style={styles.sideCircle}>
             <Ionicons name="refresh-outline" size={22} color={COLORS.white} />
           </View>
-          <Text style={styles.sideBtnLabel}>Novi</Text>
+          <Text style={styles.sideBtnLabel}>{t('video.new_video')}</Text>
         </TouchableOpacity>
       </Animated.View>
 
@@ -262,11 +263,11 @@ export default function VideoResultScreen() {
         <View style={styles.bottomRowInner}>
           <TouchableOpacity style={styles.bottomChip} onPress={handleNewVideo} activeOpacity={0.85}>
             <Ionicons name="videocam-outline" size={18} color={COLORS.white} />
-            <Text style={styles.bottomChipText}>Ponovo</Text>
+            <Text style={styles.bottomChipText}>{t('video.again')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.bottomChip} onPress={handleGoHome} activeOpacity={0.85}>
             <Ionicons name="home-outline" size={18} color={COLORS.white} />
-            <Text style={styles.bottomChipText}>Početna</Text>
+            <Text style={styles.bottomChipText}>{t('video.home')}</Text>
           </TouchableOpacity>
         </View>
       </Animated.View>

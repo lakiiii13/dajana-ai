@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { COLORS, FONTS } from '@/constants/theme';
 import { useVideoStore } from '@/stores/videoStore';
 import { VideoWizardShell } from '@/components/video/VideoWizardShell';
+import { t } from '@/lib/i18n';
 
 const DARK = '#2C2A28';
 const DARK_GREEN = '#0D4326';
@@ -93,17 +94,17 @@ export default function VideoGenerateDurationScreen() {
         <View style={styles.overlay} />
 
         <View style={styles.content}>
-          <Text style={styles.title}>Trajanje</Text>
-          <Text style={styles.description}>Izaberi trajanje videa</Text>
+          <Text style={styles.title}>{t('video.duration')}</Text>
+          <Text style={styles.description}>{t('video.select_duration')}</Text>
 
           <View style={styles.cardsWrap}>
             <DurationCard
-              text="5s · 10 kredita"
+              text={t('video.credits_5')}
               isActive={duration === '5'}
               onPress={() => setDuration('5')}
             />
             <DurationCard
-              text="10s · 20 kredita"
+              text={t('video.credits_10')}
               isActive={duration === '10'}
               onPress={() => setDuration('10')}
             />
@@ -112,7 +113,7 @@ export default function VideoGenerateDurationScreen() {
 
         <View style={styles.nextBtnWrap} pointerEvents="box-none">
           <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.88}>
-            <Text style={styles.nextBtnText}>Dalje</Text>
+            <Text style={styles.nextBtnText}>{t('video.next')}</Text>
             <Animated.View>
               <Text style={styles.nextArrow}>{'>'}</Text>
             </Animated.View>

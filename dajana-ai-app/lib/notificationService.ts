@@ -8,7 +8,20 @@ import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { hasSupabaseConfig, supabase } from './supabase';
-import { useAuthStore } from '@/stores/authStore';
+import { getLanguage } from './i18n';
+
+const NOTIFICATION_TEXTS: Record<'sr' | 'en', { videoReady: { title: string; body: string }; videoFailed: { title: string; body: string }; channelVideoReady: string }> = {
+  sr: {
+    videoReady: { title: 'DAJANA AI', body: 'Tvoj video je spreman! Pogledaj sada. ✨' },
+    videoFailed: { title: 'DAJANA AI', body: 'Video generisanje nije uspelo. Pokušaj ponovo.' },
+    channelVideoReady: 'Video spreman',
+  },
+  en: {
+    videoReady: { title: 'DAJANA AI', body: 'Your video is ready! Watch it now. ✨' },
+    videoFailed: { title: 'DAJANA AI', body: 'Video generation failed. Please try again.' },
+    channelVideoReady: 'Video ready',
+  },
+};
 
 // Configure how notifications appear when the app is in the foreground
 Notifications.setNotificationHandler({
@@ -46,9 +59,11 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     // Set notification channels for Android (DAJANA AI style – zlatna #CF8F5A)
+    // Channel name uses device locale – we use Serbian as default; user can change app language
     if (Platform.OS === 'android') {
+      const lang = getLanguage();
       await Notifications.setNotificationChannelAsync('video-ready', {
-        name: 'Video spreman',
+        name: NOTIFICATION_TEXTS[lang].channelVideoReady,
         importance: Notifications.AndroidImportance.HIGH,
         vibrationPattern: [0, 250, 250, 250],
         lightColor: '#CF8F5A',
@@ -103,13 +118,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
 async function savePushToken(token: string): Promise<void> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      const isGuest = useAuthStore.getState().isGuest;
-      if (!isGuest) {
-        console.log('[Notifications] Obavestenja će biti dostupna nakon prijave.');
-      }
-      return;
-    }
+    if (!user) return;
 
     const { error } = await supabase
       .from('push_tokens')
@@ -129,11 +138,14 @@ async function savePushToken(token: string): Promise<void> {
   }
 }
 
-const VIDEO_READY_TITLE = 'DAJANA AI';
-const VIDEO_READY_BODY = 'Tvoj video je spreman! Pogledaj sada. ✨';
+const I18N_VIDEO_READY_TITLE = 'notifications.video_ready_title';
+const I18N_VIDEO_READY_BODY = 'notifications.video_ready_body';
+const I18N_VIDEO_FAILED_TITLE = 'notifications.video_failed_title';
+const I18N_VIDEO_FAILED_BODY = 'notifications.video_failed_body';
 
 /**
  * Save a notification to the in-app inbox (user_notifications) so it appears in Notifikacije.
+ * Use i18n keys (e.g. notifications.video_ready_title) for system notifications – they will be translated at display time.
  */
 export async function saveNotificationInbox(
   userId: string,
@@ -154,31 +166,35 @@ export async function saveNotificationInbox(
 
 /**
  * Schedule an immediate local notification when a video is ready.
- * If userId is provided, also saves to in-app Notifikacije inbox.
+ * Uses language for push text; saves i18n keys to inbox for display-time translation.
  */
-export async function notifyVideoReady(videoUri: string, userId?: string): Promise<void> {
+export async function notifyVideoReady(videoUri: string, userId?: string, language?: 'sr' | 'en'): Promise<void> {
+  const lang = language ?? getLanguage();
+  const texts = NOTIFICATION_TEXTS[lang].videoReady;
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: VIDEO_READY_TITLE,
-      body: VIDEO_READY_BODY,
+      title: texts.title,
+      body: texts.body,
       sound: 'default',
       data: { type: 'video-ready', videoUri },
       ...(Platform.OS === 'android' && { channelId: 'video-ready' }),
     },
     trigger: null, // immediate
   });
-  if (userId) await saveNotificationInbox(userId, { type: 'video', title: VIDEO_READY_TITLE, body: VIDEO_READY_BODY });
+  if (userId) await saveNotificationInbox(userId, { type: 'video', title: I18N_VIDEO_READY_TITLE, body: I18N_VIDEO_READY_BODY });
   console.log('[Notifications] Video ready notification sent');
 }
 
 /**
  * Schedule an immediate local notification when video generation fails.
  */
-export async function notifyVideoFailed(): Promise<void> {
+export async function notifyVideoFailed(language?: 'sr' | 'en'): Promise<void> {
+  const lang = language ?? getLanguage();
+  const texts = NOTIFICATION_TEXTS[lang].videoFailed;
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: 'DAJANA AI',
-      body: 'Video generisanje nije uspelo. Pokušaj ponovo.',
+      title: texts.title,
+      body: texts.body,
       sound: 'default',
       data: { type: 'video-failed' },
       ...(Platform.OS === 'android' && { channelId: 'video-ready' }),

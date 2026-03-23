@@ -12,27 +12,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS } from '@/constants/theme';
 import { useVideoStore } from '@/stores/videoStore';
 import { VideoWizardShell } from '@/components/video/VideoWizardShell';
+import { t } from '@/lib/i18n';
 
 const GOLD = '#CF8F5A';
 const PROMPT_OPTIONS = [
   {
     id: 'walk-forward',
-    title: 'Hod napred + zoom out',
+    labelKey: 'video.motion_walk' as const,
     prompt: 'The model walks very slowly forward in a controlled way while staying fully centered in frame. The camera gently zooms out only a little, keeping the full body and face clearly visible at all times. Do not let the model leave the frame. Do not widen beyond the original background.',
   },
   {
     id: 'left-side',
-    title: 'Levi bok',
+    labelKey: 'video.motion_left' as const,
     prompt: 'The model stands in place, slowly turns to the left side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.',
   },
   {
     id: 'right-side',
-    title: 'Desni bok',
+    labelKey: 'video.motion_right' as const,
     prompt: 'The model stands in place, slowly turns to the right side profile, and then stops and holds the pose. Keep the movement minimal, elegant, and centered. Keep the full body visible and do not change the background framing.',
   },
   {
     id: 'front-pose',
-    title: 'Front poza',
+    labelKey: 'video.motion_front' as const,
     prompt: 'The model remains facing front and makes only a subtle elegant movement while keeping the full front side clearly visible. The pose should stay centered, stable, and fully in frame, with no major camera movement or background expansion.',
   },
 ] as const;
@@ -70,7 +71,7 @@ export default function VideoGeneratePromptScreen() {
       prevRoute="/video-generate/source"
       nextRoute="/video-generate/duration"
       canGoNext={Boolean(prompt.trim())}
-      onInvalidNext={() => Alert.alert('Pokret', 'Izaberi pokret pre sledeceg koraka.')}
+      onInvalidNext={() => Alert.alert(t('video.motion'), t('video.select_motion_first'))}
       onClose={handleClose}
       backgroundColor="#111"
     >
@@ -82,7 +83,7 @@ export default function VideoGeneratePromptScreen() {
         <View style={styles.overlay} />
 
         <View style={styles.content}>
-          <Text style={styles.title}>Pokret</Text>
+          <Text style={styles.title}>{t('video.motion')}</Text>
 
           <View style={styles.optionsWrap}>
             {PROMPT_OPTIONS.map((option) => {
@@ -95,7 +96,7 @@ export default function VideoGeneratePromptScreen() {
                   activeOpacity={0.8}
                 >
                   <Text style={[styles.optionTitle, active && styles.optionTitleActive]}>
-                    {option.title}
+                    {t(option.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -105,7 +106,7 @@ export default function VideoGeneratePromptScreen() {
 
         <View style={styles.nextBtnWrap} pointerEvents="box-none">
           <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.88}>
-            <Text style={styles.nextBtnText}>Dalje</Text>
+            <Text style={styles.nextBtnText}>{t('video.next')}</Text>
             <Ionicons name="chevron-forward" size={18} color={COLORS.white} />
           </TouchableOpacity>
         </View>
