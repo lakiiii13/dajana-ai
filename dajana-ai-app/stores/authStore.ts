@@ -13,6 +13,7 @@ const LANGUAGE_PREF_KEY = '@dajana_language_preference';
 import { getAllCredits, type AllCredits } from '@/lib/creditService';
 import { getSubscription, type SubscriptionInfo } from '@/lib/subscriptionService';
 import { clearBackgroundJob } from '@/lib/backgroundVideoTask';
+import { logOutPurchases } from '@/lib/purchaseService';
 import { useTryOnStore } from '@/stores/tryOnStore';
 
 type Profile = Database['public']['Tables']['profiles']['Row'];
@@ -247,6 +248,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.warn('Clear background job on signOut:', e)
       );
       useTryOnStore.getState().reset();
+      await logOutPurchases().catch((e) => console.warn('[Auth] logOutPurchases:', e));
       await supabase.auth.signOut();
       get().reset();
     } catch (error) {

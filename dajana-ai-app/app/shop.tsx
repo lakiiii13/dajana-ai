@@ -1,10 +1,19 @@
 // ===========================================
 // DAJANA AI - Shop (Pretplata i plaćanje)
 // Mesečna/godišnja pretplata + doplata 5€
-// Plaćanje: Stripe (kartice, Apple Pay, Google Pay)
+// Plaćanje: Google Play / App Store (RevenueCat)
 // ===========================================
 
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
@@ -16,8 +25,17 @@ import {
   SUBSCRIPTION_MONTHLY_EUR,
   SUBSCRIPTION_YEARLY_EUR,
   TOPUP_PACK,
+  type ShopProductId,
 } from '@/constants/subscription';
 import { CREDIT_LIMITS } from '@/constants/credits';
+import {
+  getOfferings,
+  getPriceForProduct,
+  isPurchasesConfigured,
+  purchaseProduct,
+  restorePurchases,
+} from '@/lib/purchaseService';
+import { useAuthStore } from '@/stores/authStore';
 
 const CREAM = '#F8F4EF';
 const GOLD = '#CF8F5A';
@@ -27,16 +45,16 @@ const HAIRLINE_GOLD = 'rgba(207,143,90,0.30)';
 const RADIUS = 22;
 
 type ShopItem = {
-  id: string;
+  id: ShopProductId;
   type: 'subscription' | 'topup';
   nameKey: string;
   descKey: string;
-  priceDisplay: string;
+  fallbackPrice: string;
   images: number;
   videos: number;
   analyses: number;
   popular?: boolean;
-  ctaKey: string; // 'shop.subscribe' | 'shop.buy'
+  ctaKey: string;
 };
 
 const SUBSCRIPTION_PLANS: ShopItem[] = [
@@ -45,7 +63,7 @@ const SUBSCRIPTION_PLANS: ShopItem[] = [
     type: 'subscription',
     nameKey: 'shop.plan_monthly',
     descKey: 'shop.plan_monthly_desc',
-    priceDisplay: `${SUBSCRIPTION_MONTHLY_EUR}€`,
+    fallbackPrice: `${SUBSCRIPTION_MONTHLY_EUR}€`,
     images: CREDIT_LIMITS.monthly.images,
     videos: CREDIT_LIMITS.monthly.videos,
     analyses: CREDIT_LIMITS.monthly.analyses,
@@ -57,7 +75,7 @@ const SUBSCRIPTION_PLANS: ShopItem[] = [
     type: 'subscription',
     nameKey: 'shop.plan_yearly',
     descKey: 'shop.plan_yearly_desc',
-    priceDisplay: `${SUBSCRIPTION_YEARLY_EUR}€`,
+    fallbackPrice: `${SUBSCRIPTION_YEARLY_EUR}€`,
     images: CREDIT_LIMITS.monthly.images,
     videos: CREDIT_LIMITS.monthly.videos,
     analyses: CREDIT_LIMITS.monthly.analyses,
@@ -70,7 +88,7 @@ const TOPUP_ITEM: ShopItem = {
   type: 'topup',
   nameKey: 'shop.topup_name',
   descKey: 'shop.topup_desc',
-  priceDisplay: TOPUP_PACK.price_display,
+  fallbackPrice: TOPUP_PACK.price_display,
   images: TOPUP_PACK.images,
   videos: TOPUP_PACK.videos,
   analyses: TOPUP_PACK.analyses,
@@ -80,6 +98,14 @@ const TOPUP_ITEM: ShopItem = {
 export default function ShopScreen() {
   const router = useRouter();
   const { colors, mode } = useTheme();
+  const fetchCredits = useAuthStore((s) => s.fetchCredits);
+  const fetchSubscription = useAuthStore((s) => s.fetchSubscription);
+
+  const [storePrices, setStorePrices] = useState<Partial<Record<ShopProductId, string>>>({});
+  const [loadingPrices, setLoadingPrices] = useState(true);
+  const [purchasingId, setPurchasingId] = useState<ShopProductId | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
   const bg = mode === 'dark' ? colors.background : CREAM;
   const surface = mode === 'dark' ? colors.surface : CARD_BG;
   const text = mode === 'dark' ? colors.text : DARK;
@@ -87,17 +113,72 @@ export default function ShopScreen() {
   const border = mode === 'dark' ? 'rgba(232,226,218,0.16)' : 'rgba(13,67,38,0.12)';
   const borderGold = mode === 'dark' ? 'rgba(207,143,90,0.22)' : HAIRLINE_GOLD;
 
-  const handlePurchase = (item: ShopItem) => {
-    const amountParam = item.priceDisplay.replace('€', '').trim();
-    router.push({
-      pathname: '/payment',
-      params: {
-        amount: amountParam,
-        itemId: item.id,
-        itemName: t(item.nameKey),
-      },
-    });
+  const loadPrices = useCallback(async () => {
+    setLoadingPrices(true);
+    try {
+      const offerings = await getOfferings();
+      if (offerings) {
+        setStorePrices({
+          monthly: getPriceForProduct(offerings, 'monthly') ?? undefined,
+          yearly: getPriceForProduct(offerings, 'yearly') ?? undefined,
+          topup: getPriceForProduct(offerings, 'topup') ?? undefined,
+        });
+      }
+    } finally {
+      setLoadingPrices(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPrices();
+  }, [loadPrices]);
+
+  const refreshAccount = async () => {
+    await fetchCredits();
+    await fetchSubscription();
   };
+
+  const handlePurchase = async (item: ShopItem) => {
+    if (purchasingId) return;
+
+    if (!isPurchasesConfigured()) {
+      Alert.alert(t('shop.iap_not_ready_title'), t('shop.iap_not_ready_message'));
+      return;
+    }
+
+    setPurchasingId(item.id);
+    try {
+      const result = await purchaseProduct(item.id);
+      if (result.ok) {
+        await new Promise((r) => setTimeout(r, 1500));
+        await refreshAccount();
+        Alert.alert(t('payment.success_title'), t('payment.success_message'));
+      } else if (!result.cancelled && result.message) {
+        Alert.alert(t('shop.purchase_error_title'), result.message);
+      }
+    } finally {
+      setPurchasingId(null);
+    }
+  };
+
+  const handleRestore = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const result = await restorePurchases();
+      if (result.ok) {
+        await new Promise((r) => setTimeout(r, 1500));
+        await refreshAccount();
+        Alert.alert(t('shop.restore_success_title'), t('shop.restore_success_message'));
+      } else if (result.message) {
+        Alert.alert(t('shop.purchase_error_title'), result.message);
+      }
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const priceFor = (item: ShopItem) => storePrices[item.id] ?? item.fallbackPrice;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
@@ -120,12 +201,14 @@ export default function ShopScreen() {
       >
         <Text style={[styles.subtitle, { color: textMuted }]}>{t('shop.subtitle')}</Text>
 
-        {/* Pretplata */}
         <Text style={[styles.sectionTitle, { color: text }]}>{t('shop.section_subscription')}</Text>
         {SUBSCRIPTION_PLANS.map((item) => (
           <PlanCard
             key={item.id}
             item={item}
+            priceDisplay={priceFor(item)}
+            loadingPrice={loadingPrices && isPurchasesConfigured()}
+            purchasing={purchasingId === item.id}
             surface={surface}
             border={border}
             borderGold={borderGold}
@@ -136,10 +219,12 @@ export default function ShopScreen() {
           />
         ))}
 
-        {/* Doplata */}
         <Text style={[styles.sectionTitle, { color: text }]}>{t('shop.section_topup')}</Text>
         <PlanCard
           item={TOPUP_ITEM}
+          priceDisplay={priceFor(TOPUP_ITEM)}
+          loadingPrice={loadingPrices && isPurchasesConfigured()}
+          purchasing={purchasingId === TOPUP_ITEM.id}
           surface={surface}
           border={border}
           borderGold={borderGold}
@@ -151,6 +236,19 @@ export default function ShopScreen() {
 
         <Text style={[styles.paymentMethod, { color: textMuted }]}>{t('shop.payment_method')}</Text>
         <Text style={[styles.footerNote, { color: textMuted }]}>{t('shop.footer_note')}</Text>
+
+        <TouchableOpacity
+          style={[styles.restoreBtn, { borderColor: borderGold }]}
+          onPress={handleRestore}
+          disabled={restoring || !!purchasingId}
+          activeOpacity={0.85}
+        >
+          {restoring ? (
+            <ActivityIndicator size="small" color={GOLD} />
+          ) : (
+            <Text style={[styles.restoreBtnText, { color: textMuted }]}>{t('shop.restore_purchases')}</Text>
+          )}
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -158,6 +256,9 @@ export default function ShopScreen() {
 
 function PlanCard({
   item,
+  priceDisplay,
+  loadingPrice,
+  purchasing,
   surface,
   border,
   borderGold,
@@ -167,6 +268,9 @@ function PlanCard({
   onPress,
 }: {
   item: ShopItem;
+  priceDisplay: string;
+  loadingPrice: boolean;
+  purchasing: boolean;
   surface: string;
   border: string;
   borderGold: string;
@@ -198,14 +302,25 @@ function PlanCard({
         </View>
 
         <View style={styles.packFooter}>
-          <Text style={[styles.price, { color: text }]}>{item.priceDisplay}</Text>
+          {loadingPrice ? (
+            <ActivityIndicator size="small" color={GOLD} />
+          ) : (
+            <Text style={[styles.price, { color: text }]}>{priceDisplay}</Text>
+          )}
           <TouchableOpacity
             style={[styles.buyBtn, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.04)' : CREAM, borderColor: borderGold }]}
             onPress={onPress}
+            disabled={purchasing}
             activeOpacity={0.9}
           >
-            <Text style={[styles.buyBtnText, { color: text }]}>{t(item.ctaKey)}</Text>
-            <Feather name="arrow-right" size={16} color={GOLD} />
+            {purchasing ? (
+              <ActivityIndicator size="small" color={GOLD} />
+            ) : (
+              <>
+                <Text style={[styles.buyBtnText, { color: text }]}>{t(item.ctaKey)}</Text>
+                <Feather name="arrow-right" size={16} color={GOLD} />
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -387,5 +502,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.sm,
     lineHeight: 18,
+  },
+  restoreBtn: {
+    alignSelf: 'center',
+    marginTop: SPACING.lg,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.lg,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  restoreBtnText: {
+    fontFamily: FONTS.primary.medium,
+    fontSize: FONT_SIZES.xs,
+    letterSpacing: 0.3,
   },
 });

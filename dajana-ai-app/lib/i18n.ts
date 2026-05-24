@@ -228,9 +228,15 @@ const translations = {
       subscribe: 'Pretplati se',
       buy_confirm_title: 'Kupovina',
       coming_soon_message: 'Plaćanje za %{price} će uskoro biti dostupno. Hvala na interesovanju!',
-      payment_method: 'Plaćanje: Stripe (kartice, Apple Pay, Google Pay).',
+      payment_method: 'Plaćanje: Google Play / App Store (In-App Purchase).',
       footer_note: 'Kad istekne pretplata, i dalje možete pregledati sačuvane slike, videe i savete; novo generisanje zahteva obnovu ili dopunu.',
       no_subscription_no_credits: 'Nemate aktivnu pretplatu niti kredite za generisanje. Obnovite pretplatu ili kupite dopunu u Shopu.',
+      restore_purchases: 'Obnovi kupovine',
+      restore_success_title: 'Kupovine obnovljene',
+      restore_success_message: 'Ako imate aktivnu pretplatu, krediti će uskoro biti ažurirani.',
+      purchase_error_title: 'Kupovina nije uspela',
+      iap_not_ready_title: 'Plaćanje nije spremno',
+      iap_not_ready_message: 'In-App Purchase zahteva production build sa RevenueCat ključem i proizvodima u Google Play / App Store.',
     },
 
     no_credits_modal: {
@@ -254,9 +260,9 @@ const translations = {
       pay_btn: 'Plaćaj %{amount}',
       processing: 'Obrada...',
       success_title: 'Plaćanje uspešno',
-      success_message: 'Hvala! Tvoja kupovina je zabeležena.',
+      success_message: 'Hvala! Tvoja kupovina je zabeležena. Krediti se ažuriraju za nekoliko sekundi.',
       back_to_shop: 'Nazad u Shop',
-      secure_note: 'Sigurno plaćanje putem Stripe. Ovo je simulacija – nema stvarne naplate.',
+      secure_note: 'Sigurno plaćanje putem Google Play / App Store.',
     },
 
     // Edit Profile
@@ -963,9 +969,15 @@ const translations = {
       subscribe: 'Subscribe',
       buy_confirm_title: 'Purchase',
       coming_soon_message: 'Payment for %{price} will be available soon. Thank you for your interest!',
-      payment_method: 'Payment: Stripe (cards, Apple Pay, Google Pay).',
+      payment_method: 'Payment: Google Play / App Store (In-App Purchase).',
       footer_note: 'When your subscription expires, you can still view saved images, videos and advice; new generation requires renewal or top-up.',
       no_subscription_no_credits: 'You have no active subscription or credits for generation. Renew your subscription or buy a top-up in Shop.',
+      restore_purchases: 'Restore purchases',
+      restore_success_title: 'Purchases restored',
+      restore_success_message: 'If you have an active subscription, credits will update shortly.',
+      purchase_error_title: 'Purchase failed',
+      iap_not_ready_title: 'Payment not ready',
+      iap_not_ready_message: 'In-App Purchase requires a production build with RevenueCat keys and products in Google Play / App Store.',
     },
 
     no_credits_modal: {
@@ -989,9 +1001,9 @@ const translations = {
       pay_btn: 'Pay %{amount}',
       processing: 'Processing...',
       success_title: 'Payment successful',
-      success_message: 'Thank you. Your purchase has been recorded.',
+      success_message: 'Thank you. Your purchase has been recorded. Credits will update in a few seconds.',
       back_to_shop: 'Back to Shop',
-      secure_note: 'Secure payment via Stripe. This is a simulation – no real charge.',
+      secure_note: 'Secure payment via Google Play / App Store.',
     },
 
     // Edit Profile

@@ -23,5 +23,17 @@ export const TOPUP_PACK = {
   analyses: 2,
 } as const;
 
-/** Način plaćanja: Stripe (kartice, Apple Pay, Google Pay). PayPal nije uključen. */
-export const PAYMENT_METHOD = 'stripe' as const;
+/** Product ID-jevi u Google Play / App Store – moraju se poklapati sa RevenueCat i store-om. */
+export const REVENUECAT_PRODUCT_IDS = {
+  monthly: 'dajana_monthly',
+  yearly: 'dajana_yearly',
+  topup: 'dajana_topup_5',
+} as const;
+
+export type ShopProductId = keyof typeof REVENUECAT_PRODUCT_IDS;
+
+/** Entitlement u RevenueCat dashboardu (aktivna pretplata). */
+export const REVENUECAT_ENTITLEMENT_ID = 'premium';
+
+/** Način plaćanja: In-App Purchase (Google Play / App Store) preko RevenueCat. */
+export const PAYMENT_METHOD = 'iap' as const;

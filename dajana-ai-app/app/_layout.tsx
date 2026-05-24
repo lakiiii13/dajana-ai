@@ -17,6 +17,7 @@ import { useVideoStore } from '@/stores/videoStore';
 import { useAuthStore } from '@/stores/authStore';
 import { hasSupabaseConfig } from '@/lib/supabase';
 import { registerForPushNotifications, notifyVideoReady, notifyVideoFailed, addNotificationResponseListener, getLastNotificationResponse } from '@/lib/notificationService';
+import { initPurchases } from '@/lib/purchaseService';
 import { FONTS, COLORS } from '@/constants/theme';
 import { t } from '@/lib/i18n';
 import Animated, {
@@ -206,6 +207,7 @@ function RootLayoutNav() {
       </NavThemeProvider>
       {isAuthenticated && <VideoBackgroundPoller />}
       {isAuthenticated && <NotificationSetup />}
+      {isAuthenticated && <PurchasesSetup />}
     </View>
   );
 }
@@ -260,6 +262,17 @@ function NotificationSetup() {
 
     return () => sub.remove();
   }, []);
+
+  return null;
+}
+
+function PurchasesSetup() {
+  const userId = useAuthStore((s) => s.user?.id);
+
+  useEffect(() => {
+    if (!userId) return;
+    initPurchases(userId).catch((e) => console.warn('[Purchases] init failed:', e));
+  }, [userId]);
 
   return null;
 }
