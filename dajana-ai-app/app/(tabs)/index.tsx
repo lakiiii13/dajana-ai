@@ -23,6 +23,7 @@ import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withRep
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTabBarReservedHeight } from '@/lib/layoutInsets';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
@@ -402,7 +403,7 @@ export default function HomeScreen() {
       {/* Ispod tabova: jedan dugačak scroll za outfite / video / slike */}
       <ScrollView
         style={styles.contentScrollWrap}
-        contentContainerStyle={styles.contentScrollInner}
+        contentContainerStyle={[styles.contentScrollInner, { paddingBottom: getTabBarReservedHeight(insets) }]}
         showsVerticalScrollIndicator={true}
         {...(isEmpty ? panResponder.panHandlers : {})}
       >
@@ -682,7 +683,6 @@ const styles = StyleSheet.create({
   },
   contentScrollInner: {
     paddingHorizontal: SPACING.lg,
-    paddingBottom: 120,
     flexGrow: 1,
   },
   collectionLabelRow: {

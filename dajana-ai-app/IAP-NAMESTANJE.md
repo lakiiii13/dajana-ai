@@ -2,7 +2,7 @@
 
 App je **besplatna** za preuzimanje. Naplata ide samo preko **3 In-App Purchase** proizvoda.
 
-**Package / Bundle ID (mora biti isti svuda):** `com.zerocodeapps.dajana`
+**Android package:** `com.zerocodeapps.dajana` · **iOS bundle (ASC):** `com.osbcompany.dajanaai`
 
 ---
 
@@ -84,7 +84,7 @@ Isti Supabase URL/anon key kao u `.env`.
 
 ## Korak 2 – App Store Connect (iOS)
 
-1. App → Bundle ID `com.zerocodeapps.dajana`
+1. App → Bundle ID `com.osbcompany.dajanaai`
 2. **Agreements** – Paid Applications + banka.
 3. **Subscriptions** – grupa (npr. `dajana_premium`):
    - `dajana_monthly` – npr. tier **17,99 EUR** (ili najbliži 17 €)
@@ -100,7 +100,7 @@ Isti Supabase URL/anon key kao u `.env`.
 
 2. **Apps:**
    - Android: package `com.zerocodeapps.dajana` + upload Play service account JSON
-   - iOS: bundle `com.zerocodeapps.dajana` + App Store Connect API key
+   - iOS: bundle `com.osbcompany.dajanaai` + In-App Purchase + App Store Connect API key
 
 3. **Product catalog → Products** – dodaj 3 proizvoda sa **istim ID-jevima** kao u Play/Apple.
 

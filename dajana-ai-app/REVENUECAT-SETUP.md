@@ -17,7 +17,7 @@ Klijent već ima RevenueCat nalog. Ovaj vodič objašnjava šta da podesiš u **
   - `dajana_topup_5` – doplata kredita (consumable)
 
 **Package name (Android):** `com.zerocodeapps.dajana`  
-**Bundle ID (iOS):** `com.zerocodeapps.dajana`
+**Bundle ID (iOS):** `com.osbcompany.dajanaai` (App Store Connect app; Android ostaje `com.zerocodeapps.dajana`)
 
 ---
 
@@ -31,7 +31,7 @@ Klijent već ima RevenueCat nalog. Ovaj vodič objašnjava šta da podesiš u **
    - Package name: `com.zerocodeapps.dajana`
    - Poveži **Google Play** (service account JSON – vidi korak 2)
 4. **iOS app** (kad bude App Store)
-   - Bundle ID: `com.zerocodeapps.dajana`
+   - Bundle ID: `com.osbcompany.dajanaai`
    - Poveži App Store Connect
 
 ### 1.2 API ključevi (za app)

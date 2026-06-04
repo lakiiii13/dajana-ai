@@ -222,7 +222,22 @@ Deno.serve(async (req) => {
         await handlePurchaseEvent(supabaseAdmin, event);
         break;
       case "CANCELLATION":
-        console.log("[revenuecat-webhook] Cancellation noted for", userId);
+        if (userId) {
+          const { data: sub } = await supabaseAdmin
+            .from("subscriptions")
+            .select("id")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (sub?.id) {
+            await supabaseAdmin
+              .from("subscriptions")
+              .update({ canceled_at: new Date().toISOString() })
+              .eq("id", sub.id);
+          }
+          console.log("[revenuecat-webhook] Cancellation recorded for", userId);
+        }
         break;
       case "EXPIRATION":
         if (userId) await expireSubscription(supabaseAdmin, userId);

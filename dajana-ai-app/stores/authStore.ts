@@ -32,6 +32,8 @@ interface AuthState {
   subscription: SubscriptionInfo | null;
   isLoading: boolean;
   isInitialized: boolean;
+  /** False until fetchProfile finishes for the current session (avoids onboarding flash after login). */
+  profileReady: boolean;
   language: Language;
   /** Gost je ušao bez prijave – vidi samo Početnu, ostalo blokirano modalom. */
   isGuest: boolean;
@@ -61,6 +63,7 @@ const initialState = {
   subscription: null as SubscriptionInfo | null,
   isLoading: true,
   isInitialized: false,
+  profileReady: false,
   language: 'sr' as Language,
   isGuest: false,
   guestShowModal: false,
@@ -82,8 +85,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session) {
-        set({ session, user: session.user });
+        set({ session, user: session.user, profileReady: false });
         await get().fetchProfile();
+        set({ profileReady: true });
         await get().fetchCredits();
         await get().fetchSubscription();
       } else {
@@ -101,17 +105,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  setSession: (session) => {
+  setSession: async (session) => {
     if (session) {
       const prevUserId = get().user?.id;
       const newUserId = session.user.id;
       if (prevUserId && prevUserId !== newUserId) {
         useTryOnStore.getState().reset();
       }
-      set({ session, user: session.user, isGuest: false });
-      get().fetchProfile();
-      get().fetchCredits();
-      get().fetchSubscription();
+      set({ session, user: session.user, isGuest: false, profileReady: false });
+      await get().fetchProfile();
+      set({ profileReady: true });
+      void get().fetchCredits();
+      void get().fetchSubscription();
     } else {
       useTryOnStore.getState().reset();
       // Ako je korisnik izabrao "Nastavi kao gost", ne briši isGuest – inače ga auth listener vrati na login
@@ -266,6 +271,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       allCredits: null,
       subscription: null,
       isLoading: false,
+      profileReady: false,
       isGuest: false,
       guestShowModal: false,
     });

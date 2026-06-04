@@ -9,10 +9,11 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   ScrollView,
   Image,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getBottomInset } from '@/lib/layoutInsets';
 import { Link, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { signInWithEmail } from '@/hooks/useAuth';
@@ -24,6 +25,7 @@ const AUTH_LOGO = require('@/assets/images/login-signup.png');
 import { useTheme } from '@/contexts/ThemeContext';
 
 export default function LoginScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
   const [email, setEmail] = useState('');
@@ -57,7 +59,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: AUTH_CREAM }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: AUTH_CREAM }]} edges={['top']}>
       {/* Header with Back Button */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -73,7 +75,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: getBottomInset(insets) + SPACING.xl }]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           bounces={false}
@@ -208,7 +210,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: SPACING.xl,
     paddingTop: SPACING.md,
-    paddingBottom: Platform.OS === 'ios' ? 40 : SPACING.lg,
+    paddingBottom: 0,
   },
   logoContainer: {
     alignItems: 'center',

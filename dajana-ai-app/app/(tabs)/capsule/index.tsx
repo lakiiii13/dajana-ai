@@ -23,6 +23,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTabBarReservedHeight } from '@/lib/layoutInsets';
 import { Feather } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
@@ -65,9 +66,11 @@ export default function CapsuleChoiceScreen() {
     opacity: titleShine.value,
   }));
 
+  const tabReserve = getTabBarReservedHeight(insets);
+  const layoutH = H - tabReserve;
   const cardCenterX = W - CARD_RIGHT - CARD_WIDTH / 2;
-  const cardTopY = insets.top + H * 0.10;
-  const cardBottomY = insets.top + H * 0.52;
+  const cardTopY = insets.top + layoutH * 0.12;
+  const cardBottomY = insets.top + layoutH * 0.5;
   const midY = (cardTopY + CARD_HEIGHT_APPROX / 2 + cardBottomY + CARD_HEIGHT_APPROX / 2) / 2;
   const boxTop = midY - BOX_HEIGHT_APPROX / 2;
   const boxCenterY = boxTop + BOX_HEIGHT_APPROX / 2;

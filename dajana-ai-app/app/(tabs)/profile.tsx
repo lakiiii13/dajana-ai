@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Linking, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTabBarReservedHeight } from '@/lib/layoutInsets';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -24,6 +25,7 @@ const HAIRLINE_GREEN = 'rgba(13,67,38,0.12)';
 const RADIUS = 22;
 
 export default function ProfileScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ scrollToCredits?: string }>();
   const { colors, mode } = useTheme();
@@ -166,7 +168,12 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
-      <ScrollView ref={scrollRef} style={styles.scrollWrap} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.scrollWrap}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: getTabBarReservedHeight(insets) }]}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Profile Hero */}
         <View style={[styles.heroWrap, { backgroundColor: bg }]}>
           <View style={[styles.heroCard, { backgroundColor: surface, borderColor: borderGold }]}>
@@ -457,9 +464,7 @@ const styles = StyleSheet.create({
   scrollWrap: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 120,
-  },
+  scrollContent: {},
   heroWrap: {
     paddingHorizontal: SPACING.lg,
     paddingTop: SPACING.lg,

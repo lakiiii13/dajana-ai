@@ -118,7 +118,7 @@ const SPLASH_DURATION_MS = 3500;
 let splashEverCompleted = false;
 
 function RootLayoutNav() {
-  const { isAuthenticated, isGuest, isLoading, isInitialized, profile } = useAuth();
+  const { isAuthenticated, isGuest, isLoading, isInitialized, profileReady, profile } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const [splashDone, setSplashDone] = useState(splashEverCompleted);
@@ -141,6 +141,7 @@ function RootLayoutNav() {
 
   useEffect(() => {
     if (!splashDone || !isInitialized || isLoading) return;
+    if (isAuthenticated && !profileReady) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const inOnboardingGroup = segments[0] === '(onboarding)';
@@ -162,15 +163,12 @@ function RootLayoutNav() {
       }
       // If already in onboarding, let them continue naturally (don't redirect)
     } else {
-      // User logged in and has body_type set
-      // Only redirect to tabs if coming from auth screens
-      // DON'T redirect if already in onboarding - let them complete it naturally
-      if (inAuthGroup) {
+      // Logged in with profile complete — home, not onboarding (fixes App Review login → onboarding bug)
+      if (inAuthGroup || inOnboardingGroup) {
         router.replace('/(tabs)');
       }
-      // If in onboarding with body_type set, user is completing the flow - don't interrupt
     }
-  }, [splashDone, isAuthenticated, isGuest, isInitialized, isLoading, segments, needsOnboarding]);
+  }, [splashDone, isAuthenticated, isGuest, isInitialized, isLoading, profileReady, segments, needsOnboarding]);
 
   if (!splashDone) {
     return (

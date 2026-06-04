@@ -13,6 +13,7 @@ import {
   Dimensions,
   Image,
 } from 'react-native';
+import { getTabBarBottomOffset } from '@/lib/layoutInsets';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -27,7 +28,6 @@ import { FONTS, COLORS } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const NAV_WIDTH = SCREEN_WIDTH * 0.88;
-const NAV_BOTTOM_OFFSET = 38;
 
 const CREAM = '#F8F4EF';
 const GOLD = '#CF8F5A';
@@ -35,7 +35,7 @@ const MUTED = '#9B9590';
 const DARK = '#2C2A28';
 const STROKE_COLOR = '#E8E2DA';
 
-export const HANGER_NAV_HEIGHT = 110;
+export { HANGER_NAV_HEIGHT } from '@/lib/layoutInsets';
 
 const HANGER_HOOK_IMAGE = require('@/assets/images/hanger-hook.png');
 
@@ -190,7 +190,7 @@ export function WardrobeRailTabBar({
     (r) => TAB_NAMES.includes(r.name as TabName)
   );
 
-  const bottomOffset = NAV_BOTTOM_OFFSET + Math.max(insets.bottom - 10, 0);
+  const bottomOffset = getTabBarBottomOffset(insets);
 
   return (
     <View style={[styles.floatingContainer, { bottom: bottomOffset }]} pointerEvents="box-none">

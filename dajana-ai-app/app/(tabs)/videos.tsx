@@ -18,6 +18,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getTabBarReservedHeight } from '@/lib/layoutInsets';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import Svg, { Path } from 'react-native-svg';
@@ -433,7 +434,11 @@ export default function VideosScreen() {
         renderItem={renderGalleryItem}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={listEmpty}
-        contentContainerStyle={[styles.listContent, savedVideos.length === 0 && styles.listEmpty]}
+        contentContainerStyle={[
+          styles.listContent,
+          savedVideos.length === 0 && styles.listEmpty,
+          { paddingBottom: getTabBarReservedHeight(insets) },
+        ]}
         showsVerticalScrollIndicator={false}
         initialNumToRender={8}
         maxToRenderPerBatch={6}
@@ -463,7 +468,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  listContent: { paddingBottom: 120 },
+  listContent: {},
   listEmpty: { flexGrow: 1 },
 
   headerTopWrapper: { position: 'relative' },
