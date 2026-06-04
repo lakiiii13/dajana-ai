@@ -15,7 +15,7 @@ if (isEasBuild) {
   warnIfMissing('EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID');
 }
 
-const EAS_PROJECT_ID = '3632c1d7-3fab-4aa9-85a4-f776e77b6fb4';
+const EAS_PROJECT_ID = 'b543a0ae-9ea4-4456-906c-d81cb7690610';
 
 // Plugin expo-notifications sa tvojim logom (assets) i zlatnom bojom
 let plugins = (appJson.expo?.plugins || []).map((p) => {
@@ -40,6 +40,7 @@ if (!plugins.some((p) => Array.isArray(p) && p[0] === 'expo-image-picker')) {
 
 module.exports = {
   ...appJson.expo,
+  owner: 'dajana-ai',
   plugins,
   extra: {
     ...(appJson.expo?.extra || {}),
