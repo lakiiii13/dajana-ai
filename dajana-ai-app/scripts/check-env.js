@@ -23,6 +23,8 @@ for (const line of lines) {
   }
 }
 
+const checkIap = process.argv.includes('--iap');
+
 const required = ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_ANON_KEY'];
 const missing = required.filter((k) => !vars[k] || vars[k].length === 0 || vars[k].includes('YOUR_') || vars[k].includes('your_'));
 
@@ -33,4 +35,22 @@ if (missing.length > 0) {
 }
 
 console.log('ENV OK – EXPO_PUBLIC_SUPABASE_URL i EXPO_PUBLIC_SUPABASE_ANON_KEY su postavljeni.');
+
+const iapKeys = ['EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID', 'EXPO_PUBLIC_REVENUECAT_API_KEY_IOS'];
+const iapMissing = iapKeys.filter(
+  (k) => !vars[k] || vars[k].length === 0 || vars[k].includes('XXXXX') || vars[k].includes('goog_XXXXX')
+);
+
+if (checkIap) {
+  if (iapMissing.length > 0) {
+    console.log('IAP: Nedostaju RevenueCat ključevi:', iapMissing.join(', '));
+    console.log('RevenueCat → Project → API keys. Vodič: IAP-NAMESTANJE.md');
+    process.exit(1);
+  }
+  console.log('IAP OK – RevenueCat API ključevi su u .env.');
+  console.log('Sledeće: Play + Apple proizvodi + RevenueCat Offering (vidi IAP-NAMESTANJE.md).');
+} else if (iapMissing.length > 0) {
+  console.log('Napomena: za Shop/IAP dodaj RevenueCat ključeve u .env (ili pokreni: node scripts/check-env.js --iap)');
+}
+
 process.exit(0);

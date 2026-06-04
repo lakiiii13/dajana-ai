@@ -17,6 +17,21 @@ const API_KEY_ANDROID = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID ?? ''
 
 let configured = false;
 
+/** Ponovno učitavanje naloga iz Supabase dok webhook ne upiše kredite (max ~12s). */
+export async function refreshAccountAfterPurchase(
+  refresh: () => Promise<void>,
+  options?: { attempts?: number; delayMs?: number }
+): Promise<void> {
+  const attempts = options?.attempts ?? 6;
+  const delayMs = options?.delayMs ?? 2000;
+  for (let i = 0; i < attempts; i++) {
+    await refresh();
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
 export function isPurchasesConfigured(): boolean {
   const key = Platform.OS === 'ios' ? API_KEY_IOS : API_KEY_ANDROID;
   return !!key.trim();
@@ -48,6 +63,8 @@ export async function logOutPurchases(): Promise<void> {
     await Purchases.logOut();
   } catch (e) {
     console.warn('[Purchases] logOut:', e);
+  } finally {
+    configured = false;
   }
 }
 

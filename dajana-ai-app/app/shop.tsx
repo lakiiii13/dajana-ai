@@ -33,8 +33,10 @@ import {
   getPriceForProduct,
   isPurchasesConfigured,
   purchaseProduct,
+  refreshAccountAfterPurchase,
   restorePurchases,
 } from '@/lib/purchaseService';
+import { GuestBlockModal } from '@/components/GuestBlockModal';
 import { useAuthStore } from '@/stores/authStore';
 
 const CREAM = '#F8F4EF';
@@ -98,6 +100,7 @@ const TOPUP_ITEM: ShopItem = {
 export default function ShopScreen() {
   const router = useRouter();
   const { colors, mode } = useTheme();
+  const isGuest = useAuthStore((s) => s.isGuest);
   const fetchCredits = useAuthStore((s) => s.fetchCredits);
   const fetchSubscription = useAuthStore((s) => s.fetchSubscription);
 
@@ -105,6 +108,7 @@ export default function ShopScreen() {
   const [loadingPrices, setLoadingPrices] = useState(true);
   const [purchasingId, setPurchasingId] = useState<ShopProductId | null>(null);
   const [restoring, setRestoring] = useState(false);
+  const [guestModalVisible, setGuestModalVisible] = useState(false);
 
   const bg = mode === 'dark' ? colors.background : CREAM;
   const surface = mode === 'dark' ? colors.surface : CARD_BG;
@@ -138,8 +142,15 @@ export default function ShopScreen() {
     await fetchSubscription();
   };
 
+  const requireRegisteredUser = (): boolean => {
+    if (!isGuest) return true;
+    setGuestModalVisible(true);
+    return false;
+  };
+
   const handlePurchase = async (item: ShopItem) => {
     if (purchasingId) return;
+    if (!requireRegisteredUser()) return;
 
     if (!isPurchasesConfigured()) {
       Alert.alert(t('shop.iap_not_ready_title'), t('shop.iap_not_ready_message'));
@@ -150,8 +161,7 @@ export default function ShopScreen() {
     try {
       const result = await purchaseProduct(item.id);
       if (result.ok) {
-        await new Promise((r) => setTimeout(r, 1500));
-        await refreshAccount();
+        await refreshAccountAfterPurchase(refreshAccount);
         Alert.alert(t('payment.success_title'), t('payment.success_message'));
       } else if (!result.cancelled && result.message) {
         Alert.alert(t('shop.purchase_error_title'), result.message);
@@ -163,12 +173,12 @@ export default function ShopScreen() {
 
   const handleRestore = async () => {
     if (restoring) return;
+    if (!requireRegisteredUser()) return;
     setRestoring(true);
     try {
       const result = await restorePurchases();
       if (result.ok) {
-        await new Promise((r) => setTimeout(r, 1500));
-        await refreshAccount();
+        await refreshAccountAfterPurchase(refreshAccount);
         Alert.alert(t('shop.restore_success_title'), t('shop.restore_success_message'));
       } else if (result.message) {
         Alert.alert(t('shop.purchase_error_title'), result.message);
@@ -250,6 +260,7 @@ export default function ShopScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+      <GuestBlockModal visible={guestModalVisible} onClose={() => setGuestModalVisible(false)} />
     </SafeAreaView>
   );
 }

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "dajana-ai-app",
+    "name": "Dajana AI",
     "slug": "dajana-ai-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -16,14 +16,14 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zerocodeapps.dajana",
-      "buildNumber": "7",
+      "buildNumber": "8",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.zerocodeapps.dajana",
-      "versionCode": 8,
+      "versionCode": 10,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

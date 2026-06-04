@@ -143,11 +143,11 @@ Edge Function `video-start` poziva spoljni Video API. 502 znači da je taj poziv
 - **Godišnja pretplata:** sa popustom (npr. 20% → ~163€/godišnje). Isti paket kredita.
 - **Doplata za prekoračenje:** 5€ = +10 slika (kapsula), +1 video, +2 AI analize.
 
-**Plaćanje:** Stripe (kartice, Apple Pay, Google Pay). PayPal nije uključen.
+**Plaćanje:** In-App Purchase preko **RevenueCat** (Google Play / App Store). Shop: `app/shop.tsx`, servis: `lib/purchaseService.ts`. Krediti se upisuju u Supabase preko Edge funkcije `revenuecat-webhook`.
 
-**Kad istekne pretplata:** Korisnica **vidi** sačuvane slike, videe i savete, ali **ne može** generisati novo (try-on, video, AI analizu) dok ne obnovi pretplatu ili kupi dopunu. Poruka u aplikaciji vodi u Shop (Profil → Krediti → Kupi dodatne kredite).
+**Kad istekne pretplata:** Korisnica **vidi** sačuvane slike, videe i savete, ali **ne može** generisati novo dok ne obnovi pretplatu ili kupi dopunu. Poruka vodi u Shop.
 
-Integracija Stripe-a (Checkout / Payment Sheet) za sada nije uključena – u Shopu se prikazuje „uskoro dostupno”. Za produkciju treba dodati backend (Stripe webhook, kreiranje pretplate/kupovine) i u app-u poziv ka Stripe SDK ili Checkout URL.
+**IAP setup:** `IAP-NAMESTANJE.md`, `REVENUECAT-SETUP.md`. Provera env: `npm run check:iap`. IAP ne radi u Expo Go – potreban EAS production build.
 
 ---
 

@@ -2,6 +2,8 @@
 
 Klijent već ima RevenueCat nalog. Ovaj vodič objašnjava šta da podesiš u **RevenueCat**, **Google Play** i **Supabase** da Shop u aplikaciji stvarno naplaćuje.
 
+**Brzi checklist (Play + Apple + cene):** vidi **`IAP-NAMESTANJE.md`** u istom folderu.
+
 ---
 
 ## Šta je već urađeno u kodu
