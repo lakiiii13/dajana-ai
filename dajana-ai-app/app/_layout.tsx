@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Lokalni fontovi – svi fajlovi su u assets/fonts/
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, AppState, InteractionManager, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, AppState, InteractionManager, Alert, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { SplashContent } from '@/components/SplashContent';
@@ -215,6 +215,8 @@ function RootLayoutNav() {
    ========================================== */
 
 function NotificationSetup() {
+  if (Platform.OS === 'web') return null;
+
   const router = useRouter();
 
   // Registruj push token (sa malim odmakom da session bude spreman) i pri povratku u app

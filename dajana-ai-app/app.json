@@ -23,7 +23,7 @@
     },
     "android": {
       "package": "com.zerocodeapps.dajana",
-      "versionCode": 10,
+      "versionCode": 12,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"

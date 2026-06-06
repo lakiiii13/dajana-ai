@@ -10,6 +10,8 @@ import { Platform } from 'react-native';
 import { hasSupabaseConfig, supabase } from './supabase';
 import { getLanguage } from './i18n';
 
+const isWeb = Platform.OS === 'web';
+
 const NOTIFICATION_TEXTS: Record<'sr' | 'en', { videoReady: { title: string; body: string }; videoFailed: { title: string; body: string }; channelVideoReady: string }> = {
   sr: {
     videoReady: { title: 'DAJANA AI', body: 'Tvoj video je spreman! Pogledaj sada. ✨' },
@@ -23,22 +25,24 @@ const NOTIFICATION_TEXTS: Record<'sr' | 'en', { videoReady: { title: string; bod
   },
 };
 
-// Configure how notifications appear when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+if (!isWeb) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 /**
  * Request notification permissions and return the Expo push token.
  * Saves the token to Supabase `push_tokens` table for the current user.
  */
 export async function registerForPushNotifications(): Promise<string | null> {
+  if (isWeb) return null;
   try {
     if (!hasSupabaseConfig) {
       console.warn('[Notifications] Preskacem registraciju: Supabase nije podešen.');
@@ -169,6 +173,7 @@ export async function saveNotificationInbox(
  * Uses language for push text; saves i18n keys to inbox for display-time translation.
  */
 export async function notifyVideoReady(videoUri: string, userId?: string, language?: 'sr' | 'en'): Promise<void> {
+  if (isWeb) return;
   const lang = language ?? getLanguage();
   const texts = NOTIFICATION_TEXTS[lang].videoReady;
   await Notifications.scheduleNotificationAsync({
@@ -189,6 +194,7 @@ export async function notifyVideoReady(videoUri: string, userId?: string, langua
  * Schedule an immediate local notification when video generation fails.
  */
 export async function notifyVideoFailed(language?: 'sr' | 'en'): Promise<void> {
+  if (isWeb) return;
   const lang = language ?? getLanguage();
   const texts = NOTIFICATION_TEXTS[lang].videoFailed;
   await Notifications.scheduleNotificationAsync({
@@ -211,6 +217,9 @@ export async function notifyVideoFailed(language?: 'sr' | 'en'): Promise<void> {
 export function addNotificationResponseListener(
   handler: (response: Notifications.NotificationResponse) => void
 ): Notifications.EventSubscription {
+  if (isWeb) {
+    return { remove: () => {} } as Notifications.EventSubscription;
+  }
   return Notifications.addNotificationResponseReceivedListener(handler);
 }
 
@@ -218,6 +227,7 @@ export function addNotificationResponseListener(
  * Check if app was opened from a notification (cold start).
  */
 export async function getLastNotificationResponse(): Promise<Notifications.NotificationResponse | null> {
+  if (isWeb) return null;
   return Notifications.getLastNotificationResponseAsync();
 }
 
